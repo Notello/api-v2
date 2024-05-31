@@ -1,6 +1,6 @@
 from flask import Flask
 
-from .extensions import api, cors, db
+from .extensions import api, cors, supabase
 from .routes import init_api
 
 def create_app():
@@ -8,8 +8,9 @@ def create_app():
 
     api.init_app(app)
     cors.init_app(app)
-    # db.init_app(app)
 
+    app.config['SUPABASE_CLIENT'] = supabase
+    
     with app.app_context():
         init_api(api)
         return app

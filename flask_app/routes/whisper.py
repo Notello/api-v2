@@ -1,5 +1,9 @@
-from flask_restx import Resource, Namespace, fields
+from flask_restx import Resource, Namespace
 from werkzeug.datastructures import FileStorage
+
+from flask import current_app
+
+from ..services.NoteService import NoteService
 
 api = Namespace('')
 
@@ -10,18 +14,32 @@ file_upload.add_argument('file', location='files',
 file_upload.add_argument('keywords', location='form', 
                         type=str, required=False,
                         help='Space-separated keywords to enhance transcription accuracy')
-
-transcription_input = api.model('TranscriptionInput', {
-    'text': fields.String()
-})
+file_upload.add_argument('userId', location='form', 
+                        type=str, required=True,
+                        help='Supabase ID of the user')
+file_upload.add_argument('courseId', location='form', 
+                        type=str, required=True,
+                        help='Course ID associated with the note')
 
 @api.expect(file_upload)
-@api.expect(transcription_input)
 @api.route('/create-audio-note')
 class Whisper(Resource):
     def post(self):
         args = file_upload.parse_args()
-        print(args)
+        userId = args.get('userId', None)
+        courseId = args.get('courseId', None)
         audio_file = args.get('file', None)
         keywords = args.get('keywords', None)
-        return 'Whisper'
+
+        noteId = NoteService.create_audio_note(
+            courseId=courseId,
+            userId=userId,
+            form='audio',
+            audio_file=audio_file,
+            keywords=keywords
+        )
+
+        if noteId is None:
+            return {'message': 'Note creation failed'}, 400
+        else:
+            return {'message': 'Note created successfully', 'id': noteId}, 201
