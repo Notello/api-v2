@@ -1,16 +1,11 @@
-import tempfile
-import os
-
 from supabase import Client
 from werkzeug.datastructures import FileStorage
-
 from flask import current_app
-
 
 supabase: Client = current_app.config['SUPABASE_CLIENT']
 
 class SupabaseService:
-    
+
     @staticmethod
     def add_note(
         courseId: str, 
@@ -33,13 +28,13 @@ class SupabaseService:
         fileName: str, 
         bucketName: str
     ):
-        with tempfile.NamedTemporaryFile(delete=False) as tempFile:
-            file.save(tempFile.name)
-        
-        with open(tempFile.name, 'rb') as file_content:
-            response = supabase.storage.from_(bucketName).upload(fileName, file_content.read(), file_options={'content-type': 'audio/*'})
-        
-        os.remove(tempFile.name)
+        file_content = file.read()
+
+        response = supabase.storage.from_(bucketName).upload(
+            fileName,
+            file_content,
+            file_options={'content-type': 'audio/*'}
+        )
 
         print(response.json())
         return response.json()
