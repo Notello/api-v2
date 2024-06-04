@@ -1,4 +1,6 @@
 import logging
+
+from flask import current_app
 from ..document_sources.youtube import create_youtube_url
 from langchain_community.embeddings.sentence_transformer import SentenceTransformerEmbeddings
 from langchain_openai import OpenAIEmbeddings
@@ -28,7 +30,7 @@ def check_url_source(yt_url:str=None):
       raise Exception(e)
 
 def get_combined_chunks(chunkId_chunkDoc_list):
-    chunks_to_combine = int(os.environ.get('NUMBER_OF_CHUNKS_TO_COMBINE'))
+    chunks_to_combine = int(current_app.config['NUMBER_OF_CHUNKS_TO_COMBINE'])
     logging.info(f"Combining {chunks_to_combine} chunks before sending request to LLM")
     combined_chunk_document_list=[]
     combined_chunks_page_content = ["".join(document['chunk_doc'].page_content for document in chunkId_chunkDoc_list[i:i+chunks_to_combine]) for i in range(0, len(chunkId_chunkDoc_list),chunks_to_combine)]

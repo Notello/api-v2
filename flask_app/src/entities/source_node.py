@@ -1,10 +1,13 @@
 from datetime import datetime
 
 class sourceNode:
-    file_name:str=None
+    fileName:str=None
     file_size:int=None
     file_type:str=None
     file_source:str=None
+    courseId:str=None
+    userId:str=None
+    noteId:str=None
     status:str=None
     url:str=None
     gcsBucket:str=None

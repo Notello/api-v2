@@ -11,6 +11,9 @@ def create_app():
 
     app.config['NEO4J_GRAPH'] = graph
     app.config['SUPABASE_CLIENT'] = supabase
+    app.config['MODEL'] = 'gpt-3.5-turbo-0125'
+    app.config['UPDATE_GRAPH_CHUNKS_PROCESSED'] = 10
+    app.config['NUMBER_OF_CHUNKS_TO_COMBINE'] = 2
     
     with app.app_context():
         init_api(api)

@@ -15,6 +15,7 @@ class graphDBdataAccess:
         try:
             job_status = "Failed"
             result = self.get_current_status_document_node(file_name)
+            print(f'result : {result}')
             is_cancelled_status = result[0]['is_cancelled']
             if is_cancelled_status == 'True':
                 job_status = 'Cancelled'
@@ -26,6 +27,7 @@ class graphDBdataAccess:
             raise Exception(error_message)
         
     def create_source_node(self, obj_source_node:sourceNode):
+        print(f'obj_source_node : {obj_source_node}')
         try:
             job_status = "New"
             logging.info("creating source node if does not exist")
@@ -35,7 +37,7 @@ class graphDBdataAccess:
                             d.processingTime = $pt, d.errorMessage = $e_message, d.nodeCount= $n_count, 
                             d.relationshipCount = $r_count, d.model= $model, d.gcsBucket=$gcs_bucket, 
                             d.gcsBucketFolder= $gcs_bucket_folder, d.language= $language,d.gcsProjectId= $gcs_project_id,d.is_cancelled=False""",
-                            {"fn":obj_source_node.file_name, "fs":obj_source_node.file_size, "ft":obj_source_node.file_type, "st":job_status, 
+                            {"fn":obj_source_node.fileName, "fs":obj_source_node.file_size, "ft":obj_source_node.file_type, "st":job_status, 
                             "url":obj_source_node.url,
                             "awsacc_key_id":obj_source_node.awsAccessKeyId, "f_source":obj_source_node.file_source, "c_at":obj_source_node.created_at,
                             "u_at":obj_source_node.created_at, "pt":0, "e_message":'', "n_count":0, "r_count":0, "model":obj_source_node.model,
@@ -44,15 +46,15 @@ class graphDBdataAccess:
         except Exception as e:
             error_message = str(e)
             logging.info(f"error_message = {error_message}")
-            self.update_exception_db(self, obj_source_node.file_name, error_message)
+            self.update_exception_db(obj_source_node.fileName, error_message)
             raise Exception(error_message)
         
     def update_source_node(self, obj_source_node:sourceNode):
         try:
 
             params = {}
-            if obj_source_node.file_name is not None and obj_source_node.file_name != '':
-                params['fileName'] = obj_source_node.file_name
+            if obj_source_node.fileName is not None and obj_source_node.fileName != '':
+                params['fileName'] = obj_source_node.fileName
 
             if obj_source_node.status is not None and obj_source_node.status != '':
                 params['status'] = obj_source_node.status
@@ -95,7 +97,7 @@ class graphDBdataAccess:
             self.graph.query(query,param)
         except Exception as e:
             error_message = str(e)
-            self.update_exception_db(self.file_name,error_message)
+            self.update_exception_db(obj_source_node.fileName,error_message)
             raise Exception(error_message)
     
     def get_source_list(self):
