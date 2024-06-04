@@ -40,8 +40,13 @@ class NoteService:
             fileId = SupabaseService.upload_file(audio_file, noteId, 'audio-files')
             if fileId is None:
                 print(f"Failed to upload file for note {noteId}")
+                return
             else:
                 print(f"File uploaded successfully for note {noteId}")
+
+            
+
+
         except Exception as e:
             print("||||||||||EXCEPTION IN BACKGROUND TASK||||||||||")
             print(e)

@@ -1,6 +1,6 @@
 from flask import Flask
 
-from .extensions import api, cors, supabase
+from .extensions import api, cors, supabase, graph
 from .routes import init_api
 
 def create_app():
@@ -9,6 +9,7 @@ def create_app():
     api.init_app(app)
     cors.init_app(app)
 
+    app.config['NEO4J_GRAPH'] = graph
     app.config['SUPABASE_CLIENT'] = supabase
     
     with app.app_context():
