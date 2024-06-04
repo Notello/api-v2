@@ -1,3 +1,4 @@
+from werkzeug.datastructures import FileStorage
 import logging
 from .SupabaseService import SupabaseService
 import threading
@@ -6,11 +7,12 @@ class NoteService:
 
     @staticmethod
     def create_note(
-        courseId, 
-        userId, 
-        form, 
-        audio_file, 
-        keywords
+        courseId: str,
+        userId: str,
+        form: str,
+        audio_file: FileStorage = None,
+        sourceUrl: str = '',
+        keywords: str = ''
     ):
         try:
             note = SupabaseService.add_note(
@@ -18,6 +20,7 @@ class NoteService:
                 userId=userId,
                 form=form,
                 content='',
+                sourceUrl=sourceUrl,
                 status='PENDING'
             )
 
@@ -40,7 +43,10 @@ class NoteService:
     
 
     @staticmethod
-    def _process_background_tasks(noteId, audio_file):
+    def _process_background_tasks(
+        noteId: str,
+        audio_file: FileStorage
+        ):
         try:
             fileId = SupabaseService.upload_file(audio_file, noteId, 'audio-files')
             if fileId is None:

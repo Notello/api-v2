@@ -4,6 +4,7 @@ from pytube import YouTube
 from datetime import datetime
 import logging
 import re
+from flask_app.services.SupabaseService import SupabaseService
 from flask_app.src.create_chunks import CreateChunksofDocument
 from flask_app.src.document_sources.youtube import get_documents_from_youtube, get_youtube_transcript
 from flask_app.src.entities.source_node import sourceNode
@@ -16,52 +17,58 @@ from langchain_core.documents import Document
 from flask import current_app
 
 def create_source_node_graph_url_youtube(source_url, noteId, courseId, userId):
-    
-    youtube_url, language = check_url_source(yt_url=source_url)
-    success_count=0
-    failed_count=0
-    lst_file_name = []
-    obj_source_node = sourceNode()
-    obj_source_node.file_type = 'text'
-    obj_source_node.file_source = 'youtube'
-    obj_source_node.model = current_app.config['MODEL']
-    obj_source_node.courseId = courseId
-    obj_source_node.userId = userId
-    obj_source_node.url = youtube_url
-    obj_source_node.created_at = datetime.now()
-    obj_source_node.noteId = noteId
-    match = re.search(r'(?:v=)([0-9A-Za-z_-]{11})\s*',obj_source_node.url)
-    logging.info(f"match value{match}")
+    with current_app.app_context():
+      try:
+        youtube_url, language = check_url_source(yt_url=source_url)
+        success_count=0
+        failed_count=0
+        lst_file_name = []
+        obj_source_node = sourceNode()
+        obj_source_node.file_type = 'text'
+        obj_source_node.file_source = 'youtube'
+        obj_source_node.model = current_app.config['MODEL']
+        obj_source_node.courseId = courseId
+        obj_source_node.userId = userId
+        obj_source_node.url = youtube_url
+        obj_source_node.created_at = datetime.now()
+        obj_source_node.noteId = noteId
+        match = re.search(r'(?:v=)([0-9A-Za-z_-]{11})\s*',obj_source_node.url)
+        logging.info(f"match value{match}")
 
-    transcript= get_youtube_transcript(match.group(1))
+        transcript= get_youtube_transcript(match.group(1))
 
-    if transcript==None or len(transcript)==0:
-      message = f"Youtube transcript is not available for : {obj_source_node.fileName}"
-      raise Exception(message)
-    else:  
-      obj_source_node.file_size = sys.getsizeof(transcript)
-    
-    graphDb_data_Access: graphDBdataAccess = graphDBdataAccess(current_app.config['NEO4J_GRAPH'])
+        if transcript==None or len(transcript)==0:
+          message = f"Youtube transcript is not available for : {obj_source_node.fileName}"
+          raise Exception(message)
+        else:  
+          obj_source_node.file_size = sys.getsizeof(transcript)
+        
+        graphDb_data_Access: graphDBdataAccess = graphDBdataAccess(current_app.config['NEO4J_GRAPH'])
 
-    print("BEFOREBSICAS BOCA C ALJCA")
+        print("BEFOREBSICAS BOCA C ALJCA")
 
-    file_name, pages = get_documents_from_youtube(obj_source_node.url)
+        file_name, pages = get_documents_from_youtube(obj_source_node.url)
 
-    obj_source_node.fileName = file_name
+        obj_source_node.fileName = file_name
 
-    graphDb_data_Access.create_source_node(obj_source_node)
+        graphDb_data_Access.create_source_node(obj_source_node)
 
-    lst_file_name.append({'fileName':obj_source_node.fileName,'fileSize':obj_source_node.file_size,'url':obj_source_node.url,'status':'Success'})
-    success_count+=1
+        lst_file_name.append({'fileName':obj_source_node.fileName,'fileSize':obj_source_node.file_size,'url':obj_source_node.url,'status':'Success'})
+        success_count+=1
 
-    processing_source(
-       graphDb_data_Access=graphDb_data_Access,
-       file_name=file_name,
-       pages=pages,
-       allowedNodes=[], 
-       allowedRelationship=[])
+        processing_source(
+          graphDb_data_Access=graphDb_data_Access,
+          file_name=file_name,
+          pages=pages,
+          allowedNodes=[], 
+          allowedRelationship=[])
+        
+        SupabaseService.update_note(noteId=noteId, key='graphStatus', value='complete')
 
-    return lst_file_name,success_count,failed_count
+        return lst_file_name,success_count,failed_count
+      except Exception as e:
+        logging.info(f'Exception in create_source_node_graph_url_youtube: {e}')
+        SupabaseService.update_note(noteId=noteId, key='graphStatus', value='error')
 
 def processing_source(graphDb_data_Access: graphDBdataAccess, file_name, pages, allowedNodes, allowedRelationship):
   """

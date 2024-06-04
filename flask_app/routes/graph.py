@@ -1,7 +1,7 @@
-import asyncio
 import logging
 from flask_restx import Namespace, Resource
 
+from flask_app.services.ContextAwareThread import ContextAwareThread
 from flask_app.services.NoteService import NoteService
 from flask_app.src.main import create_source_node_graph_url_youtube
 
@@ -39,30 +39,21 @@ class GraphRoute(Resource):
                 courseId=courseId, 
                 userId=userId, 
                 form='youtube', 
-                audio_file=youtube_url, 
+                sourceUrl=youtube_url, 
                 keywords=''
                 )
 
-            lst_file_name,success_count,failed_count = create_source_node_graph_url_youtube(
-                source_url=youtube_url, 
-                noteId=noteId, 
-                courseId=courseId,
-                userId=userId
-                )
-
-            print(f"lst_file_name:{lst_file_name}")
-            print(f"success_count:{success_count}")
-            print(f"failed_count:{failed_count}")
+            thread: ContextAwareThread = ContextAwareThread(
+                target=create_source_node_graph_url_youtube,
+                args=(youtube_url, noteId, courseId, userId)
+            ).start()
 
             message = f"Source Node created successfully for source type: youtube and source: {youtube_url}"
 
-            return {
-                'message': message, 
-                'success_count': success_count,
-                'failed_count': failed_count,
-                'file_name_list': lst_file_name}, 200
+            return {'noteId': noteId}, 200
         except Exception as e:
             error_message = str(e)
+            thread.stop()
             message = f" Unable to create source node for source type: youtube and source: {youtube_url}"
             logging.exception(f'Exception Stack trace:')
             return {'message': message}, 200

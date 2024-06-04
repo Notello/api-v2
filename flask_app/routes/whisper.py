@@ -31,7 +31,7 @@ class Whisper(Resource):
         audio_file = args.get('file', None)
         keywords = args.get('keywords', None)
 
-        noteId = NoteService.create_audio_note(
+        noteId = NoteService.create_note(
             courseId=courseId,
             userId=userId,
             form='audio',

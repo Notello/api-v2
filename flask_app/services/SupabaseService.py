@@ -12,14 +12,16 @@ class SupabaseService:
         userId: str, 
         form: str, 
         status: str = 'PENDING',
-        content: str = ''
+        content: str = '',
+        sourceUrl: str = ''
     ) -> list:
         return supabase.table('webapp-v2_note').insert({
             'courseId': courseId,
             'userId': userId,
             'form': form,
             'status': status,
-            'content': content
+            'content': content,
+            'sourceUrl': sourceUrl,
         }).execute().data
     
     @staticmethod
@@ -38,3 +40,7 @@ class SupabaseService:
 
         print(response.json())
         return response.json()
+    
+    @staticmethod
+    def update_note(noteId: str, key: str, value: str):
+        return supabase.table('webapp-v2_note').update({key: value}).eq('id', noteId).execute().data
