@@ -89,8 +89,6 @@ def processing_source(graphDb_data_Access: graphDBdataAccess, file_name, pages, 
   start_time = datetime.now()
 
   result = graphDb_data_Access.get_current_status_document_node(file_name)
-
-  print("pages", pages)
   
   if result[0]['Status'] != 'Processing':
     
@@ -213,6 +211,4 @@ def processing_chunks(chunks, file_name, allowedNodes,allowedRelationship, node_
 
   node_count += len(distinct_nodes)
   rel_count += len(relations)
-  print(f'node count internal func:{node_count}')
-  print(f'relation count internal func:{rel_count}')
   return node_count,rel_count

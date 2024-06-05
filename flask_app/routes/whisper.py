@@ -3,9 +3,11 @@ from werkzeug.datastructures import FileStorage
 
 from flask import current_app
 
+from flask_app.services.ContextAwareThread import ContextAwareThread
+
 from ..services.NoteService import NoteService
 
-api = Namespace('')
+api = Namespace('whisper')
 
 file_upload = api.parser()
 file_upload.add_argument('file', location='files',
@@ -38,6 +40,14 @@ class Whisper(Resource):
             audio_file=audio_file,
             keywords=keywords
         )
+
+        if noteId is None:
+            return {'message': 'Note creation failed'}, 400
+
+        ContextAwareThread(
+                target=NoteService.upload_and_transcribe,
+                args=(noteId, audio_file, keywords)
+        ).start()
 
         if noteId is None:
             return {'message': 'Note creation failed'}, 400

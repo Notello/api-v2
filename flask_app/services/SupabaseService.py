@@ -1,3 +1,4 @@
+import logging
 from supabase import Client
 from werkzeug.datastructures import FileStorage
 from flask import current_app
@@ -11,7 +12,7 @@ class SupabaseService:
         courseId: str, 
         userId: str, 
         form: str, 
-        status: str = 'PENDING',
+        status: str = 'pending',
         content: str = '',
         sourceUrl: str = ''
     ) -> list:
@@ -19,8 +20,8 @@ class SupabaseService:
             'courseId': courseId,
             'userId': userId,
             'form': form,
-            'status': status,
-            'content': content,
+            'contentStatus': status,
+            'rawContent': content,
             'sourceUrl': sourceUrl,
         }).execute().data
     
@@ -38,7 +39,7 @@ class SupabaseService:
             file_options={'content-type': 'audio/*'}
         )
 
-        print(response.json())
+        logging.info(f'Uploaded file: {fileName} to bucket: {bucketName}')
         return response.json()
     
     @staticmethod

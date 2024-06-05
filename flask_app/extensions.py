@@ -2,6 +2,10 @@ import os
 from flask_restx import Api
 from flask_cors import CORS
 from supabase import create_client
+import runpod
+
+from dotenv import load_dotenv
+load_dotenv()
 
 from flask_app.src.shared.common_fn import create_graph_database_connection
 
@@ -14,3 +18,5 @@ graph = create_graph_database_connection(
     os.getenv('NEO4J_PASSWORD'),
     os.getenv('NEO4J_DATABASE')
 )
+runpod.api_key = os.getenv("RUNPOD_API_KEY")
+

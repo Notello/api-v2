@@ -24,7 +24,7 @@ parser.add_argument('course_id',
 class GraphRoute(Resource):
     def post(self):
         try:
-            print('inside graph route')
+            logging.info('Creating source node for youtube')
 
             args = parser.parse_args()
             youtube_url = args['youtube_url']
@@ -43,17 +43,15 @@ class GraphRoute(Resource):
                 keywords=''
                 )
 
-            thread: ContextAwareThread = ContextAwareThread(
+            ContextAwareThread(
                 target=create_source_node_graph_url_youtube,
                 args=(youtube_url, noteId, courseId, userId)
             ).start()
 
-            message = f"Source Node created successfully for source type: youtube and source: {youtube_url}"
+            logging.info(f"Source Node created successfully for source type: youtube and source: {youtube_url}")
 
             return {'noteId': noteId}, 200
         except Exception as e:
-            error_message = str(e)
-            thread.stop()
-            message = f" Unable to create source node for source type: youtube and source: {youtube_url}"
-            logging.exception(f'Exception Stack trace:')
+            logging.exception(f" Unable to create source node for source type: youtube and source: {youtube_url}")
+            logging.exception(f'Exception Stack trace:', str(e))
             return {'message': message}, 200
