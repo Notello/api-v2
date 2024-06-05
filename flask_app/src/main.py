@@ -63,6 +63,7 @@ def create_source_node_graph_url_youtube(source_url, noteId, courseId, userId):
           allowedNodes=[], 
           allowedRelationship=[])
         
+        SupabaseService.update_note(noteId=noteId, key='sourceUrl', value=youtube_url)
         SupabaseService.update_note(noteId=noteId, key='graphStatus', value='complete')
 
         return lst_file_name,success_count,failed_count
