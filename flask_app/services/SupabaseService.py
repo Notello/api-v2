@@ -49,6 +49,7 @@ class SupabaseService:
             )
 
             json = response.json()
+            SupabaseService.update_note(fileName, 'sourceUrl', "audio file url placeholder")
             logging.info(f'Uploaded file: {fileName} to bucket: {bucketName}')
             logging.info(f'File ID: {json["Id"]}')
             return json['Id']
