@@ -104,10 +104,10 @@ class AudioIntake(Resource):
         
 create_text_note_parser = api.parser()
 create_text_note_parser.add_argument('rawText', location='form', 
-                        type=str, required=False,
+                        type=str, required=True,
                         help='The raw text to ingest')
 create_text_note_parser.add_argument('noteName', location='form', 
-                        type=str, required=False,
+                        type=str, required=True,
                         help='The name of the note')
 create_text_note_parser.add_argument('userId', location='form', 
                         type=str, required=True,
@@ -120,7 +120,7 @@ create_text_note_parser.add_argument('courseId', location='form',
 @api.route('/create-text-note')
 class TextIntake(Resource):
     def post(self):
-        args = create_audio_note_parser.parse_args()
+        args = create_text_note_parser.parse_args()
         userId = args.get('userId', None)
         courseId = args.get('courseId', None)
         rawText = args.get('rawText', None)

@@ -16,14 +16,22 @@ class SupabaseService:
         content: str = '',
         sourceUrl: str = ''
     ) -> list:
-        return supabase.table('webapp-v2_note').insert({
-            'courseId': courseId,
-            'userId': userId,
-            'form': form,
-            'contentStatus': status,
-            'rawContent': content,
-            'sourceUrl': sourceUrl,
-        }).execute().data
+        try:
+            out = supabase.table('webapp-v2_note').insert({
+                'courseId': courseId,
+                'userId': userId,
+                'form': form,
+                'contentStatus': status,
+                'rawContent': content,
+                'sourceUrl': sourceUrl,
+            }).execute()
+
+            logging.info(f'Note added successfully for courseId: {courseId}, userId: {userId}, form: {form}, data: {out.data}')
+
+            return out.data
+        except Exception as e:
+            logging.exception(f'Exception in add_note: {e}')
+            return []
     
     @staticmethod
     def upload_file(

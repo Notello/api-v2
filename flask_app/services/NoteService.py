@@ -32,11 +32,10 @@ class NoteService:
             note = SupabaseService.add_note(
                 courseId=courseId,
                 userId=userId,
-                form=form,
-                content='',
+                form=form.value,
+                content=rawText,
                 sourceUrl=sourceUrl,
                 status=NoteService.form_to_status[form],
-                rawContent=rawText
             )
 
             if len(note) == 0:
