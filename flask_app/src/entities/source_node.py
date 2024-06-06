@@ -1,6 +1,12 @@
 from datetime import datetime
 
 class sourceNode:
+
+    def __init__(self, **kwargs):
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+        
+    
     fileName:str=None
     file_size:int=None
     file_type:str=None

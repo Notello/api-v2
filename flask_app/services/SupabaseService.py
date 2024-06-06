@@ -30,17 +30,23 @@ class SupabaseService:
         file: FileStorage, 
         fileName: str, 
         bucketName: str
-    ):
-        file_content = file.read()
+    ) -> str | None:
+        try:
+            file_content = file.read()
 
-        response = supabase.storage.from_(bucketName).upload(
-            fileName,
-            file_content,
-            file_options={'content-type': 'audio/*'}
-        )
+            response = supabase.storage.from_(bucketName).upload(
+                fileName,
+                file_content,
+                file_options={'content-type': 'audio/*'}
+            )
 
-        logging.info(f'Uploaded file: {fileName} to bucket: {bucketName}')
-        return response.json()
+            json = response.json()
+            logging.info(f'Uploaded file: {fileName} to bucket: {bucketName}')
+            logging.info(f'File ID: {json["Id"]}')
+            return json['Id']
+        except Exception as e:
+            logging.exception(f'Exception in upload_file: {e}')
+            return None
     
     @staticmethod
     def update_note(noteId: str, key: str, value: str):

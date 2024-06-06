@@ -4,74 +4,17 @@ from pytube import YouTube
 from datetime import datetime
 import logging
 import re
-from flask_app.services.SupabaseService import SupabaseService
 from flask_app.src.create_chunks import CreateChunksofDocument
-from flask_app.src.document_sources.youtube import get_documents_from_youtube, get_youtube_transcript
 from flask_app.src.entities.source_node import sourceNode
 from flask_app.src.graphDB_dataAccess import graphDBdataAccess
 from flask_app.src.make_relationships import create_relation_between_chunks, merge_relationship_between_chunk_and_entites, update_embedding_create_vector_index
 from flask_app.src.openAI_llm import get_graph_from_OpenAI
-from flask_app.src.shared.common_fn import check_url_source, get_chunk_and_graphDocument, save_graphDocuments_in_neo4j
+from flask_app.src.shared.common_fn import get_chunk_and_graphDocument, save_graphDocuments_in_neo4j
 from langchain_core.documents import Document
 
 from flask import current_app
 
-def create_source_node_graph_url_youtube(source_url, noteId, courseId, userId):
-    with current_app.app_context():
-      try:
-        youtube_url, language = check_url_source(yt_url=source_url)
-        success_count=0
-        failed_count=0
-        lst_file_name = []
-        obj_source_node = sourceNode()
-        obj_source_node.file_type = 'text'
-        obj_source_node.file_source = 'youtube'
-        obj_source_node.model = current_app.config['MODEL']
-        obj_source_node.courseId = courseId
-        obj_source_node.userId = userId
-        obj_source_node.url = youtube_url
-        obj_source_node.created_at = datetime.now()
-        obj_source_node.noteId = noteId
-        match = re.search(r'(?:v=)([0-9A-Za-z_-]{11})\s*',obj_source_node.url)
-        logging.info(f"match value{match}")
-
-        transcript= get_youtube_transcript(match.group(1))
-
-        if transcript==None or len(transcript)==0:
-          message = f"Youtube transcript is not available for : {obj_source_node.fileName}"
-          raise Exception(message)
-        else:  
-          obj_source_node.file_size = sys.getsizeof(transcript)
-        
-        graphDb_data_Access: graphDBdataAccess = graphDBdataAccess(current_app.config['NEO4J_GRAPH'])
-
-        print("BEFOREBSICAS BOCA C ALJCA")
-
-        file_name, pages = get_documents_from_youtube(obj_source_node.url)
-
-        obj_source_node.fileName = file_name
-
-        graphDb_data_Access.create_source_node(obj_source_node)
-
-        lst_file_name.append({'fileName':obj_source_node.fileName,'fileSize':obj_source_node.file_size,'url':obj_source_node.url,'status':'Success'})
-        success_count+=1
-
-        processing_source(
-          graphDb_data_Access=graphDb_data_Access,
-          file_name=file_name,
-          pages=pages,
-          allowedNodes=[], 
-          allowedRelationship=[])
-        
-        SupabaseService.update_note(noteId=noteId, key='sourceUrl', value=youtube_url)
-        SupabaseService.update_note(noteId=noteId, key='graphStatus', value='complete')
-
-        return lst_file_name,success_count,failed_count
-      except Exception as e:
-        logging.info(f'Exception in create_source_node_graph_url_youtube: {e}')
-        SupabaseService.update_note(noteId=noteId, key='graphStatus', value='error')
-
-def processing_source(graphDb_data_Access: graphDBdataAccess, file_name, pages, allowedNodes, allowedRelationship):
+def processing_source(graphDb_data_Access: graphDBdataAccess, fileName, pages, allowedNodes, allowedRelationship):
   """
    Extracts a Neo4jGraph from a PDF file based on the model.
    
@@ -89,7 +32,7 @@ def processing_source(graphDb_data_Access: graphDBdataAccess, file_name, pages, 
   """
   start_time = datetime.now()
 
-  result = graphDb_data_Access.get_current_status_document_node(file_name)
+  result = graphDb_data_Access.get_current_status_document_node(fileName)
   
   if result[0]['Status'] != 'Processing':
     
@@ -105,43 +48,42 @@ def processing_source(graphDb_data_Access: graphDBdataAccess, file_name, pages, 
       
     logging.info("Break down file into chunks")
     
-    create_chunks_obj = CreateChunksofDocument(pages, file_name)
+    create_chunks_obj = CreateChunksofDocument(pages, fileName)
     chunks = create_chunks_obj.split_file_into_chunks()
 
     obj_source_node = sourceNode()
     status = "Processing"
-    obj_source_node.fileName = file_name
+    obj_source_node.fileName = fileName
     obj_source_node.status = status
     obj_source_node.total_pages = len(pages)
     obj_source_node.total_chunks = len(chunks)
     obj_source_node.model = current_app.config['MODEL']
-    logging.info(file_name)
+    logging.info(fileName)
     logging.info(obj_source_node)
     graphDb_data_Access.update_source_node(obj_source_node)
     
     logging.info('Update the status as Processing')
-    update_graph_chunk_processed = int(current_app.config['UPDATE_GRAPH_CHUNKS_PROCESSED'])
-    # selected_chunks = []
-    is_cancelled_status = False
-    job_status = "Completed"
+    updateGraphChunkProcessed = int(current_app.config['UPDATE_GRAPH_CHUNKS_PROCESSED'])
+    isCancelledStatus = False
+    jobStatus = "Completed"
     node_count = 0
     rel_count = 0
-    for i in range(0, len(chunks), update_graph_chunk_processed):
-      select_chunks_upto = i+update_graph_chunk_processed
+    for i in range(0, len(chunks), updateGraphChunkProcessed):
+      select_chunks_upto = i + updateGraphChunkProcessed
       logging.info(f'Selected Chunks upto: {select_chunks_upto}')
       if len(chunks) <= select_chunks_upto:
          select_chunks_upto = len(chunks)
       selected_chunks = chunks[i:select_chunks_upto]
-      result = graphDb_data_Access.get_current_status_document_node(file_name)
-      is_cancelled_status = result[0]['is_cancelled']
+      result = graphDb_data_Access.get_current_status_document_node(fileName)
+      isCancelledStatus = result[0]['is_cancelled']
       logging.info(f"Value of is_cancelled : {result[0]['is_cancelled']}")
-      if is_cancelled_status == True:
-         job_status = "Cancelled"
+      if isCancelledStatus == True:
+         jobStatus = "Cancelled"
          logging.info('Exit from running loop of processing file')
          exit
       else:
         node_count,rel_count = processing_chunks(selected_chunks, 
-                                                 file_name, 
+                                                 fileName, 
                                                  allowedNodes,
                                                  allowedRelationship, 
                                                  node_count, 
@@ -150,7 +92,7 @@ def processing_source(graphDb_data_Access: graphDBdataAccess, file_name, pages, 
         processed_time = end_time - start_time
         
         obj_source_node = sourceNode()
-        obj_source_node.fileName = file_name
+        obj_source_node.fileName = fileName
         obj_source_node.updated_at = end_time
         obj_source_node.processing_time = processed_time
         obj_source_node.node_count = node_count
@@ -158,39 +100,39 @@ def processing_source(graphDb_data_Access: graphDBdataAccess, file_name, pages, 
         obj_source_node.relationship_count = rel_count
         graphDb_data_Access.update_source_node(obj_source_node)
     
-    result = graphDb_data_Access.get_current_status_document_node(file_name)
-    is_cancelled_status = result[0]['is_cancelled']
-    if is_cancelled_status == 'True':
+    result = graphDb_data_Access.get_current_status_document_node(fileName)
+    isCancelledStatus = result[0]['is_cancelled']
+    if isCancelledStatus == 'True':
        logging.info(f'Is_cancelled True at the end extraction')
-       job_status = 'Cancelled'
-    logging.info(f'Job Status at the end : {job_status}')
+       jobStatus = 'Cancelled'
+    logging.info(f'Job Status at the end : {jobStatus}')
     end_time = datetime.now()
     processed_time = end_time - start_time
     obj_source_node = sourceNode()
-    obj_source_node.fileName = file_name
-    obj_source_node.status = job_status
+    obj_source_node.fileName = fileName
+    obj_source_node.status = jobStatus
     obj_source_node.processing_time = processed_time
 
     graphDb_data_Access.update_source_node(obj_source_node)
     logging.info('Updated the nodeCount and relCount properties in Docuemnt node')
-    logging.info(f'file:{file_name} extraction has been completed')
+    logging.info(f'file:{fileName} extraction has been completed')
       
     return {
-        "fileName": file_name,
+        "fileName": fileName,
         "nodeCount": node_count,
         "relationshipCount": rel_count,
         "processingTime": round(processed_time.total_seconds(),2),
-        "status" : job_status,
+        "status" : jobStatus,
         "model" : current_app.config['MODEL'],
         "success_count" : 1
     }
   else:
      logging.info('File does not process because it\'s already in Processing status')
 
-def processing_chunks(chunks, file_name, allowedNodes,allowedRelationship, node_count, rel_count):
-  chunkId_chunkDoc_list = create_relation_between_chunks(file_name,chunks)
+def processing_chunks(chunks, fileName, allowedNodes,allowedRelationship, node_count, rel_count):
+  chunkId_chunkDoc_list = create_relation_between_chunks(fileName,chunks)
   #create vector index and update chunk node with embedding
-  update_embedding_create_vector_index(chunkId_chunkDoc_list, file_name)
+  update_embedding_create_vector_index(chunkId_chunkDoc_list, fileName)
   logging.info("Get graph document list from models")
   graph_documents = get_graph_from_OpenAI(chunkId_chunkDoc_list, allowedNodes, allowedRelationship)
   save_graphDocuments_in_neo4j(current_app.config['NEO4J_GRAPH'], graph_documents)

@@ -6,8 +6,8 @@ from .SupabaseService import SupabaseService
 
 class RunpodService:
     @staticmethod
-    def transcribe(file_name: str, keywords: str):
-        logging.info(f'Transcribing file: {file_name}')
+    def transcribe(fileName: str, keywords: str) -> str | None:
+        logging.info(f'Transcribing file: {fileName}')
 
         endpoint: Endpoint = current_app.config['RUNPOD_ENDPOINT']
 
@@ -15,7 +15,7 @@ class RunpodService:
             run_request = endpoint.run(
                 {
                     "input": {
-                        "id": file_name
+                        "id": fileName
                     }
                 }
             )
@@ -24,21 +24,23 @@ class RunpodService:
 
             output = run_request.output(timeout=600)
 
-            logging.info(f'Runpod job on file: {file_name}')
+            logging.info(f'Runpod job on file: {fileName}')
 
             runpod_status = run_request.status()
 
             logging.info(f'Runpod job status: {runpod_status}')
 
             if runpod_status != 'COMPLETED':
-                logging.error(f'Runpod job failed with output: {output}, file: {file_name}, status: {runpod_status}')
-                SupabaseService.update_note(file_name, 'contentStatus', 'error')
+                logging.error(f'Runpod job failed with output: {output}, file: {fileName}, status: {runpod_status}')
+                SupabaseService.update_note(fileName, 'contentStatus', 'error')
                 return None
             else:
                 logging.info(f'Runpod job completed successfully')
-                SupabaseService.update_note(file_name, 'contentStatus', 'complete')
-                SupabaseService.update_note(file_name, 'rawContent', RunpodService.parse_whisper_output(output))
-                return file_name
+
+                outputFormatted = RunpodService.parse_whisper_output(output)
+                SupabaseService.update_note(fileName, 'contentStatus', 'complete')
+                SupabaseService.update_note(fileName, 'rawContent', outputFormatted)
+                return outputFormatted
 
         except TimeoutError:
             logging.error(f'Runpod job timed out')
