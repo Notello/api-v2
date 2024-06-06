@@ -10,6 +10,9 @@ from flask_app.src.document_sources.youtube import get_documents_from_youtube
 from flask_app.src.main import processing_source
 from flask_app.src.document_sources.text_loader import get_text_chunks_langchain
 from .HelperService import HelperService
+from langchain_community.document_loaders import PyMuPDFLoader
+
+
 
 
 

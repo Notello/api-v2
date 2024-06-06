@@ -12,7 +12,7 @@ class SupabaseService:
         courseId: str, 
         userId: str, 
         form: str, 
-        status: str = 'pending',
+        status: str,
         content: str = '',
         sourceUrl: str = ''
     ) -> list:
@@ -37,7 +37,8 @@ class SupabaseService:
     def upload_file(
         file: FileStorage, 
         fileName: str, 
-        bucketName: str
+        bucketName: str,
+        contentType: str
     ) -> str | None:
         try:
             file_content = file.read()
@@ -45,11 +46,11 @@ class SupabaseService:
             response = supabase.storage.from_(bucketName).upload(
                 fileName,
                 file_content,
-                file_options={'content-type': 'audio/*'}
+                file_options={'content-type': contentType}
             )
 
             json = response.json()
-            SupabaseService.update_note(fileName, 'sourceUrl', "audio file url placeholder")
+            SupabaseService.update_note(fileName, 'sourceUrl', "file url placeholder")
             logging.info(f'Uploaded file: {fileName} to bucket: {bucketName}')
             logging.info(f'File ID: {json["Id"]}')
             return json['Id']

@@ -1,14 +1,17 @@
 from enum import Enum
+import mimetypes
 from werkzeug.datastructures import FileStorage
 import logging
 from .SupabaseService import SupabaseService
 from .RunpodService import RunpodService
 from .GraphService import GraphService
+from flask_app.src.document_sources.pdf_loader import extract_text_from_pdf
 
 class NoteForm(Enum):
     TEXT = 'text'
     AUDIO = 'audio'
     YOUTUBE = 'youtube'
+    TEXT_FILE = 'text-file'
 
 class NoteService:
 
@@ -16,6 +19,7 @@ class NoteService:
         NoteForm.AUDIO: 'pending',
         NoteForm.YOUTUBE: 'complete',
         NoteForm.TEXT: 'complete',
+        NoteForm.TEXT_FILE: 'not-applicable',
     }
 
     @staticmethod
@@ -23,9 +27,7 @@ class NoteService:
         courseId: str,
         userId: str,
         form: NoteForm,
-        audio_file: FileStorage = None,
         sourceUrl: str = '',
-        keywords: str = '',
         rawText: str = ''
     ):
         try:          
@@ -43,20 +45,19 @@ class NoteService:
 
             noteId = note[0]['id']
 
-            logging.info(f"Note created successfully for courseId: {courseId}, userId: {userId}, form: {form}, audio_file: {audio_file}")
+            logging.info(f"Note created successfully for courseId: {courseId}, userId: {userId}, form: {form}")
 
             return noteId
         except Exception as e:
             logging.exception(f'Exception Stack trace: {e}')
             return None
-        
-    
+
 
     @staticmethod
     def audio_file_to_graph(
+        noteId: str,
         courseId: str,
         userId: str,
-        noteId: str,
         audio_file: FileStorage,
         keywords: str
         ):
@@ -64,7 +65,8 @@ class NoteService:
             fileId = SupabaseService.upload_file(
                 file=audio_file, 
                 fileName=noteId, 
-                bucketName='audio-files'
+                bucketName='audio-files',
+                contentType='audio/*'
                 )
 
             if fileId is None:
@@ -80,12 +82,52 @@ class NoteService:
                 logging.exception(f"Failed to transcribe file for note {noteId}")
                 return
             
-            out = GraphService.create_graph_from_raw_text(
+            GraphService.create_graph_from_raw_text(
                 rawText=output,
                 noteId=noteId, 
                 courseId=courseId, 
                 userId=userId,
                 fileName=audio_file.filename
+                )
+            
+            logging.info(f"File uploaded successfully for note {noteId}")
+
+        except Exception as e:
+            logging.exception(f'Exception Stack trace: {e}')
+
+
+    @staticmethod
+    def pdf_file_to_graph(
+        noteId: str,
+        courseId: str,
+        userId: str,
+        pdf_file: FileStorage,
+        file_content
+        ):
+        try:
+            fileId = SupabaseService.upload_file(
+                file=pdf_file, 
+                fileName=noteId, 
+                bucketName='pdf-files',
+                contentType='application/pdf'
+                )
+
+            if fileId is None:
+                logging.exception(f"Failed to upload file for note {noteId}")
+                return
+
+            output = extract_text_from_pdf(file_content, pdf_file.filename)
+
+            if output is None:
+                logging.exception(f"Failed to transcribe file for note {noteId}")
+                return
+                        
+            GraphService.create_graph_from_raw_text(
+                rawText=output,
+                noteId=noteId, 
+                courseId=courseId, 
+                userId=userId,
+                fileName=pdf_file.filename
                 )
             
             logging.info(f"File uploaded successfully for note {noteId}")

@@ -41,7 +41,6 @@ class YoutubeIntake(Resource):
                 userId=userId, 
                 form=NoteForm.YOUTUBE,
                 sourceUrl=youtube_url, 
-                keywords=''
                 )
 
             ContextAwareThread(
@@ -90,7 +89,6 @@ class AudioIntake(Resource):
                 userId=userId,
                 form=NoteForm.AUDIO,
                 audio_file=audio_file,
-                keywords=keywords
             )
 
             if not HelperService.validate_uuid4(noteId):
@@ -98,7 +96,7 @@ class AudioIntake(Resource):
 
             ContextAwareThread(
                     target=NoteService.audio_file_to_graph,
-                    args=(courseId, userId, noteId, audio_file, keywords)
+                    args=(noteId, courseId, userId, audio_file, keywords)
             ).start()
             
             logging.info(f"Source Node created successfully for source type: audio and source: {audio_file}")
@@ -155,4 +153,50 @@ class TextIntake(Resource):
             return {'noteId': noteId}, 201
         else:
             logging.exception(f"Note creation failed for source type: text and source: {rawText}")
+            return {'message': 'Note creation failed'}, 400
+
+create_pdf_note_parser = api.parser()
+create_pdf_note_parser.add_argument('file', location='files', 
+                        type=FileStorage, required=True,
+                        help='The file to parse')
+create_pdf_note_parser.add_argument('userId', location='form', 
+                        type=str, required=True,
+                        help='Supabase ID of the user')
+create_pdf_note_parser.add_argument('courseId', location='form', 
+                        type=str, required=True,
+                        help='Course ID associated with the note')
+        
+@api.expect(create_pdf_note_parser)
+@api.route('/create-pdf-note')
+class TextIntake(Resource):
+    def post(self):
+        args = create_pdf_note_parser.parse_args()
+        userId = args.get('userId', None)
+        courseId = args.get('courseId', None)
+        file: FileStorage = args.get('file', None)
+
+        if not HelperService.validate_uuid4(courseId, userId):
+            return {'message': 'Invalid courseId or userId'}, 400
+
+        noteId = NoteService.create_note(
+            courseId=courseId,
+            userId=userId,
+            form=NoteForm.TEXT_FILE,
+        )
+
+        if not HelperService.validate_uuid4(noteId):
+            return {'message': 'Note creation failed'}, 400
+        
+        file_content = file.read()
+
+        ContextAwareThread(
+                target=NoteService.pdf_file_to_graph,
+                args=(noteId, courseId, userId, file, file_content)
+        ).start()
+
+        if HelperService.validate_uuid4(noteId):
+            logging.info(f"Source Node created successfully for source type: pdf and source: {file.filename}")
+            return {'noteId': noteId}, 201
+        else:
+            logging.exception(f"Note creation failed for source type: pdf and source: {file.filename}")
             return {'message': 'Note creation failed'}, 400
