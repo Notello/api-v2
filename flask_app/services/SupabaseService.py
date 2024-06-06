@@ -58,4 +58,5 @@ class SupabaseService:
     
     @staticmethod
     def update_note(noteId: str, key: str, value: str):
+        logging.info(f'Updating note {noteId} with key {key} and value {value}')
         return supabase.table('webapp-v2_note').update({key: value}).eq('id', noteId).execute().data

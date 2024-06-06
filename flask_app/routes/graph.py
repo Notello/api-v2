@@ -147,7 +147,7 @@ class TextIntake(Resource):
 
         ContextAwareThread(
                 target=GraphService.create_graph_from_raw_text,
-                args=(courseId, userId, noteId, rawText, noteName)
+                args=(noteId, courseId, userId, rawText, noteName)
         ).start()
 
         if HelperService.validate_uuid4(noteId):
