@@ -9,7 +9,7 @@ from flask_app.src.entities.source_node import sourceNode
 from flask_app.src.document_sources.youtube import get_documents_from_youtube
 from flask_app.src.main import processing_source
 from flask_app.src.document_sources.text_loader import get_text_chunks_langchain
-from .YoutubeService import YoutubeService
+from .HelperService import HelperService
 
 
 
@@ -25,7 +25,7 @@ class GraphService:
             successCount=0
             failedCount=0
 
-            transcript = YoutubeService.check_url_source(ytUrl=sourceUrl)
+            transcript = HelperService.check_url_source(ytUrl=sourceUrl)
 
             obj_source_node = sourceNode(
                 file_type='text',

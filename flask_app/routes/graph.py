@@ -5,6 +5,7 @@ from werkzeug.datastructures import FileStorage
 from flask_app.services.ContextAwareThread import ContextAwareThread
 from flask_app.services.NoteService import NoteForm, NoteService
 from flask_app.services.GraphService import GraphService
+from flask_app.services.HelperService import HelperService
 
 
 api = Namespace('graph')
@@ -32,9 +33,8 @@ class YoutubeIntake(Resource):
             courseId = args['course_id']
             userId = args['user_id']
 
-            if youtube_url is None or courseId is None or userId is None:
-                message = f"Args missing youtube_url: {youtube_url}, courseId: {courseId}, userId: {userId}"
-                return {'message':message}, 400
+            if not HelperService.validate_uuid4(courseId, userId):
+                return {'message': 'Invalid courseId or userId'}, 400
             
             noteId = NoteService.create_note(
                 courseId=courseId, 
@@ -53,8 +53,8 @@ class YoutubeIntake(Resource):
 
             return {'noteId': noteId}, 200
         except Exception as e:
-            logging.exception(f" Unable to create source node for source type: youtube and source: {youtube_url}")
-            logging.exception(f'Exception Stack trace:', str(e))
+            message = f" Unable to create source node for source type: youtube and source: {youtube_url}, Exception: {e}"
+            logging.exception(message)
             return {'message': message}, 200
         
 create_audio_note_parser = api.parser()
@@ -75,32 +75,38 @@ create_audio_note_parser.add_argument('courseId', location='form',
 @api.route('/create-audio-note')
 class AudioIntake(Resource):
     def post(self):
-        args = create_audio_note_parser.parse_args()
-        userId = args.get('userId', None)
-        courseId = args.get('courseId', None)
-        audio_file = args.get('file', None)
-        keywords = args.get('keywords', None)
+        try:
+            args = create_audio_note_parser.parse_args()
+            userId = args.get('userId', None)
+            courseId = args.get('courseId', None)
+            audio_file = args.get('file', None)
+            keywords = args.get('keywords', None)
 
-        noteId = NoteService.create_note(
-            courseId=courseId,
-            userId=userId,
-            form=NoteForm.AUDIO,
-            audio_file=audio_file,
-            keywords=keywords
-        )
+            if not HelperService.validate_uuid4(courseId, userId):
+                return {'message': 'Invalid courseId or userId'}, 400
 
-        if noteId is None:
-            return {'message': 'Note creation failed'}, 400
+            noteId = NoteService.create_note(
+                courseId=courseId,
+                userId=userId,
+                form=NoteForm.AUDIO,
+                audio_file=audio_file,
+                keywords=keywords
+            )
 
-        ContextAwareThread(
-                target=NoteService.audio_file_to_graph,
-                args=(courseId, userId, noteId, audio_file, keywords)
-        ).start()
+            if not HelperService.validate_uuid4(noteId):
+                return {'message': 'Note creation failed'}, 400
 
-        if noteId is None:
-            return {'message': 'Note creation failed'}, 400
-        else:
-            return {'message': 'Note created successfully', 'id': noteId}, 201
+            ContextAwareThread(
+                    target=NoteService.audio_file_to_graph,
+                    args=(courseId, userId, noteId, audio_file, keywords)
+            ).start()
+            
+            logging.info(f"Source Node created successfully for source type: audio and source: {audio_file}")
+            return {'noteId': noteId}, 201
+        except Exception as e:
+            message = f" Unable to create source node for source type: audio and source: {audio_file}, Exception: {e}"
+            logging.exception(message)
+            return {'message': message}, 400
         
 create_text_note_parser = api.parser()
 create_text_note_parser.add_argument('rawText', location='form', 
@@ -126,6 +132,9 @@ class TextIntake(Resource):
         rawText = args.get('rawText', None)
         noteName = args.get('noteName', None)
 
+        if not HelperService.validate_uuid4(courseId, userId):
+            return {'message': 'Invalid courseId or userId'}, 400
+
         noteId = NoteService.create_note(
             courseId=courseId,
             userId=userId,
@@ -133,7 +142,7 @@ class TextIntake(Resource):
             rawText=rawText
         )
 
-        if noteId is None:
+        if not HelperService.validate_uuid4(noteId):
             return {'message': 'Note creation failed'}, 400
 
         ContextAwareThread(
@@ -141,8 +150,9 @@ class TextIntake(Resource):
                 args=(courseId, userId, noteId, rawText, noteName)
         ).start()
 
-        if noteId is None:
-            return {'message': 'Note creation failed'}, 400
+        if HelperService.validate_uuid4(noteId):
+            logging.info(f"Source Node created successfully for source type: text and source: {rawText}")
+            return {'noteId': noteId}, 201
         else:
-            return {'message': 'Note created successfully', 'id': noteId}, 201
-        
+            logging.exception(f"Note creation failed for source type: text and source: {rawText}")
+            return {'message': 'Note creation failed'}, 400
