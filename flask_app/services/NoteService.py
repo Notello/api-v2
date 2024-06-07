@@ -64,9 +64,10 @@ class NoteService:
         keywords: str
         ):
         try:
+            file_content = audio_file.read()
             fileId = SupabaseService.upload_file(
-                file=audio_file, 
-                fileName=noteId, 
+                file=file_content, 
+                fileName=noteId,
                 bucketName='audio-files',
                 contentType='audio/*'
                 )

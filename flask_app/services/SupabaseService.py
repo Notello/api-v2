@@ -36,7 +36,7 @@ class SupabaseService:
     
     @staticmethod
     def upload_file(
-        file: BytesIO, 
+        file: BytesIO,
         fileName: str, 
         bucketName: str,
         contentType: str
