@@ -155,28 +155,37 @@ class TextIntake(Resource):
             logging.exception(f"Note creation failed for source type: text and source: {rawText}")
             return {'message': 'Note creation failed'}, 400
 
-create_pdf_note_parser = api.parser()
-create_pdf_note_parser.add_argument('file', location='files', 
+create_text_file_note_parser = api.parser()
+create_text_file_note_parser.add_argument('file', location='files', 
                         type=FileStorage, required=True,
                         help='The file to parse')
-create_pdf_note_parser.add_argument('userId', location='form', 
+create_text_file_note_parser.add_argument('userId', location='form', 
                         type=str, required=True,
                         help='Supabase ID of the user')
-create_pdf_note_parser.add_argument('courseId', location='form', 
+create_text_file_note_parser.add_argument('courseId', location='form', 
                         type=str, required=True,
                         help='Course ID associated with the note')
         
-@api.expect(create_pdf_note_parser)
-@api.route('/create-pdf-note')
+@api.expect(create_text_file_note_parser)
+@api.route('/create-text-file-note')
 class TextIntake(Resource):
     def post(self):
-        args = create_pdf_note_parser.parse_args()
+        args = create_text_file_note_parser.parse_args()
         userId = args.get('userId', None)
         courseId = args.get('courseId', None)
         file: FileStorage = args.get('file', None)
 
         if not HelperService.validate_uuid4(courseId, userId):
             return {'message': 'Invalid courseId or userId'}, 400
+        
+        file_type = HelperService.guess_mime_type(file.filename)
+
+        logging.info(f"File content: {file.filename}")
+        logging.info(f"File type: {file_type}")
+
+        if file_type is None:
+            logging.exception(f"Failed to transcribe file for note {noteId}")
+            return {'message': 'Invalid file type'}, 400
 
         noteId = NoteService.create_note(
             courseId=courseId,
@@ -191,7 +200,7 @@ class TextIntake(Resource):
 
         ContextAwareThread(
                 target=NoteService.pdf_file_to_graph,
-                args=(noteId, courseId, userId, file, file_content)
+                args=(noteId, courseId, userId, file.filename, file_content, file_type)
         ).start()
 
         if HelperService.validate_uuid4(noteId):

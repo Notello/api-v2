@@ -1,11 +1,13 @@
 from enum import Enum
+from io import BytesIO
 import mimetypes
 from werkzeug.datastructures import FileStorage
 import logging
 from .SupabaseService import SupabaseService
 from .RunpodService import RunpodService
 from .GraphService import GraphService
-from flask_app.src.document_sources.pdf_loader import extract_text_from_pdf
+from .HelperService import HelperService
+from flask_app.src.document_sources.pdf_loader import extract_text
 
 class NoteForm(Enum):
     TEXT = 'text'
@@ -101,12 +103,19 @@ class NoteService:
         noteId: str,
         courseId: str,
         userId: str,
-        pdf_file: FileStorage,
-        file_content
+        file_name: str,
+        file_content: BytesIO,
+        file_type: str
         ):
         try:
+            output = extract_text(file_content, file_name, file_type)
+
+            if output is None:
+                logging.exception(f"Failed to transcribe file for note {noteId}")
+                return
+
             fileId = SupabaseService.upload_file(
-                file=pdf_file, 
+                file=file_content, 
                 fileName=noteId, 
                 bucketName='pdf-files',
                 contentType='application/pdf'
@@ -115,19 +124,13 @@ class NoteService:
             if fileId is None:
                 logging.exception(f"Failed to upload file for note {noteId}")
                 return
-
-            output = extract_text_from_pdf(file_content, pdf_file.filename)
-
-            if output is None:
-                logging.exception(f"Failed to transcribe file for note {noteId}")
-                return
                         
             GraphService.create_graph_from_raw_text(
                 rawText=output,
                 noteId=noteId, 
                 courseId=courseId, 
                 userId=userId,
-                fileName=pdf_file.filename
+                fileName=file_name
                 )
             
             logging.info(f"File uploaded successfully for note {noteId}")

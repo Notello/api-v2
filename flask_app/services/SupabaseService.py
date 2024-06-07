@@ -1,3 +1,4 @@
+from io import BytesIO
 import logging
 from supabase import Client
 from werkzeug.datastructures import FileStorage
@@ -35,17 +36,15 @@ class SupabaseService:
     
     @staticmethod
     def upload_file(
-        file: FileStorage, 
+        file: BytesIO, 
         fileName: str, 
         bucketName: str,
         contentType: str
     ) -> str | None:
         try:
-            file_content = file.read()
-
             response = supabase.storage.from_(bucketName).upload(
                 fileName,
-                file_content,
+                file,
                 file_options={'content-type': contentType}
             )
 

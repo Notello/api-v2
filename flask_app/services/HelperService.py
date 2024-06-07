@@ -55,3 +55,21 @@ class HelperService:
         
         print("true")
         return True
+    
+    @staticmethod
+    def guess_mime_type(file_name):
+        try:
+            mime_type = None
+            if file_name is not None:
+                if file_name.endswith('.md'):
+                    mime_type = 'text/markdown'
+                elif file_name.endswith('.html'):
+                    mime_type = 'text/html'
+                elif file_name.endswith('.pdf'):
+                    mime_type = 'application/pdf'
+                else:
+                    mime_type = 'application/octet-stream'
+            return mime_type
+        except Exception as e:
+            logging.exception(f'Exception for file: {file_name}, Stack trace: {e}')
+            return None
