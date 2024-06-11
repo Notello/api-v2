@@ -2,7 +2,7 @@ import os
 from flask import Flask
 import runpod
 
-from .extensions import api, cors, supabase, graph
+from .extensions import CustomJSONEncoder, api, cors, supabase, graph
 from .routes import init_api
 
 from dotenv import load_dotenv
@@ -20,6 +20,7 @@ def create_app():
     app.config['UPDATE_GRAPH_CHUNKS_PROCESSED'] = 10
     app.config['NUMBER_OF_CHUNKS_TO_COMBINE'] = 2
     app.config["RUNPOD_ENDPOINT"] = runpod.Endpoint(os.getenv("RUNPOD_WHISPER_ENDPOINT_ID"))
+    app.json_encoder = CustomJSONEncoder
     
     with app.app_context():
         init_api(api)

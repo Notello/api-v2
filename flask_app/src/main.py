@@ -14,7 +14,16 @@ from langchain_core.documents import Document
 
 from flask import current_app
 
-def processing_source(graphDb_data_Access: graphDBdataAccess, fileName, pages, allowedNodes, allowedRelationship):
+def processing_source(
+      graphDb_data_Access: graphDBdataAccess, 
+      fileName: str, 
+      pages, 
+      allowedNodes, 
+      allowedRelationship,
+      userId,
+      courseId,
+      noteId
+      ):
   """
    Extracts a Neo4jGraph from a PDF file based on the model.
    

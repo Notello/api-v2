@@ -55,7 +55,11 @@ class GraphService:
                 fileName=fileName,
                 pages=pages,
                 allowedNodes=[], 
-                allowedRelationship=[])
+                allowedRelationship=[],
+                userId=userId,
+                courseId=courseId,
+                noteId=noteId
+                )
             
             SupabaseService.update_note(noteId=noteId, key='sourceUrl', value=sourceUrl)
             SupabaseService.update_note(noteId=noteId, key='graphStatus', value='complete')
@@ -80,7 +84,7 @@ class GraphService:
 
             obj_source_node = sourceNode(
                 file_type='text',
-                file_source='audio',
+                file_source='text',
                 model=current_app.config['MODEL'],
                 courseId=courseId,
                 userId=userId,            
@@ -102,7 +106,11 @@ class GraphService:
                 fileName=fileName,
                 pages=pages,
                 allowedNodes=[], 
-                allowedRelationship=[])
+                allowedRelationship=[],
+                userId=userId,
+                courseId=courseId,
+                noteId=noteId
+                )
             
             SupabaseService.update_note(noteId=noteId, key='graphStatus', value='complete')
 
@@ -110,3 +118,33 @@ class GraphService:
         except Exception as e:
             logging.exception(f'Exception in create_source_node_graph_url_youtube: {e}')
             SupabaseService.update_note(noteId=noteId, key='graphStatus', value='error')
+
+    @staticmethod
+    def get_graph_for_param(key: str, value: str) -> None:
+        graphDb_data_Access = graphDBdataAccess(current_app.config['NEO4J_GRAPH'])
+
+        QUERY = f"""
+        MATCH (n)-[r]->(m)
+        WHERE n.{key} = $value OR m.{key} = $value
+        RETURN n, r, m
+        """
+
+        parameters = {
+            "value": value
+        }
+
+        try:
+            result = graphDb_data_Access.execute_query(QUERY, parameters)
+            nodes = []
+            relationships = []
+            for record in result:
+                nodes.append(record['n'])
+                nodes.append(record['m'])
+                relationships.append(record['r'])
+
+            return {
+                'nodes': nodes,
+                'relationships': relationships
+            }
+        except Exception as e:
+            logging.error(f"Error executing query: {e}")

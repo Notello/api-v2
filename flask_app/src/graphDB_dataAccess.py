@@ -1,6 +1,7 @@
 import logging
 import os
 from datetime import datetime
+from flask import current_app
 from langchain_community.graphs import Neo4jGraph
 from flask_app.src.shared.common_fn import delete_uploaded_local_file
 from flask_app.src.entities.source_node import sourceNode
@@ -26,78 +27,59 @@ class graphDBdataAccess:
             logging.error(f"Error in updating document node status as failed: {error_message}")
             raise Exception(error_message)
         
-    def create_source_node(self, obj_source_node:sourceNode):
-        print(f'obj_source_node : {obj_source_node}')
+    def create_source_node(self, obj_source_node: sourceNode):
+        logging.info(f'creating source node if it does not exist obj_source_node : {obj_source_node}')
+        for key in obj_source_node.__dict__:
+            logging.info(f'key : {key}, value : {obj_source_node.__dict__[key]}')
         try:
             job_status = "New"
-            logging.info("creating source node if does not exist")
-            self.graph.query("""MERGE(d:Document {fileName :$fn}) SET d.fileSize = $fs, d.fileType = $ft ,
-                            d.status = $st, d.url = $url, d.awsAccessKeyId = $awsacc_key_id, 
-                            d.fileSource = $f_source, d.createdAt = $c_at, d.updatedAt = $u_at, 
-                            d.processingTime = $pt, d.errorMessage = $e_message, d.nodeCount= $n_count, 
-                            d.relationshipCount = $r_count, d.model= $model, d.gcsBucket=$gcs_bucket, 
-                            d.gcsBucketFolder= $gcs_bucket_folder, d.language= $language,d.gcsProjectId= $gcs_project_id,d.is_cancelled=False""",
-                            {"fn":obj_source_node.fileName, "fs":obj_source_node.file_size, "ft":obj_source_node.file_type, "st":job_status, 
-                            "url":obj_source_node.url,
-                            "awsacc_key_id":obj_source_node.awsAccessKeyId, "f_source":obj_source_node.file_source, "c_at":obj_source_node.created_at,
-                            "u_at":obj_source_node.created_at, "pt":0, "e_message":'', "n_count":0, "r_count":0, "model":obj_source_node.model,
-                            "gcs_bucket": obj_source_node.gcsBucket, "gcs_bucket_folder": obj_source_node.gcsBucketFolder, 
-                            "language":obj_source_node.language, "gcs_project_id":obj_source_node.gcsProjectId})
+
+            attributes = {attr: getattr(obj_source_node, attr) for attr in vars(obj_source_node) if getattr(obj_source_node, attr) is not None}
+
+            attributes['status'] = job_status
+
+            merge_clause = "MERGE (d:Document {fileName: $fileName})"
+
+            set_clause = "SET " + ", ".join([f"d.{k} = ${k}" for k in attributes.keys()])
+
+            query = f"""
+                {merge_clause}
+                {set_clause}
+            """
+
+            logging.info(f'query : {query}')
+
+            graph: Neo4jGraph = current_app.config["NEO4J_GRAPH"]
+
+            graph.query(query, attributes)
+
+            logging.info(f"source node created successfully")
+
+        except Exception as e:
+            error_message = str(e)
+            logging.exception(f"error_message = {error_message}")
+            raise Exception(error_message)
+
+        
+    def update_source_node(self, obj_source_node: sourceNode):
+        try:
+            attributes = {attr: getattr(obj_source_node, attr) for attr in vars(obj_source_node) if getattr(obj_source_node, attr) is not None}
+
+            if 'fileName' not in attributes or not attributes['fileName']:
+                raise ValueError("fileName must be provided and cannot be empty.")
+
+            params = {"props": attributes}
+
+            query = "MERGE (d:Document {fileName: $props.fileName}) SET d += $props"
+
+            logging.info("Updating source node properties")
+
+            graph: Neo4jGraph = current_app.config["NEO4J_GRAPH"]
+
+            graph.query(query, params)
         except Exception as e:
             error_message = str(e)
             logging.info(f"error_message = {error_message}")
-            self.update_exception_db(obj_source_node.fileName, error_message)
-            raise Exception(error_message)
-        
-    def update_source_node(self, obj_source_node:sourceNode):
-        try:
-
-            params = {}
-            if obj_source_node.fileName is not None and obj_source_node.fileName != '':
-                params['fileName'] = obj_source_node.fileName
-
-            if obj_source_node.status is not None and obj_source_node.status != '':
-                params['status'] = obj_source_node.status
-
-            if obj_source_node.created_at is not None:
-                params['createdAt'] = obj_source_node.created_at
-
-            if obj_source_node.updated_at is not None:
-                params['updatedAt'] = obj_source_node.updated_at
-
-            if obj_source_node.processing_time is not None and obj_source_node.processing_time != 0:
-                params['processingTime'] = round(obj_source_node.processing_time.total_seconds(),2)
-
-            if obj_source_node.node_count is not None and obj_source_node.node_count != 0:
-                params['nodeCount'] = obj_source_node.node_count
-
-            if obj_source_node.relationship_count is not None and obj_source_node.relationship_count != 0:
-                params['relationshipCount'] = obj_source_node.relationship_count
-
-            if obj_source_node.model is not None and obj_source_node.model != '':
-                params['model'] = obj_source_node.model
-
-            if obj_source_node.total_pages is not None and obj_source_node.total_pages != 0:
-                params['total_pages'] = obj_source_node.total_pages
-
-            if obj_source_node.total_chunks is not None and obj_source_node.total_chunks != 0:
-                params['total_chunks'] = obj_source_node.total_chunks
-
-            if obj_source_node.is_cancelled is not None and obj_source_node.is_cancelled != False:
-                params['is_cancelled'] = obj_source_node.is_cancelled
-
-            if obj_source_node.processed_chunk is not None and obj_source_node.processed_chunk != 0:
-                params['processed_chunk'] = obj_source_node.processed_chunk
-
-            param= {"props":params}
-            
-            print(f'Base Param value 1 : {param}')
-            query = "MERGE(d:Document {fileName :$props.fileName}) SET d += $props"
-            logging.info("Update source node properties")
-            self.graph.query(query,param)
-        except Exception as e:
-            error_message = str(e)
-            self.update_exception_db(obj_source_node.fileName,error_message)
             raise Exception(error_message)
     
     def get_source_list(self):

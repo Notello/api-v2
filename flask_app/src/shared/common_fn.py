@@ -2,7 +2,6 @@ import logging
 
 from flask import current_app
 from ..document_sources.youtube import create_youtube_url
-from langchain_community.embeddings.sentence_transformer import SentenceTransformerEmbeddings
 from langchain_openai import OpenAIEmbeddings
 from langchain.docstore.document import Document
 from langchain_community.graphs import Neo4jGraph

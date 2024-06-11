@@ -1,6 +1,8 @@
 import logging
 import re
 from uuid import UUID
+from datetime import datetime
+from neo4j.time import DateTime
 
 
 from flask_app.src.document_sources.youtube import get_youtube_transcript
@@ -73,3 +75,14 @@ class HelperService:
         except Exception as e:
             logging.exception(f'Exception for file: {file_name}, Stack trace: {e}')
             return None
+
+    @staticmethod
+    def convert_neo4j_datetime(data):
+        if isinstance(data, list):
+            return [HelperService.convert_neo4j_datetime(item) for item in data]
+        elif isinstance(data, dict):
+            return {key: HelperService.convert_neo4j_datetime(value) for key, value in data.items()}
+        elif isinstance(data, (DateTime, datetime)):
+            return data.iso_format()
+        else:
+            return data
