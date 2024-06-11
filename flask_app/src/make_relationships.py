@@ -1,3 +1,4 @@
+import uuid
 from langchain_community.graphs import Neo4jGraph
 from langchain.docstore.document import Document
 from flask_app.src.shared.common_fn import load_embedding_model
@@ -8,12 +9,11 @@ import hashlib
 import time
 from flask import current_app
 
-logging.basicConfig(format='%(asctime)s - %(message)s',level='INFO')
+logging.basicConfig(format='%(asctime)s - %(message)s', level='INFO')
 
 def merge_relationship_between_chunk_and_entites(graph_documents_chunk_chunk_Id : list):
     batch_data = []
     logging.info("Create HAS_ENTITY relationship between chunks and entities")
-    chunk_node_id_set = 'id:"{}"'
     for graph_doc_chunk_id in graph_documents_chunk_chunk_Id:
         for node in graph_doc_chunk_id['graph_doc'].nodes:
             query_data={
@@ -22,11 +22,7 @@ def merge_relationship_between_chunk_and_entites(graph_documents_chunk_chunk_Id 
                 'node_id': node.id
             }
             batch_data.append(query_data)
-            #node_id = node.id
-            #Below query is also unable to change as parametrize because we can't make parameter of Label or node type
-            #https://neo4j.com/docs/cypher-manual/current/syntax/parameters/
-            #graph.query('MATCH(c:Chunk {'+chunk_node_id_set.format(graph_doc_chunk_id['chunk_id'])+'}) MERGE (n:'+ node.type +'{ id: "'+node_id+'"}) MERGE (c)-[:HAS_ENTITY]->(n)')
-          
+
     if batch_data:
         unwind_query = """
                     UNWIND $batch_data AS data
@@ -78,15 +74,13 @@ def create_relation_between_chunks(file_name, chunks: List[Document])->list:
     batch_data = []
     relationships = []
     for i, chunk in enumerate(chunks):
-        page_content_sha1 = hashlib.sha1(chunk.page_content.encode())
         previous_chunk_id = current_chunk_id
-        current_chunk_id = page_content_sha1.hexdigest()
-        position = i + 1
+        current_chunk_id = str(uuid.uuid4())
         if i == 0:
             firstChunk = True
         else:
             firstChunk = False  
-        metadata = {"position": position,"length": len(chunk.page_content)}
+        metadata = {"position": i + 1,"length": len(chunk.page_content)}
         chunk_document = Document(
             page_content=chunk.page_content, metadata=metadata
         )
@@ -94,7 +88,7 @@ def create_relation_between_chunks(file_name, chunks: List[Document])->list:
         chunk_data = {
             "id": current_chunk_id,
             "pg_content": chunk_document.page_content,
-            "position": position,
+            "position": i + 1,
             "length": chunk_document.metadata["length"],
             "f_name": file_name,
             "previous_id" : previous_chunk_id,
@@ -113,7 +107,7 @@ def create_relation_between_chunks(file_name, chunks: List[Document])->list:
         else:
             relationships.append({
                 "type": "NEXT_CHUNK",
-                "previous_chunk_id": previous_chunk_id,  # ID of previous chunk
+                "previous_chunk_id": previous_chunk_id,
                 "current_chunk_id": current_chunk_id
             })
           

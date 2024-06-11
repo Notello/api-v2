@@ -11,6 +11,7 @@ from flask_app.src.main import processing_source
 from flask_app.src.document_sources.text_loader import get_text_chunks_langchain
 from .HelperService import HelperService
 from langchain_community.document_loaders import PyMuPDFLoader
+from neo4j.time import DateTime
 
 
 
@@ -121,30 +122,62 @@ class GraphService:
 
     @staticmethod
     def get_graph_for_param(key: str, value: str) -> None:
-        graphDb_data_Access = graphDBdataAccess(current_app.config['NEO4J_GRAPH'])
-
-        QUERY = f"""
-        MATCH (n)-[r]->(m)
-        WHERE n.{key} = $value OR m.{key} = $value
-        RETURN n, r, m
-        """
-
-        parameters = {
-            "value": value
-        }
-
         try:
-            result = graphDb_data_Access.execute_query(QUERY, parameters)
-            nodes = []
-            relationships = []
-            for record in result:
-                nodes.append(record['n'])
-                nodes.append(record['m'])
-                relationships.append(record['r'])
+            graphDb_data_Access = graphDBdataAccess(current_app.config['NEO4J_GRAPH'])
 
-            return {
-                'nodes': nodes,
-                'relationships': relationships
+            # Query to get unique nodes including node IDs
+            QUERY_NODES = f"""
+            MATCH (d:Document {{{key}: $value}})
+            OPTIONAL MATCH (d)-[:PART_OF]-(c:Chunk)
+            OPTIONAL MATCH (c)-[:HAS_ENTITY]->(e)
+            RETURN DISTINCT ID(d) as node_id, d as node
+            UNION
+            MATCH (d:Document {{{key}: $value}})-[:PART_OF]-(c:Chunk)
+            RETURN DISTINCT ID(c) as node_id, c as node
+            UNION
+            MATCH (d:Document {{{key}: $value}})-[:PART_OF]-(c:Chunk)-[:HAS_ENTITY]->(e)
+            RETURN DISTINCT ID(e) as node_id, e as node
+            """
+
+            # Query to get relationships between Document, Chunk, and Entity nodes
+            QUERY_RELATIONSHIPS = f"""
+            MATCH (d:Document {{{key}: $value}})-[r:PART_OF]-(c:Chunk)
+            RETURN ID(d) AS start_node_id, ID(c) AS end_node_id, TYPE(r) AS relationship_type
+            UNION
+            MATCH (d:Document {{{key}: $value}})-[:PART_OF]-(c:Chunk)-[r:HAS_ENTITY]->(e)
+            RETURN ID(c) AS start_node_id, ID(e) AS end_node_id, TYPE(r) AS relationship_type
+            UNION
+            MATCH (d:Document {{{key}: $value}})-[:PART_OF]-(c:Chunk)-[:HAS_ENTITY]->(e)-[r2]-(e2)
+            WHERE NOT (e2:Document OR e2:Chunk)
+            RETURN ID(e) AS start_node_id, ID(e2) AS end_node_id, TYPE(r2) AS relationship_type
+            """
+
+            parameters = {
+                "value": value
             }
+
+            # Execute queries
+            nodes = graphDb_data_Access.execute_query(QUERY_NODES, parameters)
+            relationships = graphDb_data_Access.execute_query(QUERY_RELATIONSHIPS, parameters)
+
+            # Convert timestamps to strings
+            for node in nodes:
+                if "created_at" in node['node']:
+                    node['node']['created_at'] = str(node['node']['created_at'])
+                if "createdAt" in node['node']:
+                    node['node']['createdAt'] = str(node['node']['createdAt'])
+                if "updated_at" in node['node']:
+                    node['node']['updated_at'] = str(node['node']['updated_at'])
+                if "updatedAt" in node['node']:
+                    node['node']['updatedAt'] = str(node['node']['updatedAt'])
+                if "processingTime" in node['node']:
+                    node['node']['processing_time'] = str(node['node']['processing_time'])
+                if "processingTime" in node['node']:
+                    node['node']['processingTime'] = str(node['node']['processingTime'])
+
+            print(nodes)
+
+            return nodes, relationships
+
         except Exception as e:
             logging.error(f"Error executing query: {e}")

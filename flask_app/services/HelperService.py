@@ -83,6 +83,9 @@ class HelperService:
         elif isinstance(data, dict):
             return {key: HelperService.convert_neo4j_datetime(value) for key, value in data.items()}
         elif isinstance(data, (DateTime, datetime)):
+            logging.info("Datetime")
+            type(data)
+            logging.info(data.iso_format())
             return data.iso_format()
         else:
             return data

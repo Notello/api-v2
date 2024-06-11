@@ -1,11 +1,14 @@
-from json import JSONEncoder
+import json
+import logging
 import os
 from flask_restx import Api
 from flask_cors import CORS
 from supabase import create_client
 import runpod
-from neo4j.time import DateTime as Neo4jDateTime
 from datetime import datetime
+from flask.json.provider import DefaultJSONProvider
+from datetime import datetime
+from neo4j.time import DateTime
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -23,9 +26,9 @@ graph = create_graph_database_connection(
 )
 runpod.api_key = os.getenv("RUNPOD_API_KEY")
 
-class CustomJSONEncoder(JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, (Neo4jDateTime, datetime)):
-            return obj.iso_format()
-        return super().default(obj)
+class CustomJSONEncoder(json.JSONEncoder):
+    def default(self, o):
+        if isinstance(o, DateTime):
+            return str(o)
 
+        return json.JSONEncoder.default(self, o)  
