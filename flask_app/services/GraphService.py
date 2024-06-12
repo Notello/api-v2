@@ -125,31 +125,36 @@ class GraphService:
         try:
             graphDb_data_Access = graphDBdataAccess(current_app.config['NEO4J_GRAPH'])
 
-            # Query to get unique nodes including node IDs
+            # Query to get unique nodes including node IDs with limited recursion depth
             QUERY_NODES = f"""
             MATCH (d:Document {{{key}: $value}})
             OPTIONAL MATCH (d)-[:PART_OF]-(c:Chunk)
             OPTIONAL MATCH (c)-[:HAS_ENTITY]->(e)
-            RETURN DISTINCT ID(d) as node_id, d as node
+            OPTIONAL MATCH (e)-[*1..3]-(relatedNode)
+            RETURN DISTINCT ID(d) as node_id, 'Document' as node_type, d as node
             UNION
             MATCH (d:Document {{{key}: $value}})-[:PART_OF]-(c:Chunk)
-            RETURN DISTINCT ID(c) as node_id, c as node
+            RETURN DISTINCT ID(c) as node_id, 'Chunk' as node_type, c as node
             UNION
             MATCH (d:Document {{{key}: $value}})-[:PART_OF]-(c:Chunk)-[:HAS_ENTITY]->(e)
-            RETURN DISTINCT ID(e) as node_id, e as node
+            RETURN DISTINCT ID(e) as node_id, 'Entity' as node_type, e as node
+            UNION
+            MATCH (d:Document {{{key}: $value}})-[:PART_OF]-(c:Chunk)-[:HAS_ENTITY]->(e)-[*1..3]-(relatedNode)
+            WHERE NOT (relatedNode:Document OR relatedNode:Chunk)
+            RETURN DISTINCT ID(relatedNode) as node_id, LABELS(relatedNode)[0] as node_type, relatedNode as node
             """
 
-            # Query to get relationships between Document, Chunk, and Entity nodes
+            # Query to get relationships between Document, Chunk, and Entity nodes and their related nodes with limited depth
             QUERY_RELATIONSHIPS = f"""
             MATCH (d:Document {{{key}: $value}})-[r:PART_OF]-(c:Chunk)
-            RETURN ID(d) AS start_node_id, ID(c) AS end_node_id, TYPE(r) AS relationship_type
+            RETURN DISTINCT ID(d) AS start_node_id, ID(c) AS end_node_id, type(r) AS relationship_type
             UNION
             MATCH (d:Document {{{key}: $value}})-[:PART_OF]-(c:Chunk)-[r:HAS_ENTITY]->(e)
-            RETURN ID(c) AS start_node_id, ID(e) AS end_node_id, TYPE(r) AS relationship_type
+            RETURN DISTINCT ID(c) AS start_node_id, ID(e) AS end_node_id, type(r) AS relationship_type
             UNION
-            MATCH (d:Document {{{key}: $value}})-[:PART_OF]-(c:Chunk)-[:HAS_ENTITY]->(e)-[r2]-(e2)
-            WHERE NOT (e2:Document OR e2:Chunk)
-            RETURN ID(e) AS start_node_id, ID(e2) AS end_node_id, TYPE(r2) AS relationship_type
+            MATCH (e)-[r]->(e2)
+            WHERE NOT (e:Document OR e:Chunk OR e2:Document OR e2:Chunk) AND e2 IS NOT NULL
+            RETURN DISTINCT ID(e) AS start_node_id, ID(e2) AS end_node_id, type(r) AS relationship_type
             """
 
             parameters = {
@@ -160,7 +165,13 @@ class GraphService:
             nodes = graphDb_data_Access.execute_query(QUERY_NODES, parameters)
             relationships = graphDb_data_Access.execute_query(QUERY_RELATIONSHIPS, parameters)
 
-            # Convert timestamps to strings
+            # Initialize lists for categorized nodes
+            document_nodes = []
+            chunk_nodes = []
+            entity_nodes = []
+
+            # Convert timestamps to strings and categorize nodes
+            node_ids = set()  # Set to keep track of all node IDs
             for node in nodes:
                 if "created_at" in node['node']:
                     node['node']['created_at'] = str(node['node']['created_at'])
@@ -175,9 +186,44 @@ class GraphService:
                 if "processingTime" in node['node']:
                     node['node']['processingTime'] = str(node['node']['processingTime'])
 
-            print(nodes)
+                # Add node ID to set
+                node_ids.add(node['node_id'])
 
-            return nodes, relationships
+                # Categorize nodes
+                if node['node_type'] == 'Document':
+                    document_nodes.append(node)
+                elif node['node_type'] == 'Chunk':
+                    chunk_nodes.append(node)
+                else:
+                    entity_nodes.append(node)
+
+            categorized_nodes = {
+                "documents": document_nodes,
+                "chunks": chunk_nodes,
+                "entities": entity_nodes
+            }
+
+            # Filter relationships to only include those where both node IDs exist in the node set
+            filtered_relationships = []
+            seen_relationships = set()
+            for rel in relationships:
+                start_node_id = rel["start_node_id"]
+                end_node_id = rel["end_node_id"]
+                relationship_type = rel["relationship_type"]
+                if start_node_id in node_ids and end_node_id in node_ids:
+                    relationship_key = (start_node_id, end_node_id)
+                    if relationship_key not in seen_relationships:
+                        seen_relationships.add(relationship_key)
+                        filtered_relationships.append({
+                            "start_node_id": start_node_id,
+                            "end_node_id": end_node_id,
+                            "relationship_type": relationship_type
+                        })
+
+            print(categorized_nodes)
+            print(filtered_relationships)
+
+            return categorized_nodes, filtered_relationships
 
         except Exception as e:
             logging.error(f"Error executing query: {e}")
