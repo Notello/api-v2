@@ -107,7 +107,7 @@ class graphDBdataAccess:
         """
         index = self.graph.query("""show indexes yield * where type = 'VECTOR' and name = 'vector'""")
         # logging.info(f'show index vector: {index}')
-        knn_min_score = os.environ.get('KNN_MIN_SCORE')
+        knn_min_score = os.environ.get('KNN_MIN_SCORE', 0.6)
         if index[0]['name'] == 'vector':
             logging.info('update KNN graph')
             result = self.graph.query("""MATCH (c:Chunk)

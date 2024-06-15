@@ -115,6 +115,8 @@ class GraphService:
             
             SupabaseService.update_note(noteId=noteId, key='graphStatus', value='complete')
 
+            graphDb_data_Access.update_KNN_graph()
+
             logging.info(f'File {fileName} has been processed successfully, success_count: {successCount}, failed_count: {failedCount}')
         except Exception as e:
             logging.exception(f'Exception in create_source_node_graph_url_youtube: {e}')
