@@ -3,6 +3,8 @@ import logging
 from supabase import Client
 from flask import current_app
 
+from flask_app.constants import NOTE_TABLE_NAME
+
 supabase: Client = current_app.config['SUPABASE_CLIENT']
 
 class SupabaseService:
@@ -17,7 +19,7 @@ class SupabaseService:
         sourceUrl: str = ''
     ) -> list:
         try:
-            out = supabase.table('webapp-v2_note').insert({
+            out = supabase.table(NOTE_TABLE_NAME).insert({
                 'courseId': courseId,
                 'userId': userId,
                 'form': form,
@@ -59,4 +61,4 @@ class SupabaseService:
     @staticmethod
     def update_note(noteId: str, key: str, value: str):
         logging.info(f'Updating note {noteId} with key {key} and value {value}')
-        return supabase.table('webapp-v2_note').update({key: value}).eq('id', noteId).execute().data
+        return supabase.table(NOTE_TABLE_NAME).update({key: value}).eq('id', noteId).execute().data
