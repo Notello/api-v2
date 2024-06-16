@@ -1,12 +1,9 @@
 import json
-import logging
 import os
 from flask_restx import Api
 from flask_cors import CORS
 from supabase import create_client
 import runpod
-from datetime import datetime
-from flask.json.provider import DefaultJSONProvider
 from datetime import datetime
 from neo4j.time import DateTime
 
@@ -16,7 +13,15 @@ load_dotenv()
 from flask_app.src.shared.common_fn import create_graph_database_connection
 
 api = Api(doc='/docs', title='Notello API', version='1.0', description='An API for Notello')
-cors = CORS(resources={r"/*": {"origins": "http://localhost:3000"}})
+
+ENV_MAP = {
+    'dev': "http://localhost:3000",
+    'prod': ["https://notello.ai", "https://www.notello.ai"]
+}
+
+cors = CORS(resources={r"/*": {"origins": ENV_MAP[os.getenv('ENV_TYPE')]}})
+
+
 supabase = create_client(os.getenv('SUPABASE_URL'), os.getenv('SUPABASE_SERVICE_KEY'))
 graph = create_graph_database_connection(
     os.getenv('NEO4J_URI'), 

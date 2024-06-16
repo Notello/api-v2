@@ -1,7 +1,6 @@
 from io import BytesIO
 import logging
 from supabase import Client
-from werkzeug.datastructures import FileStorage
 from flask import current_app
 
 supabase: Client = current_app.config['SUPABASE_CLIENT']

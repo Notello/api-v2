@@ -1,12 +1,8 @@
 import uuid
-from langchain_community.graphs import Neo4jGraph
 from langchain.docstore.document import Document
 from flask_app.src.shared.common_fn import load_embedding_model
 import logging
 from typing import List
-import os
-import hashlib
-import time
 from flask import current_app
 
 logging.basicConfig(format='%(asctime)s - %(message)s', level='INFO')

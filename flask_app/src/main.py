@@ -1,6 +1,3 @@
-import os
-import sys
-from pytube import YouTube
 from datetime import datetime
 import logging
 import re
