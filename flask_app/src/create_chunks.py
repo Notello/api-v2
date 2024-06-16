@@ -1,7 +1,6 @@
 from langchain_text_splitters import TokenTextSplitter
 from langchain.docstore.document import Document
 import logging
-import os
 
 logging.basicConfig(format="%(asctime)s - %(message)s", level="INFO")
 

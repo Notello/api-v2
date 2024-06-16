@@ -1,12 +1,10 @@
 from enum import Enum
 from io import BytesIO
-import mimetypes
 from werkzeug.datastructures import FileStorage
 import logging
 from .SupabaseService import SupabaseService
 from .RunpodService import RunpodService
 from .GraphService import GraphService
-from .HelperService import HelperService
 from flask_app.src.document_sources.pdf_loader import extract_text
 
 class NoteForm(Enum):

@@ -1,8 +1,4 @@
-from langchain_community.graphs.graph_document import (
-    Node as BaseNode,
-    Relationship as BaseRelationship,
-    GraphDocument,
-)
+from langchain_community.graphs.graph_document import GraphDocument
 from langchain.schema import Document
 from typing import List, Optional
 from langchain.pydantic_v1 import Field, BaseModel

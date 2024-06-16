@@ -2,7 +2,7 @@ import os
 from flask import Flask
 import runpod
 
-from .extensions import api, cors, supabase, graph, CustomJSONEncoder
+from .extensions import api, cors, supabase, graph
 from .routes import init_api
 
 from dotenv import load_dotenv

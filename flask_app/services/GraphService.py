@@ -115,7 +115,7 @@ class GraphService:
             
             SupabaseService.update_note(noteId=noteId, key='graphStatus', value='complete')
 
-            graphDb_data_Access.update_KNN_graph()
+            # graphDb_data_Access.update_KNN_graph()
 
             logging.info(f'File {fileName} has been processed successfully, success_count: {successCount}, failed_count: {failedCount}')
         except Exception as e:

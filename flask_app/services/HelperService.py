@@ -4,7 +4,6 @@ from uuid import UUID
 from datetime import datetime
 from neo4j.time import DateTime
 
-
 from flask_app.src.document_sources.youtube import get_youtube_transcript
 
 
