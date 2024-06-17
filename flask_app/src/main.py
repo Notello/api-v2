@@ -1,13 +1,15 @@
 from datetime import datetime
 import logging
-import re
+
+from langchain_core.documents import Document
+
 from flask_app.src.create_chunks import CreateChunksofDocument
 from flask_app.src.entities.source_node import sourceNode
 from flask_app.src.graphDB_dataAccess import graphDBdataAccess
 from flask_app.src.make_relationships import create_relation_between_chunks, merge_relationship_between_chunk_and_entites, update_embedding_create_vector_index
 from flask_app.src.openAI_llm import get_graph_from_OpenAI
 from flask_app.src.shared.common_fn import get_chunk_and_graphDocument, save_graphDocuments_in_neo4j
-from langchain_core.documents import Document
+from flask_app.services.SupabaseService import SupabaseService
 
 from flask import current_app
 
@@ -67,6 +69,8 @@ def processing_source(
     logging.info(fileName)
     logging.info(obj_source_node)
     graphDb_data_Access.update_source_node(obj_source_node)
+
+    SupabaseService.update_note(noteId, 'graphStatus', '1')
     
     logging.info('Update the status as Processing')
     updateGraphChunkProcessed = int(current_app.config['UPDATE_GRAPH_CHUNKS_PROCESSED'])
@@ -83,28 +87,26 @@ def processing_source(
       result = graphDb_data_Access.get_current_status_document_node(fileName)
       isCancelledStatus = result[0]['is_cancelled']
       logging.info(f"Value of is_cancelled : {result[0]['is_cancelled']}")
-      if isCancelledStatus == True:
-         jobStatus = "Cancelled"
-         logging.info('Exit from running loop of processing file')
-         exit
-      else:
-        node_count,rel_count = processing_chunks(selected_chunks, 
-                                                 fileName, 
-                                                 allowedNodes,
-                                                 allowedRelationship, 
-                                                 node_count, 
-                                                 rel_count)
-        end_time = datetime.now()
-        processed_time = end_time - start_time
-        
-        obj_source_node = sourceNode()
-        obj_source_node.fileName = fileName
-        obj_source_node.updated_at = end_time
-        obj_source_node.processing_time = processed_time
-        obj_source_node.node_count = node_count
-        obj_source_node.processed_chunk = select_chunks_upto
-        obj_source_node.relationship_count = rel_count
-        graphDb_data_Access.update_source_node(obj_source_node)
+      node_count,rel_count = processing_chunks(selected_chunks, 
+                                                fileName, 
+                                                allowedNodes,
+                                                allowedRelationship, 
+                                                node_count, 
+                                                rel_count)
+      
+      SupabaseService.update_note(noteId, 'graphStatus', str(node_count))
+
+      end_time = datetime.now()
+      processed_time = end_time - start_time
+      
+      obj_source_node = sourceNode()
+      obj_source_node.fileName = fileName
+      obj_source_node.updated_at = end_time
+      obj_source_node.processing_time = processed_time
+      obj_source_node.node_count = node_count
+      obj_source_node.processed_chunk = select_chunks_upto
+      obj_source_node.relationship_count = rel_count
+      graphDb_data_Access.update_source_node(obj_source_node)
     
     result = graphDb_data_Access.get_current_status_document_node(fileName)
     isCancelledStatus = result[0]['is_cancelled']
