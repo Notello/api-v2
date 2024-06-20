@@ -222,10 +222,8 @@ class GraphService:
                             "relationship_type": relationship_type
                         })
 
-            print(categorized_nodes)
-            print(filtered_relationships)
-
             return categorized_nodes, filtered_relationships
 
         except Exception as e:
             logging.error(f"Error executing query: {e}")
+            return None, None
