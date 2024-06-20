@@ -18,6 +18,9 @@ class GetGraphForCourse(Resource):
             
             nodes, relationships = GraphService.get_graph_for_param(key=param, value=id)
 
+            if nodes is None or relationships is None:
+                return {'message': 'Error getting graph'}, 400
+
             logging.info(f"Graph, nodes: {len(nodes)}, relationships: {len(relationships)}")
 
             return {
