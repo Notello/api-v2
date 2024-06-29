@@ -31,13 +31,11 @@ class graphDBdataAccess:
         for key in obj_source_node.__dict__:
             logging.info(f'key : {key}, value : {obj_source_node.__dict__[key]}')
         try:
-            job_status = "New"
-
             attributes = {attr: getattr(obj_source_node, attr) for attr in vars(obj_source_node) if getattr(obj_source_node, attr) is not None}
 
-            attributes['status'] = job_status
+            attributes['status'] = "New"
 
-            merge_clause = "MERGE (d:Document {fileName: $fileName})"
+            merge_clause = "MERGE (d:Document {noteId: $noteId})"
 
             set_clause = "SET " + ", ".join([f"d.{k} = ${k}" for k in attributes.keys()])
 
@@ -64,12 +62,12 @@ class graphDBdataAccess:
         try:
             attributes = {attr: getattr(obj_source_node, attr) for attr in vars(obj_source_node) if getattr(obj_source_node, attr) is not None}
 
-            if 'fileName' not in attributes or not attributes['fileName']:
-                raise ValueError("fileName must be provided and cannot be empty.")
+            if 'noteId' not in attributes or not attributes['noteId']:
+                raise ValueError("noteId must be provided and cannot be empty.")
 
             params = {"props": attributes}
 
-            query = "MERGE (d:Document {fileName: $props.fileName}) SET d += $props"
+            query = "MERGE (d:Document {noteId: $props.noteId}) SET d += $props"
 
             logging.info("Updating source node properties")
 

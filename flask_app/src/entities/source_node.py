@@ -6,7 +6,6 @@ class sourceNode:
         for key, value in kwargs.items():
             setattr(self, key, value)
         
-    
     fileName:str=None
     file_size:int=None
     file_type:str=None

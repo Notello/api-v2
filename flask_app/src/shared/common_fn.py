@@ -12,6 +12,8 @@ import os
 from pathlib import Path
 from langchain_openai import ChatOpenAI
 
+from pprint import pprint
+
 
 def check_url_source(yt_url:str=None):
     languages=[]
@@ -43,9 +45,14 @@ def get_combined_chunks(chunkId_chunkDoc_list):
 def get_chunk_and_graphDocument(graph_document_list, chunkId_chunkDoc_list):
   logging.info("creating list of chunks and graph documents in get_chunk_and_graphDocument func")
   lst_chunk_chunkId_document=[]
+
   for graph_document in graph_document_list:            
-          for chunk_id in graph_document.source.metadata['combined_chunk_ids'] :
-            lst_chunk_chunkId_document.append({'graph_doc':graph_document,'chunk_id':chunk_id})
+          for chunk_id in graph_document.source.metadata['combined_chunk_ids']:
+
+            lst_chunk_chunkId_document.append({
+              'graph_doc': graph_document,
+              'chunk_id': chunk_id
+            })
                   
   return lst_chunk_chunkId_document  
                  
@@ -60,7 +67,19 @@ def load_embedding_model():
   logging.info(f"Embedding: Using OpenAI Embeddings , Dimension:{dimension}")
   return embeddings, dimension
 
-def save_graphDocuments_in_neo4j(graph:Neo4jGraph, graph_document_list:List[GraphDocument]):
+def save_graphDocuments_in_neo4j(
+      graph: Neo4jGraph, 
+      graph_document_list: List[GraphDocument],
+      noteId: str | None = None,
+      courseId: str | None = None,
+      userId: str | None = None
+      ):
+  for graph_document in graph_document_list:
+    for node in graph_document.nodes:
+      node.properties['noteId'] = noteId
+      node.properties['courseId'] = courseId
+      node.properties['userId'] = userId
+  
   graph.add_graph_documents(graph_document_list)
 
 def delete_uploaded_local_file(merged_file_path, file_name):

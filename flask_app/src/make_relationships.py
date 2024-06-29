@@ -35,13 +35,13 @@ def update_embedding_create_vector_index(chunkId_chunkDoc_list, file_name):
     data_for_query = []
     logging.info(f"update embedding and vector index for chunks")
     for row in chunkId_chunkDoc_list:
-        # for graph_document in row['graph_doc']:
+
         embeddings_arr = embeddings.embed_query(row['chunk_doc'].page_content)
-        # logging.info(f'Embedding list {embeddings}')
+
         data_for_query.append({
-                "chunkId": row['chunk_id'],
-                "embeddings": embeddings_arr
-            })
+            "chunkId": row['chunk_id'],
+            "embeddings": embeddings_arr
+        })
 
         current_app.config['NEO4J_GRAPH'].query("""CREATE VECTOR INDEX `vector` if not exists for (c:Chunk) on (c.embedding)
                         OPTIONS {indexConfig: {
@@ -143,3 +143,4 @@ def create_relation_between_chunks(file_name, chunks: List[Document])->list:
     current_app.config['NEO4J_GRAPH'].query(query_to_create_NEXT_CHUNK_relation, params={"relationships": relationships})   
     
     return lst_chunks_including_hash
+

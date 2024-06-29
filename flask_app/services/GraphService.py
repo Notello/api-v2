@@ -10,9 +10,7 @@ from flask_app.src.document_sources.youtube import get_documents_from_youtube
 from flask_app.src.main import processing_source
 from flask_app.src.document_sources.text_loader import get_text_chunks_langchain
 from .HelperService import HelperService
-from langchain_community.document_loaders import PyMuPDFLoader
-from neo4j.time import DateTime
-
+from .SimilarityService import SimilarityService
 
 
 
@@ -28,6 +26,18 @@ class GraphService:
         try:
             successCount=0
             failedCount=0
+
+            similarityService = SimilarityService(
+                similarity_threshold=0.9, 
+                word_edit_distance=5
+            )
+
+            similar = similarityService.same_youtube_node_exists(course_id=courseId, url=sourceUrl)
+
+            if similar:
+                logging.info(f"File: {sourceUrl} is similar to {similar}")
+                SupabaseService.update_note(noteId=noteId, key='graphStatus', value='already-exists')
+                return
 
             transcript = HelperService.check_url_source(ytUrl=sourceUrl)
 
@@ -47,7 +57,7 @@ class GraphService:
 
             fileName, pages = get_documents_from_youtube(obj_source_node.url)
 
-            obj_source_node.fileName = fileName
+            obj_source_node.noteId = noteId
 
             graphDb_data_Access.create_source_node(obj_source_node)
 
@@ -82,6 +92,29 @@ class GraphService:
         try:
             successCount=0
             failedCount=0
+            
+            pages = get_text_chunks_langchain(rawText)
+
+            similarityService = SimilarityService(
+                similarity_threshold=0.9, 
+                word_edit_distance=5
+            )
+
+            similar = similarityService.has_similar_documents(
+                courseId=courseId,
+                noteId=noteId,
+                file_name=fileName, 
+                documents=pages
+            )
+
+            if similar:
+                logging.info(f"File: {fileName} is similar to {similar}")
+                SupabaseService.update_note(
+                    noteId=noteId, 
+                    key='graphStatus', 
+                    value='already-exists'
+                    )
+                return
 
             obj_source_node = sourceNode(
                 file_type='text',
@@ -96,9 +129,7 @@ class GraphService:
 
             graphDb_data_Access: graphDBdataAccess = graphDBdataAccess(current_app.config['NEO4J_GRAPH'])
 
-            pages = get_text_chunks_langchain(rawText)
-
-            obj_source_node.fileName = fileName
+            obj_source_node.noteId = noteId
 
             graphDb_data_Access.create_source_node(obj_source_node)
 
@@ -119,7 +150,7 @@ class GraphService:
 
             logging.info(f'File {fileName} has been processed successfully, success_count: {successCount}, failed_count: {failedCount}')
         except Exception as e:
-            logging.exception(f'Exception in create_source_node_graph_url_youtube: {e}')
+            logging.exception(f'Exception: {e}')
             SupabaseService.update_note(noteId=noteId, key='graphStatus', value='error')
 
     @staticmethod
