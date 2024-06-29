@@ -20,7 +20,7 @@ def get_graph_from_OpenAI(chunkId_chunkDoc_list, allowedNodes, allowedRelationsh
         llm=llm, 
         allowed_nodes=['Concept'], 
         allowed_relationships=allowedRelationship,
-        node_properties=['description']
+        node_properties=["description"]
         )
     
     with ThreadPoolExecutor(max_workers=10) as executor:
@@ -33,7 +33,8 @@ def get_graph_from_OpenAI(chunkId_chunkDoc_list, allowedNodes, allowedRelationsh
         
         for i, future in enumerate(concurrent.futures.as_completed(futures)):
             graph_document = future.result()
-            graph_document_list.append(graph_document[0])    
+            graph_document_list.append(graph_document[0])   
+
     return graph_document_list        
         
     

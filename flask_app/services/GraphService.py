@@ -1,6 +1,7 @@
 from datetime import datetime
 import sys
 import logging
+from typing import Dict, List, Tuple
 from flask import current_app
 from .SupabaseService import SupabaseService
 from langchain_core.documents import Document
@@ -154,107 +155,102 @@ class GraphService:
             SupabaseService.update_note(noteId=noteId, key='graphStatus', value='error')
 
     @staticmethod
-    def get_graph_for_param(key: str, value: str) -> None:
+    def get_graph_for_param(key: str, value: str) -> Tuple[Dict[str, List[Dict]], List[Tuple[int, str, int]]]:
         try:
             graphDb_data_Access = graphDBdataAccess(current_app.config['NEO4J_GRAPH'])
 
-            # Query to get unique nodes including node IDs with limited recursion depth
-            QUERY_NODES = f"""
-            MATCH (d:Document {{{key}: $value}})
-            OPTIONAL MATCH (d)-[:PART_OF]-(c:Chunk)
-            OPTIONAL MATCH (c)-[:HAS_ENTITY]->(e)
-            OPTIONAL MATCH (e)-[*1..3]-(relatedNode)
-            RETURN DISTINCT ID(d) as node_id, 'Document' as node_type, d as node
-            UNION
-            MATCH (d:Document {{{key}: $value}})-[:PART_OF]-(c:Chunk)
-            RETURN DISTINCT ID(c) as node_id, 'Chunk' as node_type, c as node
-            UNION
-            MATCH (d:Document {{{key}: $value}})-[:PART_OF]-(c:Chunk)-[:HAS_ENTITY]->(e)
-            RETURN DISTINCT ID(e) as node_id, 'Entity' as node_type, e as node
-            UNION
-            MATCH (d:Document {{{key}: $value}})-[:PART_OF]-(c:Chunk)-[:HAS_ENTITY]->(e)-[*1..3]-(relatedNode)
-            WHERE NOT (relatedNode:Document OR relatedNode:Chunk)
-            RETURN DISTINCT ID(relatedNode) as node_id, LABELS(relatedNode)[0] as node_type, relatedNode as node
-            """
-
-            # Query to get relationships between Document, Chunk, and Entity nodes and their related nodes with limited depth
-            QUERY_RELATIONSHIPS = f"""
-            MATCH (d:Document {{{key}: $value}})-[r:PART_OF]-(c:Chunk)
-            RETURN DISTINCT ID(d) AS start_node_id, ID(c) AS end_node_id, type(r) AS relationship_type
-            UNION
-            MATCH (d:Document {{{key}: $value}})-[:PART_OF]-(c:Chunk)-[r:HAS_ENTITY]->(e)
-            RETURN DISTINCT ID(c) AS start_node_id, ID(e) AS end_node_id, type(r) AS relationship_type
-            UNION
-            MATCH (e)-[r]->(e2)
-            WHERE NOT (e:Document OR e:Chunk OR e2:Document OR e2:Chunk) AND e2 IS NOT NULL
-            RETURN DISTINCT ID(e) AS start_node_id, ID(e2) AS end_node_id, type(r) AS relationship_type
+            QUERY = f"""
+            MATCH (n)
+            WHERE n.{key} = $value
+            OPTIONAL MATCH (n)-[r]->(relatedNode)
+            WHERE relatedNode.{key} = $value
+            RETURN ID(n) AS nodeId, LABELS(n) AS nodeLabels, 
+                n.fileName AS fileName, n.position AS position, n.id AS conceptId, n.description AS description,
+                TYPE(r) AS relType, ID(relatedNode) AS relatedNodeId, LABELS(relatedNode) AS relatedNodeLabels,
+                relatedNode.fileName AS relatedNodeFileName, relatedNode.position AS relatedNodePosition, 
+                relatedNode.id AS relatedNodeConceptId, relatedNode.description AS relatedNodeDescription
             """
 
             parameters = {
                 "value": value
             }
 
-            # Execute queries
-            nodes = graphDb_data_Access.execute_query(QUERY_NODES, parameters)
-            relationships = graphDb_data_Access.execute_query(QUERY_RELATIONSHIPS, parameters)
+            result = graphDb_data_Access.execute_query(QUERY, parameters)
 
-            # Initialize lists for categorized nodes
-            document_nodes = []
-            chunk_nodes = []
-            entity_nodes = []
-
-            # Convert timestamps to strings and categorize nodes
-            node_ids = set()  # Set to keep track of all node IDs
-            for node in nodes:
-                if "created_at" in node['node']:
-                    node['node']['created_at'] = str(node['node']['created_at'])
-                if "createdAt" in node['node']:
-                    node['node']['createdAt'] = str(node['node']['createdAt'])
-                if "updated_at" in node['node']:
-                    node['node']['updated_at'] = str(node['node']['updated_at'])
-                if "updatedAt" in node['node']:
-                    node['node']['updatedAt'] = str(node['node']['updatedAt'])
-                if "processingTime" in node['node']:
-                    node['node']['processing_time'] = str(node['node']['processing_time'])
-                if "processingTime" in node['node']:
-                    node['node']['processingTime'] = str(node['node']['processingTime'])
-
-                # Add node ID to set
-                node_ids.add(node['node_id'])
-
-                # Categorize nodes
-                if node['node_type'] == 'Document':
-                    document_nodes.append(node)
-                elif node['node_type'] == 'Chunk':
-                    chunk_nodes.append(node)
-                else:
-                    entity_nodes.append(node)
-
-            categorized_nodes = {
-                "documents": document_nodes,
-                "chunks": chunk_nodes,
-                "entities": entity_nodes
+            nodes = {
+                'documents': [],
+                'chunks': [],
+                'concepts': []
             }
+            relationships = []
 
-            # Filter relationships to only include those where both node IDs exist in the node set
-            filtered_relationships = []
-            seen_relationships = set()
-            for rel in relationships:
-                start_node_id = rel["start_node_id"]
-                end_node_id = rel["end_node_id"]
-                relationship_type = rel["relationship_type"]
-                if start_node_id in node_ids and end_node_id in node_ids:
-                    relationship_key = (start_node_id, end_node_id)
-                    if relationship_key not in seen_relationships:
-                        seen_relationships.add(relationship_key)
-                        filtered_relationships.append({
-                            "start_node_id": start_node_id,
-                            "end_node_id": end_node_id,
-                            "relationship_type": relationship_type
+            for record in result:
+                node_id = record.get('nodeId')
+                node_labels = record.get('nodeLabels')
+                file_name = record.get('fileName')
+                position = record.get('position')
+                concept_id = record.get('conceptId')
+                description = record.get('description')
+
+                related_node_id = record.get('relatedNodeId')
+                related_node_labels = record.get('relatedNodeLabels')
+                related_file_name = record.get('relatedNodeFileName')
+                related_position = record.get('relatedNodePosition')
+                related_concept_id = record.get('relatedNodeConceptId')
+                related_description = record.get('relatedNodeDescription')
+
+                rel_type = record.get('relType')
+
+                if node_id is not None and node_labels:
+                    if 'Document' in node_labels:
+                        nodes['documents'].append({
+                            'id': node_id, 
+                            'fileName': file_name
+                        })
+                    elif 'Chunk' in node_labels:
+                        nodes['chunks'].append({
+                            'id': node_id, 
+                            'position': position
+                        })
+                    elif 'Concept' in node_labels:
+                        nodes['concepts'].append({
+                            'id': node_id, 
+                            'conceptId': concept_id, 
+                            'description': description
                         })
 
-            return categorized_nodes, filtered_relationships
+                if related_node_id is not None and related_node_labels:
+                    if 'Document' in related_node_labels:
+                        nodes['documents'].append({
+                            'id': related_node_id, 
+                            'fileName': related_file_name
+                            })
+                    elif 'Chunk' in related_node_labels:
+                        nodes['chunks'].append({
+                            'id': related_node_id, 
+                            'position': related_position
+                            })
+                    elif 'Concept' in related_node_labels:
+                        nodes['concepts'].append({
+                            'id': related_node_id,
+                            'conceptId': related_concept_id, 
+                            'description': related_description
+                            })
+
+                if node_id is not None and related_node_id is not None and rel_type is not None:
+                    relationships.append({
+                        "start_node_id": node_id, 
+                        "relationship_type": rel_type, 
+                        "end_node_id": related_node_id
+                    })
+
+            # Ensure unique nodes by their attributes
+            nodes['documents'] = [dict(t) for t in {tuple(d.items()) for d in nodes['documents']}]
+            nodes['chunks'] = [dict(t) for t in {tuple(d.items()) for d in nodes['chunks']}]
+            nodes['concepts'] = [dict(t) for t in {tuple(d.items()) for d in nodes['concepts']}]
+
+            return nodes, relationships
 
         except Exception as e:
-            logging.error(f"Error executing query: {e}")
+            logging.error(f"Error executing query: {e.with_traceback()}")
             return None, None

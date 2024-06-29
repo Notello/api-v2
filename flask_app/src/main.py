@@ -69,12 +69,12 @@ def processing_source(
 
     process_chunks(
       chunks=selected_chunks, 
-      fileName=fileName, 
       allowedNodes=allowedNodes,
       allowedRelationship=allowedRelationship, 
       noteId=noteId,
       courseId=courseId,
-      userId=userId
+      userId=userId,
+      startI=i
     )
 
     SupabaseService.update_note(noteId, 'graphStatus', str(select_chunks_upto))
@@ -95,24 +95,27 @@ def processing_source(
 
 def process_chunks(
     chunks, 
-    fileName, 
     allowedNodes,
     allowedRelationship, 
     noteId,
     courseId,
-    userId
+    userId,
+    startI
 ):
 
   # Creates the first, NEXT_CHUNK relationship between chunks
   chunkId_chunkDoc_list = create_relation_between_chunks(
-     file_name=fileName,
-     chunks=chunks
+     noteId=noteId,
+     courseId=courseId,
+     userId=userId,
+     chunks=chunks,
+     startI=startI
   )
 
   # Create vector index and update chunk node with embedding
   update_embedding_create_vector_index(
     chunkId_chunkDoc_list=chunkId_chunkDoc_list, 
-    file_name=fileName
+    noteId=noteId
   )
 
   logging.info("Get graph document list from models")
