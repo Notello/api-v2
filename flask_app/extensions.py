@@ -16,7 +16,11 @@ api = Api(doc='/docs', title='Notello API', version='1.0', description='An API f
 
 ENV_MAP = {
     'dev': "http://localhost:3000",
-    'prod': ["https://notello.ai", "https://www.notello.ai"]
+    'prod': [
+        "https://notello.ai", 
+        "https://www.notello.ai",
+        "https://hammerhead-app-2mak5.ondigitalocean.app"
+        ]
 }
 
 cors = CORS(resources={r"/*": {"origins": ENV_MAP[os.getenv('ENV_TYPE')]}})
