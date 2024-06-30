@@ -2,7 +2,6 @@ import logging
 import os
 from flask import current_app
 from langchain_community.graphs import Neo4jGraph
-from flask_app.src.shared.common_fn import delete_uploaded_local_file
 from flask_app.src.entities.source_node import sourceNode
 import json
 
@@ -151,7 +150,6 @@ class graphDBdataAccess:
             merged_file_path = os.path.join(merged_dir, file_name)
             if source_type == 'local file':
                 logging.info(f'Deleted File Path: {merged_file_path} and Deleted File Name : {file_name}')
-                delete_uploaded_local_file(merged_file_path, file_name)
 
         query_to_delete_document=""" 
            MATCH (d:Document) where d.fileName in $filename_list and d.fileSource in $source_types_list

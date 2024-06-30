@@ -248,6 +248,8 @@ class GraphService:
             nodes['chunks'] = [dict(t) for t in {tuple(d.items()) for d in nodes['chunks']}]
             nodes['concepts'] = [dict(t) for t in {tuple(d.items()) for d in nodes['concepts']}]
 
+            print(len(nodes['documents']), len(nodes['chunks']), len(nodes['concepts']))
+
             return nodes, relationships
 
         except Exception as e:

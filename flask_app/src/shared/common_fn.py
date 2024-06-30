@@ -6,6 +6,8 @@ from langchain_openai import OpenAIEmbeddings
 from langchain.docstore.document import Document
 from langchain_community.graphs import Neo4jGraph
 from langchain_community.graphs.graph_document import GraphDocument
+from flask_app.src.graphDB_dataAccess import graphDBdataAccess
+
 from typing import List
 import re
 import os
@@ -85,27 +87,18 @@ def save_graphDocuments_in_neo4j(
       node.properties['courseId'] = [courseId]
       node.properties['userId'] = [userId]
       node.properties['embedding'] = embeddings.embed_query(node.id)
-  
-  QUERY = """
-    CREATE VECTOR INDEX 'concept' IF NOT EXISTS
-    FOR (c:Concept) ON c.embedding
-    OPTIONS {indexConfig: {
-    `vector.dimensions`: $dimensions,
-    `vector.similarity_function`: 'cosine'
-    }}
-  """
 
-  params = {"dimensions": dimension}
-
-  current_app.config['NEO4J_GRAPH'].query(QUERY, params)
+  current_app.config['NEO4J_GRAPH'].query("""
+            CREATE VECTOR INDEX `concept` IF NOT EXISTS FOR (c:Concept) ON (c.embedding)
+            OPTIONS {indexConfig: {
+                `vector.dimensions`: $dimensions,
+                `vector.similarity_function`: 'cosine'
+            }}
+        """, {
+            "dimensions": dimension
+        })
     
   graph.add_graph_documents(graph_document_list)
-
-def delete_uploaded_local_file(merged_file_path, file_name):
-  file_path = Path(merged_file_path)
-  if file_path.exists():
-    file_path.unlink()
-    logging.info(f'file {file_name} deleted successfully')
    
 def close_db_connection(graph, api_name):
   if not graph._driver._closed:
