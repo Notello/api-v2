@@ -12,9 +12,6 @@ import os
 from pathlib import Path
 from langchain_openai import ChatOpenAI
 
-from pprint import pprint
-
-
 def check_url_source(yt_url:str=None):
     languages=[]
     try:
@@ -74,12 +71,34 @@ def save_graphDocuments_in_neo4j(
       courseId: str | None = None,
       userId: str | None = None
       ):
+  embeddings, dimension = load_embedding_model()
+
   for graph_document in graph_document_list:
+    for relationship in graph_document.relationships:
+       if relationship.source not in graph_document.nodes:
+          graph_document.nodes.append(relationship.source)
+       if relationship.target not in graph_document.nodes:
+          graph_document.nodes.append(relationship.target)
+
     for node in graph_document.nodes:
-      node.properties['noteId'] = noteId
-      node.properties['courseId'] = courseId
-      node.properties['userId'] = userId
+      node.properties['noteId'] = [noteId]
+      node.properties['courseId'] = [courseId]
+      node.properties['userId'] = [userId]
+      node.properties['embedding'] = embeddings.embed_query(node.id)
   
+  QUERY = """
+    CREATE VECTOR INDEX 'concept' IF NOT EXISTS
+    FOR (c:Concept) ON c.embedding
+    OPTIONS {indexConfig: {
+    `vector.dimensions`: $dimensions,
+    `vector.similarity_function`: 'cosine'
+    }}
+  """
+
+  params = {"dimensions": dimension}
+
+  current_app.config['NEO4J_GRAPH'].query(QUERY, params)
+    
   graph.add_graph_documents(graph_document_list)
 
 def delete_uploaded_local_file(merged_file_path, file_name):

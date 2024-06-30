@@ -104,7 +104,6 @@ class GraphService:
             similar = similarityService.has_similar_documents(
                 courseId=courseId,
                 noteId=noteId,
-                file_name=fileName, 
                 documents=pages
             )
 
@@ -161,7 +160,7 @@ class GraphService:
 
             QUERY = f"""
             MATCH (n)
-            WHERE n.{key} = $value
+            WHERE n.{key} = $value OR $value IN n.{key}
             OPTIONAL MATCH (n)-[r]->(relatedNode)
             WHERE relatedNode.{key} = $value
             RETURN ID(n) AS nodeId, LABELS(n) AS nodeLabels, 

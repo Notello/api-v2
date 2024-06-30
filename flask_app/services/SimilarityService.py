@@ -40,7 +40,7 @@ class SimilarityService:
 
         return node, embeddings_arr   
 
-    def find_similar_documents(self, courseId, noteId, file_name, documents):
+    def find_similar_documents(self, courseId, noteId, documents):
         node, embeddings_arr = self.embed_documents(
             documents=documents, 
             noteId=noteId
@@ -49,8 +49,8 @@ class SimilarityService:
         query = """
         CALL db.index.vector.queryNodes('doc_embedding', 1, $queryEmbedding)
         YIELD node AS similarDoc, score AS similarity
-        WHERE similarity >= $threshold AND similarDoc.noteId <> $noteId
-        RETURN similarDoc.courseId AS courseId, similarity
+        WHERE similarity >= $threshold AND similarDoc.noteId <> $noteId and similarDoc.courseId = $courseId
+        RETURN similarDoc.noteId AS noteId, similarity
         ORDER BY similarity DESC
         """
 
@@ -65,7 +65,7 @@ class SimilarityService:
         )
 
         similar_documents = [
-            {"courseId": record["courseId"], "similarity": record["similarity"]}
+            {"noteId": record["noteId"], "similarity": record["similarity"]}
             for record in result
         ]
 
@@ -73,29 +73,24 @@ class SimilarityService:
 
         return node, similar_documents
     
-    def has_similar_documents(self, courseId, noteId, file_name, documents) -> str | None:
+    def has_similar_documents(self, courseId, noteId, documents) -> str | None:
         node, docs = self.find_similar_documents(
             courseId=courseId,
             noteId=noteId,
-            file_name=file_name,
             documents=documents
             )
 
-        print("node", node)
-
         if len(docs) > 0:
             self.delete_node(node[0])
-            return docs[0]["courseId"]
+            return docs[0]["noteId"]
         else:
             return None
-        
 
-    ##NEED TO TEST THIS AGAIN
     def same_youtube_node_exists(self, course_id, url) -> str | None:
         query = """
         MATCH (d:Document)
         WHERE d.courseId = $courseId AND d.url = $url
-        RETURN d
+        RETURN d.noteId as noteId
         LIMIT 1
         """
 
@@ -110,7 +105,7 @@ class SimilarityService:
         print("result", result)
 
         if len(result) > 0:
-            return result[0]["courseId"]
+            return result[0]["noteId"]
         else:
             return None
         
