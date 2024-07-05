@@ -7,7 +7,7 @@ from langchain.docstore.document import Document
 from langchain_community.graphs import Neo4jGraph
 from langchain_community.graphs.graph_document import GraphDocument
 from flask_app.src.graphDB_dataAccess import graphDBdataAccess
-from typing import List
+from typing import List, Union
 
 
 from typing import List
@@ -69,11 +69,11 @@ def load_embedding_model():
   return embeddings, dimension
 
 def update_graph_documents(
-      graph_document_list: List[GraphDocument], 
-      noteId: str = None, 
-      courseId: str = None, 
-      userId: str = None
-  ):
+    graph_document_list: List[GraphDocument], 
+    noteId: str = None, 
+    courseId: str = None, 
+    userId: str = None
+):
     graphDb_data_Access = graphDBdataAccess(current_app.config['NEO4J_GRAPH'])
 
     nodes_data = []
@@ -107,26 +107,27 @@ def update_graph_documents(
     UNWIND $nodes AS node
     MERGE (n:Concept {id: node.id})
     ON CREATE SET 
-        n = node,
-        n.noteIds = CASE WHEN node.noteId IS NOT NULL THEN [node.noteId] ELSE [] END,
-        n.courseIds = CASE WHEN node.courseId IS NOT NULL THEN [node.courseId] ELSE [] END,
-        n.userIds = CASE WHEN node.userId IS NOT NULL THEN [node.userId] ELSE [] END
+        n.id = node.id,
+        n.type = node.type,
+        n.noteId = CASE WHEN node.noteId IS NOT NULL THEN [node.noteId] ELSE [] END,
+        n.courseId = CASE WHEN node.courseId IS NOT NULL THEN [node.courseId] ELSE [] END,
+        n.userId = CASE WHEN node.userId IS NOT NULL THEN [node.userId] ELSE [] END
     ON MATCH SET
-        n = node,
-        n.noteIds = CASE 
-            WHEN node.noteId IS NOT NULL AND NOT node.noteId IN n.noteIds 
-            THEN n.noteIds + node.noteId 
-            ELSE n.noteIds 
+        n.type = node.type,
+        n.noteId = CASE 
+            WHEN node.noteId IS NOT NULL AND NOT node.noteId IN n.noteId 
+            THEN n.noteId + [node.noteId] 
+            ELSE n.noteId 
         END,
-        n.courseIds = CASE 
-            WHEN node.courseId IS NOT NULL AND NOT node.courseId IN n.courseIds 
-            THEN n.courseIds + node.courseId 
-            ELSE n.courseIds 
+        n.courseId = CASE 
+            WHEN node.courseId IS NOT NULL AND NOT node.courseId IN n.courseId 
+            THEN n.courseId + [node.courseId] 
+            ELSE n.courseId 
         END,
-        n.userIds = CASE 
-            WHEN node.userId IS NOT NULL AND NOT node.userId IN n.userIds 
-            THEN n.userIds + node.userId 
-            ELSE n.userIds 
+        n.userId = CASE 
+            WHEN node.userId IS NOT NULL AND NOT node.userId IN n.userId 
+            THEN n.userId + [node.userId] 
+            ELSE n.userId 
         END
     """
 
