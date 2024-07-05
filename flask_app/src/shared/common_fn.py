@@ -7,6 +7,8 @@ from langchain.docstore.document import Document
 from langchain_community.graphs import Neo4jGraph
 from langchain_community.graphs.graph_document import GraphDocument
 from flask_app.src.graphDB_dataAccess import graphDBdataAccess
+from typing import List
+
 
 from typing import List
 import re
@@ -66,39 +68,77 @@ def load_embedding_model():
   logging.info(f"Embedding: Using OpenAI Embeddings , Dimension:{dimension}")
   return embeddings, dimension
 
-def save_graphDocuments_in_neo4j(
-      graph: Neo4jGraph, 
-      graph_document_list: List[GraphDocument],
-      noteId: str | None = None,
-      courseId: str | None = None,
-      userId: str | None = None
-      ):
-  embeddings, dimension = load_embedding_model()
+def update_graph_documents(
+      graph_document_list: List[GraphDocument], 
+      noteId: str = None, 
+      courseId: str = None, 
+      userId: str = None
+  ):
+    graphDb_data_Access = graphDBdataAccess(current_app.config['NEO4J_GRAPH'])
 
-  for graph_document in graph_document_list:
-    for relationship in graph_document.relationships:
-       if relationship.source not in graph_document.nodes:
-          graph_document.nodes.append(relationship.source)
-       if relationship.target not in graph_document.nodes:
-          graph_document.nodes.append(relationship.target)
+    nodes_data = []
+    relationships_data = []
 
-    for node in graph_document.nodes:
-      node.properties['noteId'] = [noteId]
-      node.properties['courseId'] = [courseId]
-      node.properties['userId'] = [userId]
-      node.properties['embedding'] = embeddings.embed_query(node.id)
+    for graph_document in graph_document_list:
+        for node in graph_document.nodes:
+            node_data = {
+                "id": node.id,
+                "type": node.type,
+                "noteId": noteId,
+                "courseId": courseId,
+                "userId": userId
+            }
+            if hasattr(node, 'properties') and isinstance(node.properties, dict):
+                for key, value in node.properties.items():
+                    if isinstance(value, (str, int, float, bool)) or value is None:
+                        node_data[key] = value
+                    else:
+                        node_data[key] = str(value)
+            nodes_data.append(node_data)
 
-  current_app.config['NEO4J_GRAPH'].query("""
-            CREATE VECTOR INDEX `concept` IF NOT EXISTS FOR (c:Concept) ON (c.embedding)
-            OPTIONS {indexConfig: {
-                `vector.dimensions`: $dimensions,
-                `vector.similarity_function`: 'cosine'
-            }}
-        """, {
-            "dimensions": dimension
-        })
-    
-  graph.add_graph_documents(graph_document_list)
+        for relationship in graph_document.relationships:
+            relationships_data.append({
+                "source": relationship.source.id,
+                "target": relationship.target.id,
+                "type": relationship.type
+            })
+
+    node_query = """
+    UNWIND $nodes AS node
+    MERGE (n:Concept {id: node.id})
+    ON CREATE SET 
+        n = node,
+        n.noteIds = CASE WHEN node.noteId IS NOT NULL THEN [node.noteId] ELSE [] END,
+        n.courseIds = CASE WHEN node.courseId IS NOT NULL THEN [node.courseId] ELSE [] END,
+        n.userIds = CASE WHEN node.userId IS NOT NULL THEN [node.userId] ELSE [] END
+    ON MATCH SET
+        n = node,
+        n.noteIds = CASE 
+            WHEN node.noteId IS NOT NULL AND NOT node.noteId IN n.noteIds 
+            THEN n.noteIds + node.noteId 
+            ELSE n.noteIds 
+        END,
+        n.courseIds = CASE 
+            WHEN node.courseId IS NOT NULL AND NOT node.courseId IN n.courseIds 
+            THEN n.courseIds + node.courseId 
+            ELSE n.courseIds 
+        END,
+        n.userIds = CASE 
+            WHEN node.userId IS NOT NULL AND NOT node.userId IN n.userIds 
+            THEN n.userIds + node.userId 
+            ELSE n.userIds 
+        END
+    """
+
+    relationship_query = """
+    UNWIND $relationships AS rel
+    MATCH (source:Concept {id: rel.source})
+    MATCH (target:Concept {id: rel.target})
+    MERGE (source)-[r:RELATED {type: rel.type}]->(target)
+    """
+
+    graphDb_data_Access.execute_query(node_query, {"nodes": nodes_data})
+    graphDb_data_Access.execute_query(relationship_query, {"relationships": relationships_data})
    
 def close_db_connection(graph, api_name):
   if not graph._driver._closed:

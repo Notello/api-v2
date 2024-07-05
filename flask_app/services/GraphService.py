@@ -162,10 +162,10 @@ class GraphService:
             MATCH (n)
             WHERE n.{key} = $value OR $value IN n.{key}
             OPTIONAL MATCH (n)-[r]->(relatedNode)
-            WHERE relatedNode.{key} = $value
+            WHERE relatedNode.{key} = $value or $value IN relatedNode.{key}
             RETURN ID(n) AS nodeId, LABELS(n) AS nodeLabels, 
                 n.fileName AS fileName, n.position AS position, n.id AS conceptId, n.description AS description,
-                TYPE(r) AS relType, ID(relatedNode) AS relatedNodeId, LABELS(relatedNode) AS relatedNodeLabels,
+                r.type AS relType, ID(relatedNode) AS relatedNodeId, LABELS(relatedNode) AS relatedNodeLabels,
                 relatedNode.fileName AS relatedNodeFileName, relatedNode.position AS relatedNodePosition, 
                 relatedNode.id AS relatedNodeConceptId, relatedNode.description AS relatedNodeDescription
             """

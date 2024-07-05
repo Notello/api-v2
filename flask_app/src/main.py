@@ -4,9 +4,9 @@ import logging
 from flask_app.src.create_chunks import CreateChunksofDocument
 from flask_app.src.entities.source_node import sourceNode
 from flask_app.src.graphDB_dataAccess import graphDBdataAccess
-from flask_app.src.make_relationships import create_relation_between_chunks, merge_relationship_between_chunk_and_entites, update_embedding_create_vector_index
+from flask_app.src.make_relationships import create_relation_between_chunks, merge_relationship_between_chunk_and_entities, update_embedding_create_vector_index
 from flask_app.src.openAI_llm import get_graph_from_OpenAI
-from flask_app.src.shared.common_fn import get_chunk_and_graphDocument, save_graphDocuments_in_neo4j
+from flask_app.src.shared.common_fn import get_chunk_and_graphDocument, update_graph_documents
 from flask_app.services.SupabaseService import SupabaseService
 from flask_app.src.process_file import clean_file
 
@@ -128,8 +128,7 @@ def process_chunks(
   )
 
   # Saves graph documents in Neo4j
-  save_graphDocuments_in_neo4j(
-    graph=current_app.config['NEO4J_GRAPH'], 
+  update_graph_documents(
     graph_document_list=graph_documents,
     noteId=noteId,
     courseId=courseId,
@@ -141,6 +140,6 @@ def process_chunks(
     chunkId_chunkDoc_list=chunkId_chunkDoc_list
   )
 
-  merge_relationship_between_chunk_and_entites(
+  merge_relationship_between_chunk_and_entities(
     graph_documents_chunk_chunk_Id=chunks_and_graphDocuments_list
   )

@@ -7,7 +7,7 @@ from flask import current_app
 
 logging.basicConfig(format='%(asctime)s - %(message)s', level='INFO')
 
-def merge_relationship_between_chunk_and_entites(graph_documents_chunk_chunk_Id : list):
+def merge_relationship_between_chunk_and_entities(graph_documents_chunk_chunk_Id : list):
     batch_data = []
     logging.info("Create HAS_ENTITY relationship between chunks and entities")
     for graph_doc_chunk_id in graph_documents_chunk_chunk_Id:
@@ -24,7 +24,7 @@ def merge_relationship_between_chunk_and_entites(graph_documents_chunk_chunk_Id 
                     UNWIND $batch_data AS data
                     MATCH (c:Chunk {id: data.chunk_id})
                     CALL apoc.merge.node([data.node_type], {id: data.node_id}) YIELD node AS n
-                    MERGE (c)-[:HAS_ENTITY]->(n)
+                    MERGE (c)-[r:REFERENCES {type: 'HAS_ENTITY'}]->(n)
                 """
         current_app.config['NEO4J_GRAPH'].query(unwind_query, params={"batch_data": batch_data})
 
@@ -59,7 +59,7 @@ def update_embedding_create_vector_index(chunkId_chunkDoc_list, noteId):
         MATCH (d:Document {noteId: $noteId})
         MERGE (c:Chunk {id: row.chunkId})
         SET c.embedding = row.embeddings
-        MERGE (c)-[:PART_OF]->(d)
+        MERGE (c)-[r:HAS_DOCUMENT {type: 'PART_OF'}]->(d)
     """       
     current_app.config['NEO4J_GRAPH'].query(query_to_create_embedding, params={"noteId":noteId, "data":data_for_query})
     
@@ -135,7 +135,7 @@ def create_relation_between_chunks(
         SET c.page_number = data.page_number
         WITH data, c
         MATCH (d:Document {noteId: data.noteId})
-        MERGE (c)-[:PART_OF]->(d)
+        MERGE (c)-[r:HAS_DOCUMENT {type: 'PART_OF'}]->(d)
     """
     current_app.config['NEO4J_GRAPH'].query(query_to_create_chunk_and_PART_OF_relation, params={"batch_data": batch_data})
     
@@ -144,7 +144,7 @@ def create_relation_between_chunks(
         MATCH (d:Document {noteId: $noteId})
         MATCH (c:Chunk {id: relationship.chunk_id})
         FOREACH(r IN CASE WHEN relationship.type = 'FIRST_CHUNK' THEN [1] ELSE [] END |
-                MERGE (d)-[:FIRST_CHUNK]->(c))
+                MERGE (d)-[:HAS_CHUNK {type: 'FIRST_CHUNK'}]->(c))
         """
     current_app.config['NEO4J_GRAPH'].query(query_to_create_FIRST_relation, params={"noteId": noteId, "relationships": relationships})   
     
@@ -154,7 +154,7 @@ def create_relation_between_chunks(
         WITH c, relationship
         MATCH (pc:Chunk {id: relationship.previous_chunk_id})
         FOREACH(r IN CASE WHEN relationship.type = 'NEXT_CHUNK' THEN [1] ELSE [] END |
-                MERGE (c)<-[:NEXT_CHUNK]-(pc))
+                MERGE (c)<-[:HAS_CHUNK {type: 'NEXT_CHUNK'}]-(pc))
         """
     current_app.config['NEO4J_GRAPH'].query(query_to_create_NEXT_CHUNK_relation, params={"relationships": relationships})   
     
