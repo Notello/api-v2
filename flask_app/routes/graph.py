@@ -8,7 +8,7 @@ from flask_app.services.HelperService import HelperService
 api = Namespace('graph')
 
 @api.route('/get-graph-for/<string:param>/<string:id>')
-class GetGraphForCourse(Resource):
+class GetGraphFor(Resource):
     def get(self, param, id):
         try:
             logging.info(f"Get graph for {param}, {id}")

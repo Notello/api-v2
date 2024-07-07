@@ -172,7 +172,7 @@ create_text_file_note_parser.add_argument('courseId', location='form',
         
 @api.expect(create_text_file_note_parser)
 @api.route('/create-text-file-note')
-class TextIntake(Resource):
+class TextFileIntake(Resource):
     def post(self):
         args = create_text_file_note_parser.parse_args()
         userId = args.get('userId', None)

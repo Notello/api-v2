@@ -1,7 +1,7 @@
 from datetime import datetime
 import sys
 import logging
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 from flask import current_app
 from .SupabaseService import SupabaseService
 from langchain_core.documents import Document
@@ -17,6 +17,12 @@ from .SimilarityService import SimilarityService
 
 
 class GraphService:
+    DEFAULT_GRAPH_PARAMS = [("ID(n)", "nodeId"), ("LABELS(n)", "nodeLabels"), 
+                ("n.fileName", "fileName"), ("n.position", "position"), ("n.id", "conceptId"),("n.description", "description"),
+                ("r.type", "relType"), ("ID(relatedNode)", "relatedNodeId"), ("LABELS(relatedNode)", "relatedNodeLabels"),
+                ("relatedNode.fileName", "relatedNodeFileName"), ("relatedNode.position", "relatedNodePosition"), 
+                ("relatedNode.id", "relatedNodeConceptId"), ("relatedNode.description", "relatedNodeDescription")]
+
     @staticmethod
     def create_graph_from_youtube(
         sourceUrl: str,
@@ -154,20 +160,22 @@ class GraphService:
             SupabaseService.update_note(noteId=noteId, key='graphStatus', value='error')
 
     @staticmethod
-    def get_graph_for_param(key: str, value: str) -> Tuple[Dict[str, List[Dict]], List[Tuple[int, str, int]]]:
+    def get_graph_for_param(
+        key: str, 
+        value: str, 
+        return_params: List[Tuple[str, str]] = DEFAULT_GRAPH_PARAMS
+    ) -> Tuple[Dict[str, List[Dict]], List[Dict[str, Any]]]:
         try:
             graphDb_data_Access = graphDBdataAccess(current_app.config['NEO4J_GRAPH'])
+
+            return_clause = ", ".join([f"{param[0]} AS {param[1]}" for param in return_params])
 
             QUERY = f"""
             MATCH (n)
             WHERE n.{key} = $value OR $value IN n.{key}
             OPTIONAL MATCH (n)-[r]->(relatedNode)
             WHERE relatedNode.{key} = $value or $value IN relatedNode.{key}
-            RETURN ID(n) AS nodeId, LABELS(n) AS nodeLabels, 
-                n.fileName AS fileName, n.position AS position, n.id AS conceptId, n.description AS description,
-                r.type AS relType, ID(relatedNode) AS relatedNodeId, LABELS(relatedNode) AS relatedNodeLabels,
-                relatedNode.fileName AS relatedNodeFileName, relatedNode.position AS relatedNodePosition, 
-                relatedNode.id AS relatedNodeConceptId, relatedNode.description AS relatedNodeDescription
+            RETURN {return_clause}
             """
 
             parameters = {
@@ -184,74 +192,60 @@ class GraphService:
             relationships = []
 
             for record in result:
-                node_id = record.get('nodeId')
-                node_labels = record.get('nodeLabels')
-                file_name = record.get('fileName')
-                position = record.get('position')
-                concept_id = record.get('conceptId')
-                description = record.get('description')
+                node_data = {}
+                related_node_data = {}
+                rel_type = None
 
-                related_node_id = record.get('relatedNodeId')
-                related_node_labels = record.get('relatedNodeLabels')
-                related_file_name = record.get('relatedNodeFileName')
-                related_position = record.get('relatedNodePosition')
-                related_concept_id = record.get('relatedNodeConceptId')
-                related_description = record.get('relatedNodeDescription')
+                for param in return_params:
+                    attr_name = param[1]
+                    attr_value = record.get(attr_name)
+                    
+                    if attr_name.startswith("relatedNode"):
+                        related_node_data[attr_name.replace("relatedNode", "")] = attr_value
+                    elif attr_name == "relType":
+                        rel_type = attr_value
+                    else:
+                        node_data[attr_name] = attr_value
 
-                rel_type = record.get('relType')
+                if 'nodeId' in node_data and 'nodeLabels' in node_data:
+                    node_type = next((label for label in ['Document', 'Chunk', 'Concept'] if label in node_data['nodeLabels']), None)
+                    if node_type:
+                        node_info = {'id': node_data['nodeId']}
+                        if node_type == 'Document':
+                            node_info['fileName'] = node_data.get('fileName')
+                        elif node_type == 'Chunk':
+                            node_info['position'] = node_data.get('position')
+                        elif node_type == 'Concept':
+                            node_info['conceptId'] = node_data.get('conceptId')
+                            node_info['description'] = node_data.get('description')
+                        nodes[node_type.lower() + 's'].append(node_info)
 
-                if node_id is not None and node_labels:
-                    if 'Document' in node_labels:
-                        nodes['documents'].append({
-                            'id': node_id, 
-                            'fileName': file_name
-                        })
-                    elif 'Chunk' in node_labels:
-                        nodes['chunks'].append({
-                            'id': node_id, 
-                            'position': position
-                        })
-                    elif 'Concept' in node_labels:
-                        nodes['concepts'].append({
-                            'id': node_id, 
-                            'conceptId': concept_id, 
-                            'description': description
-                        })
+                if related_node_data.get('Id') is not None and related_node_data.get('Labels') is not None:
+                    related_node_type = next((label for label in ['Document', 'Chunk', 'Concept'] if label in related_node_data['Labels']), None)
+                    if related_node_type:
+                        related_node_info = {'id': related_node_data['Id']}
+                        if related_node_type == 'Document':
+                            related_node_info['fileName'] = related_node_data.get('FileName')
+                        elif related_node_type == 'Chunk':
+                            related_node_info['position'] = related_node_data.get('Position')
+                        elif related_node_type == 'Concept':
+                            related_node_info['conceptId'] = related_node_data.get('ConceptId')
+                            related_node_info['description'] = related_node_data.get('Description')
+                        nodes[related_node_type.lower() + 's'].append(related_node_info)
 
-                if related_node_id is not None and related_node_labels:
-                    if 'Document' in related_node_labels:
-                        nodes['documents'].append({
-                            'id': related_node_id, 
-                            'fileName': related_file_name
-                            })
-                    elif 'Chunk' in related_node_labels:
-                        nodes['chunks'].append({
-                            'id': related_node_id, 
-                            'position': related_position
-                            })
-                    elif 'Concept' in related_node_labels:
-                        nodes['concepts'].append({
-                            'id': related_node_id,
-                            'conceptId': related_concept_id, 
-                            'description': related_description
-                            })
-
-                if node_id is not None and related_node_id is not None and rel_type is not None:
+                if 'nodeId' in node_data and related_node_data.get('Id') is not None and rel_type is not None:
                     relationships.append({
-                        "start_node_id": node_id, 
+                        "start_node_id": node_data['nodeId'], 
                         "relationship_type": rel_type, 
-                        "end_node_id": related_node_id
+                        "end_node_id": related_node_data['Id']
                     })
 
             # Ensure unique nodes by their attributes
-            nodes['documents'] = [dict(t) for t in {tuple(d.items()) for d in nodes['documents']}]
-            nodes['chunks'] = [dict(t) for t in {tuple(d.items()) for d in nodes['chunks']}]
-            nodes['concepts'] = [dict(t) for t in {tuple(d.items()) for d in nodes['concepts']}]
-
-            print(len(nodes['documents']), len(nodes['chunks']), len(nodes['concepts']))
+            for node_type in nodes:
+                nodes[node_type] = [dict(t) for t in {tuple(d.items()) for d in nodes[node_type]}]
 
             return nodes, relationships
 
         except Exception as e:
-            logging.error(f"Error executing query: {e.with_traceback()}")
+            logging.error(f"Error executing query: {e}")
             return None, None
