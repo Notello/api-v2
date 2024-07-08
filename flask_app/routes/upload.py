@@ -35,7 +35,7 @@ class YoutubeIntake(Resource):
 
             logging.info(f"Youtube url: {youtubeUrl}")
 
-            if not HelperService.validate_uuid4(courseId, userId):
+            if not HelperService.validate_all_uuid4(courseId, userId):
                 return {'message': 'Invalid courseId or userId'}, 400
             
             noteId = NoteService.create_note(
@@ -45,7 +45,7 @@ class YoutubeIntake(Resource):
                 sourceUrl=youtubeUrl, 
                 )
         
-            if not HelperService.validate_uuid4(noteId):
+            if not HelperService.validate_all_uuid4(noteId):
                 return {'message': 'Note creation failed'}, 400
 
             ContextAwareThread(
@@ -86,7 +86,7 @@ class AudioIntake(Resource):
             audio_file = args.get('file', None)
             keywords = args.get('keywords', None)
 
-            if not HelperService.validate_uuid4(courseId, userId):
+            if not HelperService.validate_all_uuid4(courseId, userId):
                 return {'message': 'Invalid courseId or userId'}, 400
 
             noteId = NoteService.create_note(
@@ -95,7 +95,7 @@ class AudioIntake(Resource):
                 form=NoteForm.AUDIO,
             )
 
-            if not HelperService.validate_uuid4(noteId):
+            if not HelperService.validate_all_uuid4(noteId):
                 return {'message': 'Note creation failed'}, 400
 
             ContextAwareThread(
@@ -134,7 +134,7 @@ class TextIntake(Resource):
         rawText = args.get('rawText', None)
         noteName = args.get('noteName', None)
 
-        if not HelperService.validate_uuid4(courseId, userId):
+        if not HelperService.validate_all_uuid4(courseId, userId):
             return {'message': 'Invalid courseId or userId'}, 400
 
         noteId = NoteService.create_note(
@@ -144,7 +144,7 @@ class TextIntake(Resource):
             rawText=rawText
         )
 
-        if not HelperService.validate_uuid4(noteId):
+        if not HelperService.validate_all_uuid4(noteId):
             return {'message': 'Note creation failed'}, 400
 
         ContextAwareThread(
@@ -152,12 +152,8 @@ class TextIntake(Resource):
                 args=(noteId, courseId, userId, rawText, noteName)
         ).start()
 
-        if HelperService.validate_uuid4(noteId):
-            logging.info(f"Source Node created successfully for source type: text and source: {rawText}")
-            return {'noteId': noteId}, 201
-        else:
-            logging.exception(f"Note creation failed for source type: text and source: {rawText}")
-            return {'message': 'Note creation failed'}, 400
+        logging.info(f"Source Node created successfully for source type: text and source: {rawText}")
+        return {'noteId': noteId}, 201
 
 create_text_file_note_parser = api.parser()
 create_text_file_note_parser.add_argument('file', location='files', 
@@ -179,7 +175,7 @@ class TextFileIntake(Resource):
         courseId = args.get('courseId', None)
         file: FileStorage = args.get('file', None)
 
-        if not HelperService.validate_uuid4(courseId, userId):
+        if not HelperService.validate_all_uuid4(courseId, userId):
             return {'message': 'Invalid courseId or userId'}, 400
         
         file_type = HelperService.guess_mime_type(file.filename)
@@ -197,7 +193,7 @@ class TextFileIntake(Resource):
             form=NoteForm.TEXT_FILE,
         )
 
-        if not HelperService.validate_uuid4(noteId):
+        if not HelperService.validate_all_uuid4(noteId):
             return {'message': 'Note creation failed'}, 400
         
         file_content = file.read()
@@ -207,9 +203,5 @@ class TextFileIntake(Resource):
                 args=(noteId, courseId, userId, file.filename, file_content, file_type)
         ).start()
 
-        if HelperService.validate_uuid4(noteId):
-            logging.info(f"Source Node created successfully for source type: pdf and source: {file.filename}")
-            return {'noteId': noteId}, 201
-        else:
-            logging.exception(f"Note creation failed for source type: pdf and source: {file.filename}")
-            return {'message': 'Note creation failed'}, 400
+        logging.info(f"Source Node created successfully for source type: pdf and source: {file.filename}")
+        return {'noteId': noteId}, 201

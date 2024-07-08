@@ -13,7 +13,7 @@ class GetGraphFor(Resource):
         try:
             logging.info(f"Get graph for {param}, {id}")
 
-            if not HelperService.validate_uuid4(id):
+            if not HelperService.validate_all_uuid4(id):
                 return {f'message': 'Invalid {param} id'}, 400
             
             nodes, relationships = GraphQueryService.get_graph_for_param(key=param, value=id)

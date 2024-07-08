@@ -1,7 +1,8 @@
 from datetime import datetime
 import sys
 import logging
-from typing import Any, Dict, List, Tuple
+from typing import List
+import json
 from flask import current_app
 from .SupabaseService import SupabaseService
 from langchain_core.documents import Document
@@ -150,5 +151,43 @@ class GraphCreationService:
             logging.exception(f'Exception: {e}')
             SupabaseService.update_note(noteId=noteId, key='graphStatus', value='error')
 
-    def insert_quiz_question(self, question: QuizQuestion) -> None:
+    @staticmethod
+    def insert_quiz_question(questions: List[QuizQuestion]) -> None:
         graphAccess = graphDBdataAccess(current_app.config['NEO4J_GRAPH'])
+        
+        query = """
+        UNWIND $questions AS q
+        CREATE (question:QuizQuestion {
+            id: q.questionId,
+            userId: q.userId,
+            courseId: q.courseId,
+            noteId: q.noteId,
+            quizId: q.quizId,
+            question: q.question,
+            answers: q.answers,
+            topics: q.topics,
+            difficulty: q.difficulty
+        })
+
+        RETURN q
+        """
+
+        params = {'questions': [
+            {
+                'questionId': q.questionId,
+                'quizId': q.quizId,
+                'userId': q.userId,
+                'courseId': q.courseId,
+                'noteId': q.noteId,
+                'question': q.question,
+                'answers': json.dumps([{ ## When getting answers, need to do json.loads()
+                    'label': a.label,
+                    'correct': a.correct,
+                    'explanation': a.explanation
+                } for a in q.answers]),
+                'topics': q.topics,
+                'difficulty': q.difficulty
+            } for q in questions
+        ]}
+        
+        graphAccess.execute_query(query, params)

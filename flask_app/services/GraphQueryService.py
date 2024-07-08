@@ -102,9 +102,25 @@ class GraphQueryService():
             return None, None
         
     @staticmethod
-    def get_topic_graph_from_param(param: str, id: str):
-        return {'message': 'Not implemented'}, 200
-    
+    def get_topic_graph(courseId: str = None,
+                        userId: str = None, 
+                        noteId: str = None, 
+                        specifierParam: str = None,
+                        topics: List[str] = []
+                    ) -> str | None:
+        if specifierParam == 'noteId':
+            return GraphQueryService.get_topic_graph_from_param(param="noteId", id=noteId, topics=topics)
+        elif specifierParam == 'courseId':
+            return GraphQueryService.get_topic_graph_from_param(param="courseId", id=courseId, topics=topics)
+        elif specifierParam == 'userId':
+            return GraphQueryService.get_topic_graph_from_param(param="userId", id=userId, topics=topics)
+        else:
+            return None
+
+        
     @staticmethod
-    def get_topic_graph_from_topic_list(topics: List[str]):
+    def get_topic_graph_from_param(param: str, 
+                                   id: str, 
+                                   topics: List[str] = None
+                                   ) -> str | None:
         return {'message': 'Not implemented'}, 200
