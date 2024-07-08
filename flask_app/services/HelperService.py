@@ -39,7 +39,7 @@ class HelperService:
             logging.info(f"uuid check for: {uuid_string}")
             try:
                 val = UUID(uuid_string, version=4)
-            except ValueError:
+            except Exception:
                 # If it's a value error, then the string 
                 # is not a valid hex code for a UUID.
                 logging.exception(f"uuid check failed for: {uuid_string}")

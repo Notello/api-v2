@@ -3,7 +3,7 @@ import logging
 from supabase import Client
 from flask import current_app
 
-from flask_app.constants import NOTE_TABLE_NAME
+from flask_app.constants import NOTE_TABLE_NAME, QUIZ_TABLE_NAME
 
 supabase: Client = current_app.config['SUPABASE_CLIENT']
 
@@ -26,11 +26,11 @@ class SupabaseService:
                 'contentStatus': status,
                 'rawContent': content,
                 'sourceUrl': sourceUrl,
-            }).execute()
+            }).execute().data
 
-            logging.info(f'Note added successfully for courseId: {courseId}, userId: {userId}, form: {form}, data: {out.data}')
+            logging.info(f'Note added successfully for courseId: {courseId}, userId: {userId}, form: {form}, data: {out}')
 
-            return out.data
+            return out
         except Exception as e:
             logging.exception(f'Exception in add_note: {e}')
             return []
@@ -61,4 +61,24 @@ class SupabaseService:
     @staticmethod
     def update_note(noteId: str, key: str, value: str):
         logging.info(f'Updating note {noteId} with key {key} and value {value}')
-        return supabase.table(NOTE_TABLE_NAME).update({key: value}).eq('id', noteId).execute().data
+        return supabase.table(NOTE_TABLE_NAME).update({
+            key: value
+            }).eq('id', noteId).execute().data
+    
+    @staticmethod
+    def create_quiz(
+        noteId: str, 
+        courseId: str, 
+        userId: str,
+        difficulty: int,
+        numQuestions: int,
+        ):
+        quiz = supabase.table(QUIZ_TABLE_NAME).insert({
+            'noteId': noteId,
+            'courseId': courseId,
+            'userId': userId,
+            'difficulty': difficulty,
+            'num_questions': numQuestions,
+        }).execute().data
+
+        print(quiz)

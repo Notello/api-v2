@@ -4,7 +4,7 @@ from werkzeug.datastructures import FileStorage
 
 from flask_app.services.ContextAwareThread import ContextAwareThread
 from flask_app.services.NoteService import NoteForm, NoteService
-from flask_app.services.GraphService import GraphService
+from flask_app.services.GraphCreationService import GraphCreationService
 from flask_app.services.HelperService import HelperService
 
 
@@ -49,7 +49,7 @@ class YoutubeIntake(Resource):
                 return {'message': 'Note creation failed'}, 400
 
             ContextAwareThread(
-                target=GraphService.create_graph_from_youtube,
+                target=GraphCreationService.create_graph_from_youtube,
                 args=(youtubeUrl, noteId, courseId, userId)
             ).start()
 
@@ -148,7 +148,7 @@ class TextIntake(Resource):
             return {'message': 'Note creation failed'}, 400
 
         ContextAwareThread(
-                target=GraphService.create_graph_from_raw_text,
+                target=GraphCreationService.create_graph_from_raw_text,
                 args=(noteId, courseId, userId, rawText, noteName)
         ).start()
 
