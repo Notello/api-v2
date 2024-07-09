@@ -49,7 +49,7 @@ class GenerateQuizFor(Resource):
 
         if (
             not HelperService.validate_all_uuid4(userId, courseId) \
-            or specifierParam not in QuizService.validSpecifiers
+            or (specifierParam is not None and specifierParam not in QuizService.validSpecifiers)
             or (not HelperService.validate_uuid4(noteId) and specifierParam == 'noteId')
                 
         ):

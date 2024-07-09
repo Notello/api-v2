@@ -1,11 +1,10 @@
 from datetime import datetime
 import sys
 import logging
-from typing import List
+from typing import Dict, List
 import json
 from flask import current_app
 from .SupabaseService import SupabaseService
-from langchain_core.documents import Document
 from flask_app.src.graphDB_dataAccess import graphDBdataAccess
 from flask_app.src.entities.source_node import sourceNode
 from flask_app.src.document_sources.youtube import get_documents_from_youtube
@@ -73,6 +72,9 @@ class GraphCreationService:
                 noteId=noteId
                 )
             
+            GraphCreationService.update_communities_for_param(id_type='noteId', target_id=noteId)
+            GraphCreationService.update_communities_for_param(id_type='courseId', target_id=courseId)
+
             SupabaseService.update_note(noteId=noteId, key='sourceUrl', value=sourceUrl)
             SupabaseService.update_note(noteId=noteId, key='graphStatus', value='complete')
 
@@ -144,12 +146,102 @@ class GraphCreationService:
                 noteId=noteId
                 )
             
+            GraphCreationService.update_communities_for_param(id_type='noteId', target_id=noteId)
+            GraphCreationService.update_communities_for_param(id_type='courseId', target_id=courseId)
+            
             SupabaseService.update_note(noteId=noteId, key='graphStatus', value='complete')
 
             logging.info(f'File {fileName} has been processed successfully, success_count: {successCount}, failed_count: {failedCount}')
         except Exception as e:
             logging.exception(f'Exception: {e}')
             SupabaseService.update_note(noteId=noteId, key='graphStatus', value='error')
+
+
+    @staticmethod
+    def update_communities_for_param(id_type: str, target_id: str) -> Dict:
+        graphAccess = graphDBdataAccess(current_app.config['NEO4J_GRAPH'])
+
+        try:
+            query = f"""
+            MATCH (n)-[r]-(relatedNode)
+            WHERE "{target_id}" IN n.{id_type} AND "{target_id}" IN relatedNode.{id_type}
+
+            WITH collect(distinct n) + collect(distinct relatedNode) AS nodes, collect(distinct r) AS rels
+
+            CALL gds.graph.project.cypher(
+            '{target_id}_temp_graph',
+            'UNWIND $nodes AS n RETURN id(n) AS id',
+            'UNWIND $rels AS r RETURN id(startNode(r)) AS source, id(endNode(r)) AS target',
+            {{parameters: {{nodes: nodes, rels: rels}}}}
+            )
+            YIELD graphName
+
+            CALL gds.louvain.stream('{target_id}_temp_graph')
+            YIELD nodeId, communityId
+
+            WITH gds.util.asNode(nodeId) AS node, communityId
+
+            WITH collect({{node: node, communityId: communityId}}) AS results
+
+            CALL gds.graph.drop('{target_id}_temp_graph') YIELD graphName
+
+            UNWIND results AS result
+            RETURN result.node AS node, result.communityId AS communityId
+            """
+
+            result = graphAccess.execute_query(query)
+
+            updated_nodes = []
+
+            for record in result:
+                node = record['node']
+                communityId = record['communityId']
+
+                if id_type == 'noteId':
+                    if node.get('noteIdCommunityMap', None) is None:
+                        node['noteIdCommunityMap'] = [json.dumps({'noteId': target_id, 'communityId': communityId})]
+                    else:
+                        noteIds = set()
+                        for noteIdCommunity in node['noteIdCommunityMap']:
+                            noteIds.add(json.loads(noteIdCommunity)['noteId'])
+
+                        if target_id not in noteIds:
+                            node['noteIdCommunityMap'].append(json.dumps({'noteId': target_id, 'communityId': communityId}))
+
+                elif id_type == 'courseId':
+                    if node.get('courseIdCommunityMap', None) is None:
+                        node['courseIdCommunityMap'] = [json.dumps({'courseId': target_id, 'communityId': communityId})]
+                    else:
+                        courseIds = set()
+                        for courseIdCommunity in node['courseIdCommunityMap']:
+                            courseIds.add(json.loads(courseIdCommunity)['courseId'])
+
+                        if target_id not in courseIds:
+                            node['courseIdCommunityMap'].append(json.dumps({'courseId': target_id, 'communityId': communityId}))
+
+                updated_nodes.append(node)
+
+
+            update_query = """
+            UNWIND $nodes AS node
+            MATCH (n)
+            WHERE n.id = node.id
+            SET n += node
+            RETURN count(n) as updatedCount
+            """
+
+            print(updated_nodes)
+
+            update_result = graphAccess.execute_query(update_query, {'nodes': updated_nodes})
+
+            logging.info(f"Updated nodes: {update_result}")
+
+        except ValueError as ve:
+            logging.error(f"Invalid input: {str(ve)}")
+            raise
+        except Exception as e:
+            logging.error(f"An error occurred: {str(e)}")
+            raise
 
     @staticmethod
     def insert_quiz_question(questions: List[QuizQuestion]) -> None:
