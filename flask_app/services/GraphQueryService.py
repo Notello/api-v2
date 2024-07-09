@@ -6,34 +6,57 @@ from flask import current_app
 from flask_app.models.Quiz import QuizQuestion
 
 class GraphQueryService():
-    DEFAULT_GRAPH_PARAMS = [("ID(n)", "nodeId"), ("LABELS(n)", "nodeLabels"), 
-            ("n.fileName", "fileName"), ("n.position", "position"), ("n.id", "conceptId"),("n.description", "description"),
-            ("r.type", "relType"), ("ID(relatedNode)", "relatedNodeId"), ("LABELS(relatedNode)", "relatedNodeLabels"),
-            ("relatedNode.fileName", "relatedNodeFileName"), ("relatedNode.position", "relatedNodePosition"), 
-            ("relatedNode.id", "relatedNodeConceptId"), ("relatedNode.description", "relatedNodeDescription")]
+
+    @staticmethod
+    def get_default_graph_params(communityType: str, communityId: str) -> List[Tuple[str, str]]:
+        com_string = f"{communityType}_{communityId}_community"
+
+        return [
+        
+            ("ID(n)", "nodeId"), ("LABELS(n)", "nodeLabels"), 
+            ("n.position", "position"), ("n.fileName", "fileName"), 
+            ("n.id", "conceptId"), ("n.description", "description"), 
+            (f"n['{com_string}']", "communityId"),
+
+
+            ("rel.type", "relType"), 
+            
+            ("ID(r)", "relatedNodeId"), ("LABELS(r)", "relatedNodeLabels"), 
+            ("r.position", "relatedNodePosition"), ("r.fileName", "relatedNodeFileName"),
+
+            ("r.id", "relatedNodeConceptId"), ("r.description", "relatedNodeDescription"),
+            (f"r['{com_string}']", "relatedNodeCommunityId"),
+            ]
+    
+    
     
     @staticmethod
     def get_graph_for_param(
         key: str, 
         value: str, 
-        return_params: List[Tuple[str, str]] = DEFAULT_GRAPH_PARAMS
+        return_params: List[Tuple[str, str]] = None
     ) -> Tuple[Dict[str, List[Dict]], List[Dict[str, Any]]]:
         try:
             graphDb_data_Access = graphDBdataAccess(current_app.config['NEO4J_GRAPH'])
 
-            return_clause = ", ".join([f"{param[0]} AS {param[1]}" for param in return_params])
+            final_params = return_params = return_params if return_params is not None else \
+                GraphQueryService.get_default_graph_params(communityType=key, communityId=value)
+
+            return_clause = ", ".join(f"{param[0]} AS {param[1]}" for param in final_params)
 
             QUERY = f"""
             MATCH (n)
             WHERE n.{key} = $value OR $value IN n.{key}
-            OPTIONAL MATCH (n)-[r]->(relatedNode)
-            WHERE relatedNode.{key} = $value or $value IN relatedNode.{key}
+            OPTIONAL MATCH (n)-[rel]->(r)
+            WHERE r.{key} = $value or $value IN r.{key}
             RETURN {return_clause}
             """
 
             parameters = {
                 "value": value
             }
+
+            print(f"Query: {QUERY}")
 
             result = graphDb_data_Access.execute_query(QUERY, parameters)
 

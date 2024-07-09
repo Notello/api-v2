@@ -1,5 +1,6 @@
 import logging
 from flask_restx import Namespace, Resource
+from flask import request
 
 
 from flask_app.services.GraphQueryService import GraphQueryService

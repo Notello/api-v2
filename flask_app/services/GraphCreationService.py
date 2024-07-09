@@ -197,27 +197,7 @@ class GraphCreationService:
                 node = record['node']
                 communityId = record['communityId']
 
-                if id_type == 'noteId':
-                    if node.get('noteIdCommunityMap', None) is None:
-                        node['noteIdCommunityMap'] = [json.dumps({'noteId': target_id, 'communityId': communityId})]
-                    else:
-                        noteIds = set()
-                        for noteIdCommunity in node['noteIdCommunityMap']:
-                            noteIds.add(json.loads(noteIdCommunity)['noteId'])
-
-                        if target_id not in noteIds:
-                            node['noteIdCommunityMap'].append(json.dumps({'noteId': target_id, 'communityId': communityId}))
-
-                elif id_type == 'courseId':
-                    if node.get('courseIdCommunityMap', None) is None:
-                        node['courseIdCommunityMap'] = [json.dumps({'courseId': target_id, 'communityId': communityId})]
-                    else:
-                        courseIds = set()
-                        for courseIdCommunity in node['courseIdCommunityMap']:
-                            courseIds.add(json.loads(courseIdCommunity)['courseId'])
-
-                        if target_id not in courseIds:
-                            node['courseIdCommunityMap'].append(json.dumps({'courseId': target_id, 'communityId': communityId}))
+                node[f'{id_type}_{target_id}_community'] = communityId
 
                 updated_nodes.append(node)
 
@@ -229,8 +209,6 @@ class GraphCreationService:
             SET n += node
             RETURN count(n) as updatedCount
             """
-
-            print(updated_nodes)
 
             update_result = graphAccess.execute_query(update_query, {'nodes': updated_nodes})
 
