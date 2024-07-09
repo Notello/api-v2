@@ -56,14 +56,12 @@ class GraphQueryService():
                 "value": value
             }
 
-            print(f"Query: {QUERY}")
-
             result = graphDb_data_Access.execute_query(QUERY, parameters)
 
             nodes = {
-                'documents': [],
-                'chunks': [],
-                'concepts': []
+                'documents': {},
+                'chunks': {},
+                'concepts': {}
             }
             relationships = []
 
@@ -86,7 +84,8 @@ class GraphQueryService():
                 if 'nodeId' in node_data and 'nodeLabels' in node_data:
                     node_type = next((label for label in ['Document', 'Chunk', 'Concept'] if label in node_data['nodeLabels']), None)
                     if node_type:
-                        node_info = {'id': node_data['nodeId']}
+                        node_info = nodes[node_type.lower() + 's'].get(node_data['nodeId'], {})
+                        node_info['id'] = node_data['nodeId']
                         if node_type == 'Document':
                             node_info['fileName'] = node_data.get('fileName')
                         elif node_type == 'Chunk':
@@ -94,12 +93,17 @@ class GraphQueryService():
                         elif node_type == 'Concept':
                             node_info['conceptId'] = node_data.get('conceptId')
                             node_info['description'] = node_data.get('description')
-                        nodes[node_type.lower() + 's'].append(node_info)
+                        
+                        if 'communityId' in node_data and 'communityId' not in node_info:
+                            node_info['communityId'] = node_data['communityId']
+                        
+                        nodes[node_type.lower() + 's'][node_data['nodeId']] = node_info
 
                 if related_node_data.get('Id') is not None and related_node_data.get('Labels') is not None:
                     related_node_type = next((label for label in ['Document', 'Chunk', 'Concept'] if label in related_node_data['Labels']), None)
                     if related_node_type:
-                        related_node_info = {'id': related_node_data['Id']}
+                        related_node_info = nodes[related_node_type.lower() + 's'].get(related_node_data['Id'], {})
+                        related_node_info['id'] = related_node_data['Id']
                         if related_node_type == 'Document':
                             related_node_info['fileName'] = related_node_data.get('FileName')
                         elif related_node_type == 'Chunk':
@@ -107,7 +111,11 @@ class GraphQueryService():
                         elif related_node_type == 'Concept':
                             related_node_info['conceptId'] = related_node_data.get('ConceptId')
                             related_node_info['description'] = related_node_data.get('Description')
-                        nodes[related_node_type.lower() + 's'].append(related_node_info)
+                        
+                        if 'relatedNodeCommunityId' in related_node_data and 'communityId' not in related_node_info:
+                            related_node_info['communityId'] = related_node_data['relatedNodeCommunityId']
+                        
+                        nodes[related_node_type.lower() + 's'][related_node_data['Id']] = related_node_info
 
                 if 'nodeId' in node_data and related_node_data.get('Id') is not None and rel_type is not None:
                     relationships.append({
@@ -117,7 +125,7 @@ class GraphQueryService():
                     })
 
             for node_type in nodes:
-                nodes[node_type] = [dict(t) for t in {tuple(d.items()) for d in nodes[node_type]}]
+                nodes[node_type] = list(nodes[node_type].values())
 
             return nodes, relationships
 
