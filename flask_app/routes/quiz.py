@@ -84,5 +84,5 @@ class GenerateQuizFor(Resource):
 @api.route('/get-questions-for/<string:quizId>')
 class GetQuestionsFor(Resource):
     def post(self, quizId):
-        quiz = QuizService.get_quiz_for_param(quizId)
-        return {'message': 'Not implemented'}, 200
+        questions = GraphQueryService.get_quiz_questions_by_id(quizId=quizId)
+        return {'questions': questions}, 200

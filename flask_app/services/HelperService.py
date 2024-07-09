@@ -35,6 +35,10 @@ class HelperService:
         """
 
         logging.info(f"uuid check for: {uuid_string}")
+        
+        if not type(uuid_string) == str:
+            return False
+
         try:
             val = UUID(uuid_string, version=4)
         except Exception:

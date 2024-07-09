@@ -83,7 +83,7 @@ class SupabaseService:
         difficulty: int,
         numQuestions: int,
         ):
-        if not HelperService.validate_all_uuid4(noteId, courseId, userId):
+        if not HelperService.validate_all_uuid4(courseId, userId):
             logging.error(f'Invalid noteId: {noteId}, courseId: {courseId}, userId: {userId}')
             return None
 

@@ -6,7 +6,7 @@ from flask_app.models.Quiz import QuizQuestion, QuizQuestionAnswer
 from flask_app.services.GraphCreationService import GraphCreationService
 
 class QuizService():
-    validSpecifiers = ['userId', 'courseId', 'noteId']
+    validSpecifiers = ['courseId', 'noteId']
 
     @staticmethod
     def generate_quiz(topics=[],
@@ -21,7 +21,6 @@ class QuizService():
 
         topic_graph = GraphQueryService.get_topic_graph(
             courseId=courseId, 
-            userId=userId, 
             noteId=noteId,
             specifierParam=specifierParam,
             topics=topics

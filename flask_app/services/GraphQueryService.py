@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import Any, Dict, List, Tuple
 from flask_app.src.graphDB_dataAccess import graphDBdataAccess
@@ -103,7 +104,6 @@ class GraphQueryService():
         
     @staticmethod
     def get_topic_graph(courseId: str = None,
-                        userId: str = None, 
                         noteId: str = None, 
                         specifierParam: str = None,
                         topics: List[str] = []
@@ -112,8 +112,6 @@ class GraphQueryService():
             return GraphQueryService.get_topic_graph_from_param(param="noteId", id=noteId, topics=topics)
         elif specifierParam == 'courseId':
             return GraphQueryService.get_topic_graph_from_param(param="courseId", id=courseId, topics=topics)
-        elif specifierParam == 'userId':
-            return GraphQueryService.get_topic_graph_from_param(param="userId", id=userId, topics=topics)
         else:
             return None
 
@@ -124,3 +122,28 @@ class GraphQueryService():
                                    topics: List[str] = None
                                    ) -> str | None:
         return {'message': 'Not implemented'}, 200
+    
+    @staticmethod
+    def get_quiz_questions_by_id(quizId: str) -> List[QuizQuestion]:
+        graphDb_data_Access = graphDBdataAccess(current_app.config['NEO4J_GRAPH'])
+
+        QUERY = f"""
+        MATCH (q:QuizQuestion)
+        WHERE q.quizId = $quizId
+        RETURN q
+        """
+
+        parameters = {
+            "quizId": quizId
+        }
+
+        result = graphDb_data_Access.execute_query(QUERY, parameters)
+
+        out = []
+
+        for record in result:
+            question = record.get('q')
+            question['answers'] = json.loads(question.get('answers'))
+            out.append(question)
+
+        return out
