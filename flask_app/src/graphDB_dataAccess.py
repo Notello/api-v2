@@ -2,7 +2,6 @@ import logging
 import os
 from flask import current_app
 from langchain_community.graphs import Neo4jGraph
-from flask_app.src.shared.common_fn import delete_uploaded_local_file
 from flask_app.src.entities.source_node import sourceNode
 import json
 
@@ -31,13 +30,11 @@ class graphDBdataAccess:
         for key in obj_source_node.__dict__:
             logging.info(f'key : {key}, value : {obj_source_node.__dict__[key]}')
         try:
-            job_status = "New"
-
             attributes = {attr: getattr(obj_source_node, attr) for attr in vars(obj_source_node) if getattr(obj_source_node, attr) is not None}
 
-            attributes['status'] = job_status
+            attributes['status'] = "New"
 
-            merge_clause = "MERGE (d:Document {fileName: $fileName})"
+            merge_clause = "MERGE (d:Document {noteId: $noteId})"
 
             set_clause = "SET " + ", ".join([f"d.{k} = ${k}" for k in attributes.keys()])
 
@@ -64,12 +61,12 @@ class graphDBdataAccess:
         try:
             attributes = {attr: getattr(obj_source_node, attr) for attr in vars(obj_source_node) if getattr(obj_source_node, attr) is not None}
 
-            if 'fileName' not in attributes or not attributes['fileName']:
-                raise ValueError("fileName must be provided and cannot be empty.")
+            if 'noteId' not in attributes or not attributes['noteId']:
+                raise ValueError("noteId must be provided and cannot be empty.")
 
             params = {"props": attributes}
 
-            query = "MERGE (d:Document {fileName: $props.fileName}) SET d += $props"
+            query = "MERGE (d:Document {noteId: $props.noteId}) SET d += $props"
 
             logging.info("Updating source node properties")
 
@@ -153,7 +150,6 @@ class graphDBdataAccess:
             merged_file_path = os.path.join(merged_dir, file_name)
             if source_type == 'local file':
                 logging.info(f'Deleted File Path: {merged_file_path} and Deleted File Name : {file_name}')
-                delete_uploaded_local_file(merged_file_path, file_name)
 
         query_to_delete_document=""" 
            MATCH (d:Document) where d.fileName in $filename_list and d.fileSource in $source_types_list

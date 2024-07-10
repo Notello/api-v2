@@ -23,8 +23,7 @@ class HelperService:
         return transcript
     
     @staticmethod
-    def validate_uuid4(*uuid_strings):
-
+    def validate_uuid4(uuid_string) -> bool:
         """
         Validate that a UUID string is in
         fact a valid uuid4.
@@ -35,27 +34,38 @@ class HelperService:
         hex string is considered valid.
         """
 
-        for uuid_string in uuid_strings:
-            logging.info(f"uuid check for: {uuid_string}")
-            try:
-                val = UUID(uuid_string, version=4)
-            except ValueError:
-                # If it's a value error, then the string 
-                # is not a valid hex code for a UUID.
-                logging.exception(f"uuid check failed for: {uuid_string}")
-                return False
+        logging.info(f"uuid check for: {uuid_string}")
+        
+        if not type(uuid_string) == str:
+            return False
 
-            # If the uuid_string is a valid hex code, 
-            # but an invalid uuid4,
-            # the UUID.__init__ will convert it to a 
-            # valid uuid4. This is bad for validation purposes.
+        try:
+            val = UUID(uuid_string, version=4)
+        except Exception:
+            # If it's a value error, then the string 
+            # is not a valid hex code for a UUID.
+            logging.exception(f"uuid check failed for: {uuid_string}")
+            return False
 
-            if val.hex != uuid_string.replace('-', ''):
-                logging.exception(f"uuid check failed for: {uuid_string}, hex: {val.hex}")
-                return False
+        # If the uuid_string is a valid hex code, 
+        # but an invalid uuid4,
+        # the UUID.__init__ will convert it to a 
+        # valid uuid4. This is bad for validation purposes.
+
+        if val.hex != uuid_string.replace('-', ''):
+            logging.exception(f"uuid check failed for: {uuid_string}, hex: {val.hex}")
+            return False
         
         print("true")
         return True
+    
+    @staticmethod
+    def validate_all_uuid4(*uuid_strings):
+        return all([HelperService.validate_uuid4(uuid_string) for uuid_string in uuid_strings])
+
+    @staticmethod
+    def validate_any_uuid4(*uuid_strings):
+        return any([HelperService.validate_uuid4(uuid_string) for uuid_string in uuid_strings])
     
     @staticmethod
     def guess_mime_type(file_name):

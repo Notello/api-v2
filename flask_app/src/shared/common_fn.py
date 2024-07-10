@@ -6,12 +6,15 @@ from langchain_openai import OpenAIEmbeddings
 from langchain.docstore.document import Document
 from langchain_community.graphs import Neo4jGraph
 from langchain_community.graphs.graph_document import GraphDocument
+from flask_app.src.graphDB_dataAccess import graphDBdataAccess
+from typing import List, Union
+
+
 from typing import List
 import re
 import os
 from pathlib import Path
 from langchain_openai import ChatOpenAI
-
 
 def check_url_source(yt_url:str=None):
     languages=[]
@@ -43,9 +46,14 @@ def get_combined_chunks(chunkId_chunkDoc_list):
 def get_chunk_and_graphDocument(graph_document_list, chunkId_chunkDoc_list):
   logging.info("creating list of chunks and graph documents in get_chunk_and_graphDocument func")
   lst_chunk_chunkId_document=[]
+
   for graph_document in graph_document_list:            
-          for chunk_id in graph_document.source.metadata['combined_chunk_ids'] :
-            lst_chunk_chunkId_document.append({'graph_doc':graph_document,'chunk_id':chunk_id})
+          for chunk_id in graph_document.source.metadata['combined_chunk_ids']:
+
+            lst_chunk_chunkId_document.append({
+              'graph_doc': graph_document,
+              'chunk_id': chunk_id
+            })
                   
   return lst_chunk_chunkId_document  
                  
@@ -60,14 +68,78 @@ def load_embedding_model():
   logging.info(f"Embedding: Using OpenAI Embeddings , Dimension:{dimension}")
   return embeddings, dimension
 
-def save_graphDocuments_in_neo4j(graph:Neo4jGraph, graph_document_list:List[GraphDocument]):
-  graph.add_graph_documents(graph_document_list)
+def update_graph_documents(
+    graph_document_list: List[GraphDocument], 
+    noteId: str = None, 
+    courseId: str = None, 
+    userId: str = None
+):
+    graphDb_data_Access = graphDBdataAccess(current_app.config['NEO4J_GRAPH'])
 
-def delete_uploaded_local_file(merged_file_path, file_name):
-  file_path = Path(merged_file_path)
-  if file_path.exists():
-    file_path.unlink()
-    logging.info(f'file {file_name} deleted successfully')
+    nodes_data = []
+    relationships_data = []
+
+    for graph_document in graph_document_list:
+        for node in graph_document.nodes:
+            node_data = {
+                "id": node.id,
+                "type": node.type,
+                "noteId": noteId,
+                "courseId": courseId,
+                "userId": userId
+            }
+            if hasattr(node, 'properties') and isinstance(node.properties, dict):
+                for key, value in node.properties.items():
+                    if isinstance(value, (str, int, float, bool)) or value is None:
+                        node_data[key] = value
+                    else:
+                        node_data[key] = str(value)
+            nodes_data.append(node_data)
+
+        for relationship in graph_document.relationships:
+            relationships_data.append({
+                "source": relationship.source.id,
+                "target": relationship.target.id,
+                "type": relationship.type
+            })
+
+    node_query = """
+    UNWIND $nodes AS node
+    MERGE (n:Concept {id: node.id})
+    ON CREATE SET 
+        n.id = node.id,
+        n.type = node.type,
+        n.noteId = CASE WHEN node.noteId IS NOT NULL THEN [node.noteId] ELSE [] END,
+        n.courseId = CASE WHEN node.courseId IS NOT NULL THEN [node.courseId] ELSE [] END,
+        n.userId = CASE WHEN node.userId IS NOT NULL THEN [node.userId] ELSE [] END
+    ON MATCH SET
+        n.type = node.type,
+        n.noteId = CASE 
+            WHEN node.noteId IS NOT NULL AND NOT node.noteId IN n.noteId 
+            THEN n.noteId + [node.noteId] 
+            ELSE n.noteId 
+        END,
+        n.courseId = CASE 
+            WHEN node.courseId IS NOT NULL AND NOT node.courseId IN n.courseId 
+            THEN n.courseId + [node.courseId] 
+            ELSE n.courseId 
+        END,
+        n.userId = CASE 
+            WHEN node.userId IS NOT NULL AND NOT node.userId IN n.userId 
+            THEN n.userId + [node.userId] 
+            ELSE n.userId 
+        END
+    """
+
+    relationship_query = """
+    UNWIND $relationships AS rel
+    MATCH (source:Concept {id: rel.source})
+    MATCH (target:Concept {id: rel.target})
+    MERGE (source)-[r:RELATED {type: rel.type}]->(target)
+    """
+
+    graphDb_data_Access.execute_query(node_query, {"nodes": nodes_data})
+    graphDb_data_Access.execute_query(relationship_query, {"relationships": relationships_data})
    
 def close_db_connection(graph, api_name):
   if not graph._driver._closed:

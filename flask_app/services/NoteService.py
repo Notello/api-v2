@@ -4,7 +4,7 @@ from werkzeug.datastructures import FileStorage
 import logging
 from .SupabaseService import SupabaseService
 from .RunpodService import RunpodService
-from .GraphService import GraphService
+from .GraphCreationService import GraphCreationService
 from flask_app.src.document_sources.pdf_loader import extract_text
 
 class NoteForm(Enum):
@@ -83,7 +83,7 @@ class NoteService:
                 logging.exception(f"Failed to transcribe file for note {noteId}")
                 return
             
-            GraphService.create_graph_from_raw_text(
+            GraphCreationService.create_graph_from_raw_text(
                 rawText=output,
                 noteId=noteId, 
                 courseId=courseId, 
@@ -124,7 +124,7 @@ class NoteService:
                 logging.exception(f"Failed to upload file for note {noteId}")
                 return
                         
-            GraphService.create_graph_from_raw_text(
+            GraphCreationService.create_graph_from_raw_text(
                 rawText=output,
                 noteId=noteId, 
                 courseId=courseId, 
