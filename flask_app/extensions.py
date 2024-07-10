@@ -29,6 +29,12 @@ ENV_MAP = {
         'NEO4J_PASSWORD': os.getenv('PROD_NEO4J_PASSWORD'),
         'NEO4J_DATABASE': os.getenv('PROD_NEO4J_DATABASE')
     }
+    'dev': "http://localhost:3000",
+    'prod': [
+        "https://notello.ai", 
+        "https://www.notello.ai",
+        "https://hammerhead-app-2mak5.ondigitalocean.app"
+        ]
 }
 
 cors = CORS(resources={r"/*": {"origins": ENV_MAP[os.getenv('ENV_TYPE')]['allow']}})
