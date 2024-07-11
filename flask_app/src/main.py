@@ -9,34 +9,17 @@ from flask_app.src.openAI_llm import get_graph_from_OpenAI
 from flask_app.src.shared.common_fn import get_chunk_and_graphDocument, update_graph_documents
 from flask_app.services.SupabaseService import SupabaseService
 from flask_app.src.process_file import clean_file
-
+from flask_app.services.NodeUpdateService import NodeUpdateService
 from flask import current_app
 
 def processing_source(
       graphDb_data_Access: graphDBdataAccess, 
       fileName: str, 
       pages, 
-      allowedNodes, 
-      allowedRelationship,
       userId,
       courseId,
       noteId
       ):
-  """
-   Extracts a Neo4jGraph from a PDF file based on the model.
-   
-   Args:
-   	 uri: URI of the graph to extract
-     db_name : db_name is database name to connect graph db
-   	 userName: Username to use for graph creation ( if None will use username from config file )
-   	 password: Password to use for graph creation ( if None will use password from config file )
-   	 file: File object containing the PDF file to be used
-   	 model: Type of model to use ('Diffbot'or'OpenAI GPT')
-   
-   Returns: 
-   	 Json response to API with fileName, nodeCount, relationshipCount, processingTime, 
-     status and model as attributes.
-  """
   start_time = datetime.now()
     
   clean_file(pages)
@@ -69,8 +52,6 @@ def processing_source(
 
     process_chunks(
       chunks=selected_chunks, 
-      allowedNodes=allowedNodes,
-      allowedRelationship=allowedRelationship, 
       noteId=noteId,
       courseId=courseId,
       userId=userId,
@@ -89,14 +70,19 @@ def processing_source(
     processing_time = processed_time,
   )
   graphDb_data_Access.update_source_node(obj_source_node)
+
+  NodeUpdateService.update_note_embeddings(noteId=noteId)
+
+  NodeUpdateService.merge_similar_nodes()
+
+  NodeUpdateService.update_communities_for_param(id_type='noteId', target_id=noteId)
+  NodeUpdateService.update_communities_for_param(id_type='courseId', target_id=courseId)
   
   logging.info('Updated the nodeCount and relCount properties in Document node')
   logging.info(f'file:{fileName} extraction has been completed')
 
 def process_chunks(
     chunks, 
-    allowedNodes,
-    allowedRelationship, 
     noteId,
     courseId,
     userId,
@@ -123,8 +109,6 @@ def process_chunks(
   # Generates graph documents from chunks
   graph_documents = get_graph_from_OpenAI(
     chunkId_chunkDoc_list,
-    allowedNodes,
-    allowedRelationship
   )
 
   # Saves graph documents in Neo4j

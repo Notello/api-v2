@@ -1,3 +1,4 @@
+from itertools import combinations
 import logging
 
 from flask import current_app
@@ -32,11 +33,9 @@ def check_url_source(yt_url:str=None):
       raise Exception(e)
 
 def get_combined_chunks(chunkId_chunkDoc_list):
-    chunks_to_combine = int(current_app.config['NUMBER_OF_CHUNKS_TO_COMBINE'])
-    logging.info(f"Combining {chunks_to_combine} chunks before sending request to LLM")
     combined_chunk_document_list=[]
-    combined_chunks_page_content = ["".join(document['chunk_doc'].page_content for document in chunkId_chunkDoc_list[i:i+chunks_to_combine]) for i in range(0, len(chunkId_chunkDoc_list),chunks_to_combine)]
-    combined_chunks_ids = [[document['chunk_id'] for document in chunkId_chunkDoc_list[i:i+chunks_to_combine]] for i in range(0, len(chunkId_chunkDoc_list),chunks_to_combine)]
+    combined_chunks_page_content = ["".join(document['chunk_doc'].page_content for document in chunkId_chunkDoc_list[i:i+1]) for i in range(0, len(chunkId_chunkDoc_list))]
+    combined_chunks_ids = [[document['chunk_id'] for document in chunkId_chunkDoc_list[i:i+1]] for i in range(0, len(chunkId_chunkDoc_list))]
     
     for i in range(len(combined_chunks_page_content)):
          combined_chunk_document_list.append(Document(page_content=combined_chunks_page_content[i], metadata={"combined_chunk_ids":combined_chunks_ids[i]}))
@@ -153,3 +152,17 @@ def get_llm(model_version:str) :
   logging.info(f"Model created : Model Version: {model_version}")
   return llm
   
+def compare_similar_words(options, bad_ends=['s', 'ed', 'ing', 'er']):
+  words_to_combine = []
+
+  for option in combinations(options, 2):
+    word1, word2 = option
+    for ending in bad_ends:
+      if word1.endswith(ending) and word2 == word1[:-len(ending)]:
+        print(f"Yes: {word2} -> {word1}")
+        words_to_combine.append((word1, word2))
+      elif word2.endswith(ending) and word1 == word2[:-len(ending)]:
+        print(f"Yes: {word1} -> {word2}")
+        words_to_combine.append((word1, word2))
+
+  return words_to_combine

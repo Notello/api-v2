@@ -9,4 +9,5 @@ def clean_file(pages):
                 text = text.replace(j, ' ')
             else:
                 text = text.replace(j, '')
-            pages[i] = Document(page_content=str(text), metadata=pages[i].metadata)
+        
+        pages[i] = Document(page_content=str(text), metadata=pages[i].metadata)
