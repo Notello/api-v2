@@ -71,12 +71,12 @@ def processing_source(
   )
   graphDb_data_Access.update_source_node(obj_source_node)
 
-  NodeUpdateService.update_note_embeddings(noteId=noteId)
+  # NodeUpdateService.update_note_embeddings(noteId=noteId)
 
-  NodeUpdateService.merge_similar_nodes()
+  # NodeUpdateService.merge_similar_nodes()
 
-  NodeUpdateService.update_communities_for_param(id_type='noteId', target_id=noteId)
-  NodeUpdateService.update_communities_for_param(id_type='courseId', target_id=courseId)
+  # NodeUpdateService.update_communities_for_param(id_type='noteId', target_id=noteId)
+  # NodeUpdateService.update_communities_for_param(id_type='courseId', target_id=courseId)
   
   logging.info('Updated the nodeCount and relCount properties in Document node')
   logging.info(f'file:{fileName} extraction has been completed')

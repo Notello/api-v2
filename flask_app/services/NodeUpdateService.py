@@ -135,14 +135,15 @@ class NodeUpdateService:
                         words_to_combine.append(option)
                         words_to_test.remove(option)
                         break
-            
-        with ThreadPoolExecutor(max_workers=10) as executor:
-            future = executor.submit(entity_resolution, words_to_test)
-            for merged_group in tqdm([future], total=1, desc="Processing with LLM"):
-                merged = merged_group.result()
-                if merged:
-                    words_to_combine.extend(merged)
-                    print(f"LLM merged: {merged}")
+
+        if words_to_test:       
+            with ThreadPoolExecutor(max_workers=10) as executor:
+                future = executor.submit(entity_resolution, words_to_test)
+                for merged_group in tqdm([future], total=1, desc="Processing with LLM"):
+                    merged = merged_group.result()
+                    if merged:
+                        words_to_combine.extend(merged)
+                        print(f"LLM merged: {merged}")
         
         print(words_to_combine)
 

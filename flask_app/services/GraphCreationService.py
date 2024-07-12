@@ -99,6 +99,10 @@ class GraphCreationService:
                 word_edit_distance=5
             )
 
+            """
+            IF FOUND SIMILAR DOC, GET NOTEID FOR IT AND UPDATE ALL NODES WITH THAT NOTEID TO INCLUDE THIS NOTEID
+            """
+
             similar = similarityService.has_similar_documents(
                 courseId=courseId,
                 noteId=noteId,

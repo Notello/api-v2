@@ -1,21 +1,22 @@
 from itertools import combinations
 import logging
+from typing import List
+import re
+import os
 
 from flask import current_app
 from ..document_sources.youtube import create_youtube_url
-from langchain_openai import OpenAIEmbeddings
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain.docstore.document import Document
 from langchain_community.graphs import Neo4jGraph
 from langchain_community.graphs.graph_document import GraphDocument
 from flask_app.src.graphDB_dataAccess import graphDBdataAccess
 from typing import List, Union
+from langchain_groq import ChatGroq
 
+from dotenv import load_dotenv
+load_dotenv()
 
-from typing import List
-import re
-import os
-from pathlib import Path
-from langchain_openai import ChatOpenAI
 
 def check_url_source(yt_url:str=None):
     languages=[]
@@ -145,7 +146,7 @@ def close_db_connection(graph, api_name):
     logging.info(f"closing connection for {api_name} api")
     graph._driver.close()   
       
-def get_llm(model_version:str) :
+def get_llm(model_version:str):
   llm = ChatOpenAI(api_key=os.environ.get('OPENAI_KEY'), 
                         model=model_version, 
                         temperature=0) 
