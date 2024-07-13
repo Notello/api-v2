@@ -33,7 +33,12 @@ class GraphCreationService:
                 word_edit_distance=5
             )
 
-            similar = similarityService.same_youtube_node_exists(course_id=courseId, url=sourceUrl)
+            try:
+                similar = similarityService.same_youtube_node_exists(course_id=courseId, url=sourceUrl)
+            except Exception as e:
+                logging.exception(f'Exception in same_youtube_node_exists: {e}')
+                SupabaseService.update_note(noteId=noteId, key='contentStatus', value='error')
+                raise e
 
             if similar:
                 logging.info(f"File: {sourceUrl} is similar to {similar}")
@@ -47,9 +52,17 @@ class GraphCreationService:
                     key='graphStatus', 
                     value='complete'
                     )
+                SupabaseService.update_note(
+                    noteId=noteId, 
+                    key='contentStatus',
+                    value='complete'
+                    )
                 return
-
+            
             transcript = HelperService.check_url_source(ytUrl=sourceUrl)
+
+            SupabaseService.update_note(noteId=noteId, key='sourceUrl', value=sourceUrl)
+            SupabaseService.update_note(noteId=noteId, key='contentStatus', value='complete')
 
             obj_source_node = sourceNode(
                 file_type='text',
@@ -80,7 +93,6 @@ class GraphCreationService:
                 noteId=noteId
                 )
 
-            SupabaseService.update_note(noteId=noteId, key='sourceUrl', value=sourceUrl)
             SupabaseService.update_note(noteId=noteId, key='graphStatus', value='complete')
 
             logging.info(f'File {fileName} has been processed successfully, success_count: {successCount}, failed_count: {failedCount}')

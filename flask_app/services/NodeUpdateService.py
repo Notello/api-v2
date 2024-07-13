@@ -120,6 +120,8 @@ class NodeUpdateService:
         logging.info(f"query: {query}, distance: {distance}, embedding_cutoff: {embedding_cutoff}")
         result = graphAccess.execute_query(query, {'distance': distance, 'embedding_cutoff': embedding_cutoff})
 
+        print(f"Potential merges: {result}")
+
         two_options = []
         llm_options = []
         combined_words = []

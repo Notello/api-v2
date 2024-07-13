@@ -17,7 +17,7 @@ class NoteService:
 
     form_to_status = {
         NoteForm.AUDIO: 'pending',
-        NoteForm.YOUTUBE: 'complete',
+        NoteForm.YOUTUBE: 'pending',
         NoteForm.TEXT: 'complete',
         NoteForm.TEXT_FILE: 'complete',
     }
