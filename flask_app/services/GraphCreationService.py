@@ -1,7 +1,7 @@
 from datetime import datetime
 import sys
 import logging
-from typing import Dict, List
+from typing import List
 import json
 from flask import current_app
 from .SupabaseService import SupabaseService
@@ -37,7 +37,16 @@ class GraphCreationService:
 
             if similar:
                 logging.info(f"File: {sourceUrl} is similar to {similar}")
-                SupabaseService.update_note(noteId=noteId, key='graphStatus', value='already-exists')
+                SupabaseService.update_note(
+                    noteId=noteId,
+                    key='matchingNoteId',
+                    value=similar
+                )
+                SupabaseService.update_note(
+                    noteId=noteId, 
+                    key='graphStatus', 
+                    value='complete'
+                    )
                 return
 
             transcript = HelperService.check_url_source(ytUrl=sourceUrl)
@@ -112,9 +121,14 @@ class GraphCreationService:
             if similar:
                 logging.info(f"File: {fileName} is similar to {similar}")
                 SupabaseService.update_note(
+                    noteId=noteId,
+                    key='matchingNoteId',
+                    value=similar
+                )
+                SupabaseService.update_note(
                     noteId=noteId, 
                     key='graphStatus', 
-                    value='already-exists'
+                    value='complete'
                     )
                 return
 

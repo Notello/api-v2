@@ -15,34 +15,41 @@ from tqdm import tqdm
 
 from flask_app.src.graphDB_dataAccess import graphDBdataAccess
 
-# Define the data models for structured output
-class DuplicateEntities(BaseModel):
-    entities: List[str] = Field(
-        description="Entities that represent the same object or real-world entity and should be merged"
-    )
+class EntityGroup(BaseModel):
+    final_label: str = Field(description="The final label for the merged entity")
+    entities: List[str] = Field(description="List of entities to be merged into the final label")
 
 class Disambiguate(BaseModel):
-    merge_entities: Optional[List[DuplicateEntities]] = Field(
-        description="Lists of entities that represent the same object or real-world entity and should be merged"
+    merge_groups: List[EntityGroup] = Field(
+        description="Groups of entities that should be merged, with their final labels"
     )
 
 def setup_llm():
-    # Set up the LLM
     system_prompt = """You are a data processing assistant. Your task is to identify duplicate entities in a list and decide which of them should be merged.
     The entities might be slightly different in format or content, but essentially refer to the same thing. Use your analytical skills to determine duplicates.
 
     Here are the rules for identifying duplicates:
-    1. Entities with minor typographical differences should be considered duplicates.
-    2. Entities with different formats but the same content should be considered duplicates.
-    3. Entities that refer to the same real-world object or concept, even if described differently, should be considered duplicates.
-    4. If it refers to different numbers, dates, or products, do not merge results
+    1. You do not need to merge all entities, it is up to your discretion.
+    2. Entities with minor typographical differences should be considered duplicates.
+    3. Entities with different formats but the same content should be considered duplicates.
+    4. Entities should only be merged if they refer to the same real-world object or concept.
+    5. If it refers to different numbers, dates, or products, do not merge results.
+    6. If it refers to a name of a person or thing, choose the full name as the final label.
+
+    ## IMPORTANT NOTES:
+    - Do not merge nodes just because they have the same words in them, they MUST be the same real world entity.
+    - Example: entity1 = 'America', entity2 = 'American Football', DO NOT merge these entities (One is a country, the other is a sport).
+    - Example: entity1 = 'New York', entity2 = 'New York City', DO merge these entities (they are the same city).
+    - Example: entity1 = 'Aidan Gollan', entity2 = 'Audrey Gollan', DO merge these entities (they are siblings not the same person).
+
+    Your output should be a list of groups, where each group is represented by a dictionary. The dictionary should have a 'final_label' key with the chosen label for the merged entity, and an 'entities' key with a list of all entities that should be merged into this label.
     """
     
     user_template = """
     Here is the list of entities to process:
     {entities}
 
-    Please identify duplicates, merge them, and provide the merged list.
+    Please identify duplicates, merge them, and provide the merged groups in the specified format.
     """
 
     extraction_llm = ChatOpenAI(model_name='gpt-3.5-turbo-0125').with_structured_output(Disambiguate)
@@ -54,11 +61,13 @@ def setup_llm():
     return extraction_prompt | extraction_llm
 
 @retry(tries=3, delay=2)
-def entity_resolution(entities: List[str]) -> Optional[List[str]]:
+def entity_resolution(entities: List[str]) -> Optional[List[Dict[str, List[str]]]]:
     extraction_chain = setup_llm()
+    result = extraction_chain.invoke({"entities": entities})
+    
     return [
-        el.entities
-        for el in extraction_chain.invoke({"entities": entities}).merge_entities
+        {group.final_label: group.entities}
+        for group in result.merge_groups
     ]
 
 class NodeUpdateService:
@@ -71,6 +80,7 @@ class NodeUpdateService:
 
         query = """
         MATCH (e:Concept)
+        WHERE e.embedding IS NOT NULL
         CALL {
         WITH e
         CALL db.index.vector.queryNodes('concept_embedding', 10, e.embedding)
@@ -107,45 +117,119 @@ class NodeUpdateService:
         RETURN combinedResult
         """
 
+        logging.info(f"query: {query}, distance: {distance}, embedding_cutoff: {embedding_cutoff}")
         result = graphAccess.execute_query(query, {'distance': distance, 'embedding_cutoff': embedding_cutoff})
 
-        all_options = []
-        words_to_test = []
-        words_to_combine = []
+        two_options = []
+        llm_options = []
+        combined_words = []
 
         bad_ends = ['s', 'ed', 'ing', 'er']
 
         for record in result:
-            options = record['combinedResult']
-            for option in combinations(options, 2):
-                words_to_test.append(option)
-                all_options.append(option)
+            if len(record['combinedResult']) == 2:
+                two_options.append(record['combinedResult'])
+            else:
+                llm_options.append(record['combinedResult'])
         
-        for option in all_options:
-            for option in combinations(options, 2):
-                word1, word2 = option
-                for ending in bad_ends:
-                    if word1.endswith(ending) and word2 == word1[:-len(ending)]:
-                        print(f"Yes: {word2} -> {word1}")
-                        words_to_combine.append(option)
-                        words_to_test.remove(option)
-                        break
-                    elif word2.endswith(ending) and word1 == word2[:-len(ending)]:
-                        print(f"Yes: {word1} -> {word2}")
-                        words_to_combine.append(option)
-                        words_to_test.remove(option)
-                        break
 
-        if words_to_test:       
+        for option in two_options:
+            word1, word2 = option
+            seen = False
+            for ending in bad_ends:
+                if word1.endswith(ending) and word2 == word1[:-len(ending)]:
+                    logging.info(f"Easy Merge: {word2} -> {word1}")
+                    two_options.remove(option)
+                    combined_words.append({word2: [word1, word2]})
+                    seen = True
+
+                elif word2.endswith(ending) and word1 == word2[:-len(ending)]:
+                    logging.info(f"Easy Merge: {word1} -> {word2}")
+                    two_options.remove(option)
+                    combined_words.append({word1: [word1, word2]})
+                    seen = True
+            
+            if not seen:
+                llm_options.append(option)
+                    
+
+        if llm_options:       
             with ThreadPoolExecutor(max_workers=10) as executor:
-                future = executor.submit(entity_resolution, words_to_test)
+                future = executor.submit(entity_resolution, llm_options)
                 for merged_group in tqdm([future], total=1, desc="Processing with LLM"):
                     merged = merged_group.result()
                     if merged:
-                        words_to_combine.extend(merged)
-                        print(f"LLM merged: {merged}")
+                        combined_words.extend(merged)
+                        logging.info(f"LLM merged: {merged}")
         
-        print(words_to_combine)
+        logging.info(f"Combined words: {combined_words}")
+
+        # Merge the nodes
+        for merge_group in combined_words:
+            for final_label, entities in merge_group.items():
+                # Sort entities to ensure consistent merging
+                sorted_entities = sorted(entities)
+                primary_node = sorted_entities[0]
+                
+                # Merge properties and relationships
+                merge_query = """
+                MATCH (primary:Concept {id: $primary_id})
+                UNWIND $other_ids AS other_id
+                MATCH (other:Concept {id: other_id})
+                WHERE other <> primary
+                WITH primary, other, 
+                    apoc.map.removeKeys(primary, ['id', 'userId', 'noteId', 'courseId']) AS primary_props,
+                    apoc.map.removeKeys(other, ['id', 'userId', 'noteId', 'courseId']) AS other_props
+
+                // Merge list properties
+                WITH primary, other, primary_props, other_props,
+                    CASE WHEN primary.userId IS NULL THEN [] ELSE primary.userId END + 
+                    CASE WHEN other.userId IS NULL THEN [] ELSE other.userId END AS merged_userId,
+                    CASE WHEN primary.noteId IS NULL THEN [] ELSE primary.noteId END + 
+                    CASE WHEN other.noteId IS NULL THEN [] ELSE other.noteId END AS merged_noteId,
+                    CASE WHEN primary.courseId IS NULL THEN [] ELSE primary.courseId END + 
+                    CASE WHEN other.courseId IS NULL THEN [] ELSE other.courseId END AS merged_courseId
+
+                // Merge other properties
+                WITH primary, other, primary_props, other_props, merged_userId, merged_noteId, merged_courseId,
+                    apoc.map.mergeList([primary_props, other_props]) AS merged_props
+
+                // Set properties on primary node
+                SET primary = merged_props,
+                    primary.id = $final_label,
+                    primary.userId = apoc.coll.toSet(merged_userId),
+                    primary.noteId = apoc.coll.toSet(merged_noteId),
+                    primary.courseId = apoc.coll.toSet(merged_courseId)
+
+                // Use WITH clause before CALL
+                WITH primary, other
+
+                // Merge relationships
+                CALL apoc.refactor.mergeNodes([primary, other], {properties: "discard", mergeRels: true})
+                YIELD node
+
+                RETURN node
+                """
+                
+                merge_params = {
+                    "primary_id": primary_node,
+                    "other_ids": sorted_entities[1:],
+                    "final_label": final_label
+                }
+                
+                try:
+                    result = graphAccess.execute_query(merge_query, merge_params)
+                    logging.info(f"Merged nodes: {sorted_entities} into {final_label}")
+                    
+                    # Log the properties of the merged node
+                    if result and result[0]['node']:
+                        merged_node = result[0]['node']
+                        logging.info(f"Merged node properties: {dict(merged_node)}")
+                    
+                except Exception as e:
+                    logging.error(f"Error merging nodes {sorted_entities}: {str(e)}")
+
+        logging.info("Node merging process completed.")
 
     @staticmethod
     def update_note_embeddings(noteId: str) -> None:

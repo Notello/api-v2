@@ -147,11 +147,21 @@ def close_db_connection(graph, api_name):
     graph._driver.close()   
       
 def get_llm(model_version:str):
-  llm = ChatOpenAI(api_key=os.environ.get('OPENAI_KEY'), 
-                        model=model_version, 
-                        temperature=0) 
-  logging.info(f"Model created : Model Version: {model_version}")
-  return llm
+
+  if model_version == "gpt-3.5-turbo-0125":
+    llm = ChatOpenAI(api_key=os.environ.get('OPENAI_KEY'), 
+                      model=model_version, 
+                      temperature=0)
+    logging.info(f"Model created : Model Version: {model_version}")
+    return llm
+  elif model_version == "mixtral-8x7b-32768":
+    llm = ChatGroq(api_key=os.environ.get('GROQ_KEY'), 
+                    model=model_version, 
+                    temperature=0)
+    logging.info(f"Model created : Model Version: {model_version}")
+    return llm
+  else:
+    raise Exception(f"Model Version {model_version} not supported")
   
 def compare_similar_words(options, bad_ends=['s', 'ed', 'ing', 'er']):
   words_to_combine = []

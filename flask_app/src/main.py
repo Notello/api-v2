@@ -42,13 +42,11 @@ def processing_source(
   SupabaseService.update_note(noteId, 'graphStatus', '1')
   
   logging.info('Update the status as Processing')
-  updateGraphChunkProcessed = int(current_app.config['UPDATE_GRAPH_CHUNKS_PROCESSED'])
-  for i in range(0, len(chunks), updateGraphChunkProcessed):
-    select_chunks_upto = min(i + updateGraphChunkProcessed, len(chunks))
+  for i in range(0, len(chunks)):
 
-    logging.info(f'Selected Chunks upto: {select_chunks_upto}')
+    logging.info(f'Processing chunk {i}')
 
-    selected_chunks = chunks[i : select_chunks_upto]
+    selected_chunks = chunks[i : i + 1]
 
     process_chunks(
       chunks=selected_chunks, 
@@ -58,7 +56,7 @@ def processing_source(
       startI=i
     )
 
-    SupabaseService.update_note(noteId, 'graphStatus', str(select_chunks_upto))
+    SupabaseService.update_note(noteId, 'graphStatus', str(i))
 
   end_time = datetime.now()
   processed_time = end_time - start_time
@@ -71,12 +69,12 @@ def processing_source(
   )
   graphDb_data_Access.update_source_node(obj_source_node)
 
-  # NodeUpdateService.update_note_embeddings(noteId=noteId)
+  NodeUpdateService.update_note_embeddings(noteId=noteId)
 
-  # NodeUpdateService.merge_similar_nodes()
+  NodeUpdateService.merge_similar_nodes()
 
-  # NodeUpdateService.update_communities_for_param(id_type='noteId', target_id=noteId)
-  # NodeUpdateService.update_communities_for_param(id_type='courseId', target_id=courseId)
+  NodeUpdateService.update_communities_for_param(id_type='noteId', target_id=noteId)
+  NodeUpdateService.update_communities_for_param(id_type='courseId', target_id=courseId)
   
   logging.info('Updated the nodeCount and relCount properties in Document node')
   logging.info(f'file:{fileName} extraction has been completed')

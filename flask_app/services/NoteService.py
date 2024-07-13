@@ -19,7 +19,7 @@ class NoteService:
         NoteForm.AUDIO: 'pending',
         NoteForm.YOUTUBE: 'complete',
         NoteForm.TEXT: 'complete',
-        NoteForm.TEXT_FILE: 'not-applicable',
+        NoteForm.TEXT_FILE: 'complete',
     }
 
     @staticmethod
