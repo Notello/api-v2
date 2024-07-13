@@ -1,5 +1,6 @@
 import json
 import logging
+import random
 from typing import Any, Dict, List, Tuple
 from flask_app.src.graphDB_dataAccess import graphDBdataAccess
 from flask import current_app
@@ -8,8 +9,12 @@ from flask_app.models.Quiz import QuizQuestion
 class GraphQueryService():
 
     @staticmethod
+    def get_com_string(communityType: str, communityId: str) -> str:
+        return f"{communityType}_{communityId}_community"
+
+    @staticmethod
     def get_default_graph_params(communityType: str, communityId: str) -> List[Tuple[str, str]]:
-        com_string = f"{communityType}_{communityId}_community"
+        com_string = GraphQueryService.get_com_string(communityType=communityType, communityId=communityId)
 
         return [
         
@@ -152,7 +157,65 @@ class GraphQueryService():
                                    id: str, 
                                    topics: List[str] = None
                                    ) -> str | None:
-        return {'message': 'Not implemented'}, 200
+
+        graphAccess = graphDBdataAccess(current_app.config['NEO4J_GRAPH'])
+        com_string = GraphQueryService.get_com_string(communityType=param, communityId=id)
+
+        
+        parameters = {
+            'value': id,
+        }
+
+        communities = []
+
+        if len(topics) > 0:
+            TOPIC_COMMUNITIES_QUERY = f"""
+            MATCH (n)
+            WHERE ANY(label IN labels(n) WHERE label IN ['Concept', 'Chunk']) AND $value in n.{param}
+            WITH n
+            WHERE ANY(topic IN {topics} WHERE n.id = topic)
+            RETURN COLLECT(DISTINCT n['{com_string}']) AS all_community_ids
+            """
+
+            topics_communities = graphAccess.execute_query(TOPIC_COMMUNITIES_QUERY, parameters)
+
+            communities = topics_communities[0]['all_community_ids']
+        else:
+            ALL_COMMUNITIES_QUERY = f"""
+            MATCH (n)
+            WHERE $value in n.{param}
+            RETURN COLLECT(DISTINCT n['{com_string}']) AS all_community_ids
+            """
+
+            topics_communities = graphAccess.execute_query(ALL_COMMUNITIES_QUERY, parameters)
+
+            communities = topics_communities[0]['all_community_ids']
+            communities = random.sample(communities, min(3, len(communities)))
+
+
+        MAIN_QUERY = f"""
+        // Match Concept-Concept relationships
+        MATCH (c1:Concept)-[r]-(c2:Concept)
+        WHERE c1['{com_string}'] IN {communities} AND c2['{com_string}'] IN {communities}
+
+        // Match Chunk nodes
+        WITH COLLECT(DISTINCT {{source: c1.id, type: r.type, target: c2.id}}) AS conceptRels
+        MATCH (chunk:Chunk)
+        WHERE chunk['{com_string}'] IN {communities}
+
+        RETURN 
+            conceptRels,
+            COLLECT(DISTINCT {{
+                id: chunk.id,
+                text: chunk.text,
+                noteId: chunk.noteId,
+                position: chunk.position
+            }}) AS chunks
+        """
+
+        result = graphAccess.execute_query(MAIN_QUERY)
+
+        return result
     
     @staticmethod
     def get_quiz_questions_by_id(quizId: str) -> List[QuizQuestion]:

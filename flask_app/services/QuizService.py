@@ -66,26 +66,6 @@ class QuizService():
 
         questions = []
 
-        for i in range(numQuestions):
-            question = QuizQuestion(
-                question=f"Question {i}",
-                answers=[],
-                topics=[f"Topic {j}" for j in range(randint(1, 5))],
-                difficulty=difficulty,
-                userId=userId,
-                courseId=courseId,
-                noteId=noteId,
-                quizId=quizId,
-                questionId=f"{questionIds[i]}",
-            )
 
-            for j in range(4):
-                question.answers.append(QuizQuestionAnswer(
-                    label=f"Answer {j}",
-                    correct=(j == 2),
-                    explanation=f"Explanation for answer {j}"
-                ))
-            
-            questions.append(question)
 
         return questions

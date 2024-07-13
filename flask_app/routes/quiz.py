@@ -1,3 +1,5 @@
+import ast
+import json
 import logging
 from flask_restx import Namespace, Resource
 
@@ -30,9 +32,7 @@ create_quiz_parser.add_argument('difficulty', location='form',
 create_quiz_parser.add_argument('numQuestions', location='form', 
                         type=int, required=False,
                         help='Number of questions to generate')
-create_quiz_parser.add_argument('topics', location='form', 
-                        type=list, required=False,
-                        help='List of topics to generate quiz for')
+create_quiz_parser.add_argument('topics', location='form', action='split')
 
 @api.expect(create_quiz_parser)
 @api.route('/generate-quiz')
@@ -43,18 +43,23 @@ class GenerateQuizFor(Resource):
         courseId = args.get('courseId', None)
         noteId = args.get('noteId', None)
         specifierParam = args.get('specifierParam', None)
-        topics = args.get('topics', [])
         difficulty = args.get('difficulty', 3)
         numQuestions = args.get('numQuestions', 5)
+
+        topics = args.get('topics', None)
+
+        if topics is None:
+            topics = []
 
         if (
             not HelperService.validate_all_uuid4(userId, courseId) \
             or (specifierParam is not None and specifierParam not in QuizService.validSpecifiers)
             or (not HelperService.validate_uuid4(noteId) and specifierParam == 'noteId')
+            or not isinstance(topics, list)
                 
         ):
             return {'message': 'Must have userId, courseId, optionally noteId and a valid specifierParam'}, 400
-        
+                
         quizId = SupabaseService.create_quiz(
             noteId=noteId,
             courseId=courseId,
