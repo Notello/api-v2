@@ -215,7 +215,7 @@ class GraphQueryService():
 
         result = graphAccess.execute_query(MAIN_QUERY)
 
-        return result
+        return result[0]
     
     @staticmethod
     def get_quiz_questions_by_id(quizId: str) -> List[QuizQuestion]:

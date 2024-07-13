@@ -200,20 +200,25 @@ class GraphCreationService:
 
         params = {'questions': [
             {
-                'questionId': q.questionId,
-                'quizId': q.quizId,
-                'userId': q.userId,
-                'courseId': q.courseId,
-                'noteId': q.noteId,
-                'question': q.question,
+                'questionId': q['questionId'],
+                'quizId': q['quizId'],
+                'userId': q['userId'],
+                'courseId': q['courseId'],
+                'noteId': q['noteId'],
+                'question': q['question'],
+                'difficulty': q['difficulty'],
                 'answers': json.dumps([{ ## When getting answers, need to do json.loads()
-                    'label': a.label,
-                    'correct': a.correct,
-                    'explanation': a.explanation
-                } for a in q.answers]),
-                'topics': q.topics,
-                'difficulty': q.difficulty
+                    'label': a['label'],
+                    'correct': a['correct'],
+                    'explanation': a['explanation']
+                } for a in q['answers']]),
+                'chunkIds': q['chunkIds'],
+                'topics': q['topics'],
             } for q in questions
         ]}
         
         graphAccess.execute_query(query, params)
+
+        ########################################
+        # Need to associate each question with its topic
+        ########################################

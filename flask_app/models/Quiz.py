@@ -21,7 +21,8 @@ class QuizQuestion():
     def __init__(self, 
         question: str, 
         answers: List[QuizQuestionAnswer], 
-        topics: List[str], 
+        topics: List[str],
+        chunkIds: List[str],
         difficulty: int, 
         userId: str, 
         courseId: str, 
@@ -38,10 +39,12 @@ class QuizQuestion():
         self.noteId = noteId
         self.quizId = quizId
         self.questionId = questionId
+        self.chunkIds = chunkIds
 
     question: str
     answers: List[QuizQuestionAnswer]
     topics: List[str]
+    chunkIds: List[str]
     difficulty: int
     userId: str
     courseId: str
