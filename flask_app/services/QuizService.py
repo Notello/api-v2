@@ -1,6 +1,5 @@
 import logging
 from typing import Dict
-import logging
 
 from langchain_core.pydantic_v1 import BaseModel, Field
 from typing import List, Optional
@@ -13,6 +12,7 @@ from flask_app.services.GraphQueryService import GraphQueryService
 from flask_app.services.SupabaseService import SupabaseService
 from flask_app.services.GraphCreationService import GraphCreationService
 from flask_app.src.shared.common_fn import get_llm
+from flask_app.constants import DEFAULT_COMMUNITIES
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +46,7 @@ def setup_llm(
 
     Input:
     - A list of topics to focus on
-    - A list of relationships between entities
+    - A list of relationships between concepts
     - A list of raw text chunks
     - Average Desired Difficulty level (1-5, where 1 is easiest and 5 is most difficult)
     - Number of questions to generate
@@ -61,10 +61,13 @@ def setup_llm(
     7. Ensure that exactly one answer per question is marked as correct.
     8. Always provide 4 possible answers for each question.
     9. Assign a difficulty level (1-5) to each individual question, considering the average difficulty provided.
+    10. Use natural language in questions and answers. Avoid mentioning "entities" or "relationships" explicitly.
+    11. Ensure that questions and answers are understandable to someone unfamiliar with the internal structure of the knowledge base.
 
     ## Important:
-    - Do NOT mention or reference chunk IDs in the question text, answer options, or explanations.
+    - Do NOT mention or reference chunk IDs, entities, or relationships in the question text, answer options, or explanations.
     - Only include chunk IDs in the designated 'chunkIds' list for each question.
+    - Frame questions and answers in a way that's natural and easy for a general audience to understand.
 
     Remember to maintain a balance between challenging the quiz-taker and ensuring the questions are answerable based on the provided information.
     """
@@ -74,7 +77,7 @@ def setup_llm(
 
     1. Topics to Focus On: {topics_to_focus_on}
 
-    2. Entity Relationships: {relationship_str}
+    2. Topic Relationships: {relationship_str}
 
     3. Raw Text Chunks: {raw_text_str}
 
@@ -84,15 +87,17 @@ def setup_llm(
 
     Generate the specified number of questions, ensuring they:
     - Primarily focus on the provided topics
-    - Are based on the provided entity relationships and raw text
+    - Are based on the provided concept relationships and raw text
     - Each have four possible answers
     - Have an individual difficulty rating (1-5) for each question, considering the average difficulty provided
     - Cover aspects of the given information within the specified topics
     - Include relevant chunk IDs and topics for each question
+    - Are phrased in natural language, avoiding technical terms like "entities" or "relationships"
 
     ## Important:
-    - Do NOT mention or reference chunk IDs in the question text, answer options, or explanations.
+    - Do NOT mention or reference chunk IDs, entities, or relationships in the question text, answer options, or explanations.
     - Only include chunk IDs in the designated 'chunkIds' list for each question.
+    - Ensure that questions and answers are clear and understandable to a general audience.
 
     Please provide the questions in the JSON format specified in the system prompt.
     """
@@ -114,16 +119,19 @@ def generate_quiz_questions(
     topics_to_focus_on: List[str]
 ) -> Optional[List[QuizQuestion]]:
     try:
-        relationship_str = "\n".join([f"Source: {relationship['source']}, Relationship: {relationship['type']}, Target: {relationship['target']}" for relationship in relationships])
+        relationship_str = "\n".join([f"{relationship['source']} {relationship['type']} {relationship['target']}" for relationship in relationships])
         raw_text_str = "\n".join([f"Chunk ID: {raw_text['id']}, Text: {raw_text['text']}" for raw_text in raw_texts])
-        topics_to_focus_on_str = ", ".join(topics_to_focus_on)
+        topics_to_focus_on_str = ", ".join(topics_to_focus_on) if topics_to_focus_on else "Any"
+
+        print(f"relationship_str: {relationship_str}")
+        print(f"raw_text_str: {raw_text_str}")
 
         extraction_chain = setup_llm(
-            relationship_str, 
-            raw_text_str, 
-            average_difficulty, 
-            num_questions,
-            topics_to_focus_on_str
+            relationship_str=relationship_str, 
+            raw_text_str=raw_text_str, 
+            average_difficulty=average_difficulty, 
+            num_questions=num_questions,
+            topics_to_focus_on=topics_to_focus_on_str
         )
 
         result = extraction_chain.invoke({})
@@ -146,14 +154,15 @@ class QuizService():
                       numQuestions=None,
                       specifierParam=None
                       ):
+        
+        id = noteId if specifierParam == 'noteId' else courseId
 
         topic_graph = GraphQueryService.get_topic_graph(
-            courseId=courseId, 
-            noteId=noteId,
+            id=id,
             specifierParam=specifierParam,
-            topics=topics
+            topics=topics,
+            num_communities=DEFAULT_COMMUNITIES
             )
-        
     
         if topic_graph is None:
             return None
@@ -181,7 +190,10 @@ class QuizService():
             )
         
         pprint(questions)
-        
+
+        if questions is None or len(questions) == 0:
+            return None
+
         formatted_questions = []
         for i, question in enumerate(questions):
             formatted_questions.append(

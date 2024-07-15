@@ -180,8 +180,8 @@ class NodeUpdateService:
                 MATCH (other:Concept {id: other_id})
                 WHERE other <> primary
                 WITH primary, other, 
-                    apoc.map.removeKeys(primary, ['id', 'userId', 'noteId', 'courseId']) AS primary_props,
-                    apoc.map.removeKeys(other, ['id', 'userId', 'noteId', 'courseId']) AS other_props
+                    apoc.map.removeKeys(primary, ['id', 'userId', 'noteId', 'courseId', 'uuid']) AS primary_props,
+                    apoc.map.removeKeys(other, ['id', 'userId', 'noteId', 'courseId', 'uuid']) AS other_props
 
                 // Merge list properties
                 WITH primary, other, primary_props, other_props,
@@ -190,10 +190,12 @@ class NodeUpdateService:
                     CASE WHEN primary.noteId IS NULL THEN [] ELSE primary.noteId END + 
                     CASE WHEN other.noteId IS NULL THEN [] ELSE other.noteId END AS merged_noteId,
                     CASE WHEN primary.courseId IS NULL THEN [] ELSE primary.courseId END + 
-                    CASE WHEN other.courseId IS NULL THEN [] ELSE other.courseId END AS merged_courseId
+                    CASE WHEN other.courseId IS NULL THEN [] ELSE other.courseId END AS merged_courseId,
+                    CASE WHEN primary.uuid IS NULL THEN [] ELSE primary.uuid END + 
+                    CASE WHEN other.uuid IS NULL THEN [] ELSE other.uuid END AS merged_uuid
 
                 // Merge other properties
-                WITH primary, other, primary_props, other_props, merged_userId, merged_noteId, merged_courseId,
+                WITH primary, other, primary_props, other_props, merged_userId, merged_noteId, merged_courseId, merged_uuid,
                     apoc.map.mergeList([primary_props, other_props]) AS merged_props
 
                 // Set properties on primary node
@@ -201,7 +203,8 @@ class NodeUpdateService:
                     primary.id = $final_label,
                     primary.userId = apoc.coll.toSet(merged_userId),
                     primary.noteId = apoc.coll.toSet(merged_noteId),
-                    primary.courseId = apoc.coll.toSet(merged_courseId)
+                    primary.courseId = apoc.coll.toSet(merged_courseId),
+                    primary.uuid = apoc.coll.toSet(merged_uuid)
 
                 // Use WITH clause before CALL
                 WITH primary, other

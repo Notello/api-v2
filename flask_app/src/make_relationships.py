@@ -68,7 +68,9 @@ def create_relation_between_chunks(
         courseId, 
         userId, 
         chunks: List[Document],
-        startI
+        startI,
+        document_name,
+        offset
         )->list:
     logging.info("creating FIRST_CHUNK and NEXT_CHUNK relationships between chunks")
     current_chunk_id = ""
@@ -97,7 +99,11 @@ def create_relation_between_chunks(
             "courseId": courseId,
             "userId": userId,
             "previous_id" : previous_chunk_id,
+            "document_name": document_name,
+            "offset": offset
         }
+
+        offset += len(chunk.page_content)
         
         if 'page_number' in chunk.metadata:
             chunk_data['page_number'] = chunk.metadata['page_number']
@@ -125,7 +131,9 @@ def create_relation_between_chunks(
         c.length = data.length, 
         c.noteId = data.noteId,
         c.courseId = data.courseId,
-        c.userId = data.userId
+        c.userId = data.userId,
+        c.document_name = data.document_name,
+        c.offset = data.offset
 
         WITH data, c
         WHERE data.page_number IS NOT NULL

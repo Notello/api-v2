@@ -139,23 +139,34 @@ class GraphQueryService():
             return None, None
         
     @staticmethod
-    def get_topic_graph(courseId: str = None,
-                        noteId: str = None, 
+    def get_topic_graph(id: str | None = None, 
                         specifierParam: str = None,
-                        topics: List[str] = []
+                        topics: List[str] = [],
+                        num_communities: int = None
                     ) -> str | None:
-        if specifierParam == 'noteId':
-            return GraphQueryService.get_topic_graph_from_param(param="noteId", id=noteId, topics=topics)
-        elif specifierParam == 'courseId':
-            return GraphQueryService.get_topic_graph_from_param(param="courseId", id=courseId, topics=topics)
-        else:
+                
+        communities = GraphQueryService.get_communities_for_param(
+            param=specifierParam, 
+            id=id, 
+            topics=topics,
+            num_communities=num_communities
+            )
+
+        if len(communities) == 0:
             return None
+
+        return GraphQueryService.get_topic_graph_for_communities(
+            param=specifierParam, 
+            id=id, 
+            communities=communities
+            )
 
         
     @staticmethod
-    def get_topic_graph_from_param(param: str, 
+    def get_communities_for_param(param: str, 
                                    id: str, 
-                                   topics: List[str] = None
+                                   topics: List[str] = None,
+                                   num_communities: int = None
                                    ) -> str | None:
         
         logging.info(f"Getting topic graph for {param} with id {id}")
@@ -192,25 +203,44 @@ class GraphQueryService():
             topics_communities = graphAccess.execute_query(ALL_COMMUNITIES_QUERY, parameters)
 
             communities = topics_communities[0]['all_community_ids']
-            communities = random.sample(communities, min(3, len(communities)))
+            if num_communities is not None:
+                communities = random.sample(communities, min(num_communities, len(communities)))
 
+        return communities
+    
+    @staticmethod
+    def get_topic_graph_for_communities(
+        param: str,
+        id: str,
+        communities: List[str],
+        num_rels: int = 50,
+        num_chunks: int = 3
+    ):
+        graphAccess = graphDBdataAccess(current_app.config['NEO4J_GRAPH'])
+        com_string = GraphQueryService.get_com_string(communityType=param, communityId=id)
 
         MAIN_QUERY = f"""
-        // First, collect up to 100 relationships
+        // First, collect up to num_rels relationships
         MATCH (c1:Concept)-[r]-(c2:Concept)
         WHERE c1['{com_string}'] IN {communities}
         AND c2['{com_string}'] IN {communities}
         WITH c1, r, c2
-        LIMIT 100
+        LIMIT {num_rels}
 
-        WITH COLLECT(DISTINCT {{source: c1.id, type: r.type, target: c2.id}}) AS conceptRels, 
+        WITH COLLECT(DISTINCT {{
+            source: c1.id, 
+            sourceUUID: c1.uuid,
+            type: r.type, 
+            target: c2.id,
+            targetUUID: c2.uuid
+            }}) AS conceptRels, 
             COLLECT(DISTINCT c1) + COLLECT(DISTINCT c2) AS allConcepts
 
-        // Then, match up to 5 chunks related to these concepts
+        // Then, match up to num_chunks chunks related to these concepts
         MATCH (chunk:Chunk)
         WHERE chunk['{com_string}'] IN {communities}
         WITH conceptRels, chunk
-        LIMIT 5
+        LIMIT {num_chunks}
 
         RETURN 
         conceptRels, 
@@ -218,12 +248,16 @@ class GraphQueryService():
             id: chunk.id,
             text: chunk.text,
             noteId: chunk.noteId,
-            position: chunk.position
+            position: chunk.position,
+            document_name: chunk.document_name
         }}) AS chunks
         """
 
         result = graphAccess.execute_query(query=MAIN_QUERY)
 
+        if len(result) == 0:
+            return None
+        
         return result[0]
     
     @staticmethod

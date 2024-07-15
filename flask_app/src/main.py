@@ -40,6 +40,8 @@ def processing_source(
   graphDb_data_Access.update_source_node(obj_source_node)
 
   SupabaseService.update_note(noteId, 'graphStatus', '1')
+
+  offset = 0
   
   logging.info('Update the status as Processing')
   for i in range(0, len(chunks)):
@@ -48,13 +50,21 @@ def processing_source(
 
     selected_chunks = chunks[i : i + 1]
 
+    logging.info(f'offset: {offset}')
+
     process_chunks(
       chunks=selected_chunks, 
       noteId=noteId,
       courseId=courseId,
       userId=userId,
-      startI=i
+      startI=i,
+      offset=offset,
+      document_name=fileName
     )
+
+    logging.info(f'offset after processing: {offset}')
+
+    offset += sum([len(chunk.page_content) for chunk in selected_chunks])
 
     SupabaseService.update_note(noteId, 'graphStatus', str(i))
 
@@ -84,7 +94,9 @@ def process_chunks(
     noteId,
     courseId,
     userId,
-    startI
+    startI,
+    offset,
+    document_name
 ):
 
   # Creates the first, NEXT_CHUNK relationship between chunks
@@ -93,7 +105,9 @@ def process_chunks(
      courseId=courseId,
      userId=userId,
      chunks=chunks,
-     startI=startI
+     startI=startI,
+     document_name=document_name,
+     offset=offset
   )
 
   # Create vector index and update chunk node with embedding

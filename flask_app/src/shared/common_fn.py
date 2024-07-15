@@ -3,6 +3,7 @@ import logging
 from typing import List
 import re
 import os
+import uuid
 
 from flask import current_app
 from ..document_sources.youtube import create_youtube_url
@@ -83,6 +84,7 @@ def update_graph_documents(
         for node in graph_document.nodes:
             node_data = {
                 "id": node.id,
+                "uuid": str(uuid.uuid4()),
                 "type": node.type,
                 "noteId": noteId,
                 "courseId": courseId,
@@ -111,7 +113,8 @@ def update_graph_documents(
         n.type = node.type,
         n.noteId = CASE WHEN node.noteId IS NOT NULL THEN [node.noteId] ELSE [] END,
         n.courseId = CASE WHEN node.courseId IS NOT NULL THEN [node.courseId] ELSE [] END,
-        n.userId = CASE WHEN node.userId IS NOT NULL THEN [node.userId] ELSE [] END
+        n.userId = CASE WHEN node.userId IS NOT NULL THEN [node.userId] ELSE [] END,
+        n.uuid = CASE WHEN node.uuid IS NOT NULL THEN [node.uuid] ELSE [] END
     ON MATCH SET
         n.type = node.type,
         n.noteId = CASE 
@@ -128,6 +131,11 @@ def update_graph_documents(
             WHEN node.userId IS NOT NULL AND NOT node.userId IN n.userId 
             THEN n.userId + [node.userId] 
             ELSE n.userId 
+        END,
+        n.uuid = CASE 
+            WHEN node.uuid IS NOT NULL AND NOT node.uuid IN n.uuid 
+            THEN n.uuid + [node.uuid] 
+            ELSE n.uuid 
         END
     """
 

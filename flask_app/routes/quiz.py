@@ -1,5 +1,3 @@
-import ast
-import json
 import logging
 from flask_restx import Namespace, Resource
 
@@ -9,8 +7,9 @@ from flask_app.services.GraphQueryService import GraphQueryService
 from flask_app.services.SupabaseService import SupabaseService
 from flask_app.services.ContextAwareThread import ContextAwareThread
 
-api = Namespace('quiz')
+logging.basicConfig(format='%(asctime)s - %(message)s', level='INFO')
 
+api = Namespace('quiz')
 
 create_quiz_parser = api.parser()
 
@@ -36,7 +35,7 @@ create_quiz_parser.add_argument('topics', location='form', action='split')
 
 @api.expect(create_quiz_parser)
 @api.route('/generate-quiz')
-class GenerateQuizFor(Resource):
+class GenerateQuiz(Resource):
     def post(self):
         args = create_quiz_parser.parse_args()
         userId = args.get('userId', None)
@@ -45,7 +44,6 @@ class GenerateQuizFor(Resource):
         specifierParam = args.get('specifierParam', None)
         difficulty = args.get('difficulty', 3)
         numQuestions = args.get('numQuestions', 5)
-
         topics = args.get('topics', None)
 
         if topics is None:
