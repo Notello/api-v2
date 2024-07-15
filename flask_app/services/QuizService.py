@@ -62,6 +62,10 @@ def setup_llm(
     8. Always provide 4 possible answers for each question.
     9. Assign a difficulty level (1-5) to each individual question, considering the average difficulty provided.
 
+    ## Important:
+    - Do NOT mention or reference chunk IDs in the question text, answer options, or explanations.
+    - Only include chunk IDs in the designated 'chunkIds' list for each question.
+
     Remember to maintain a balance between challenging the quiz-taker and ensuring the questions are answerable based on the provided information.
     """
     
@@ -85,6 +89,10 @@ def setup_llm(
     - Have an individual difficulty rating (1-5) for each question, considering the average difficulty provided
     - Cover aspects of the given information within the specified topics
     - Include relevant chunk IDs and topics for each question
+
+    ## Important:
+    - Do NOT mention or reference chunk IDs in the question text, answer options, or explanations.
+    - Only include chunk IDs in the designated 'chunkIds' list for each question.
 
     Please provide the questions in the JSON format specified in the system prompt.
     """
