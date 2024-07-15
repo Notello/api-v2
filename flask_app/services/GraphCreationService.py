@@ -192,9 +192,20 @@ class GraphCreationService:
             question: q.question,
             answers: q.answers,
             topics: q.topics,
+            chunkIds: q.chunkIds,
             difficulty: q.difficulty
         })
-
+        
+        WITH question, q
+        UNWIND q.topics AS topicId
+        MATCH (concept:Concept {id: topicId})
+        CREATE (concept)-[:HAS_QUESTION]->(question)
+        
+        WITH question, q
+        UNWIND q.chunkIds AS chunkId
+        MATCH (chunk:Chunk {id: chunkId})
+        CREATE (chunk)-[:HAS_QUESTION]->(question)
+        
         RETURN q
         """
 
@@ -207,7 +218,7 @@ class GraphCreationService:
                 'noteId': q['noteId'],
                 'question': q['question'],
                 'difficulty': q['difficulty'],
-                'answers': json.dumps([{ ## When getting answers, need to do json.loads()
+                'answers': json.dumps([{  # When getting answers, need to do json.loads()
                     'label': a['label'],
                     'correct': a['correct'],
                     'explanation': a['explanation']
@@ -218,7 +229,3 @@ class GraphCreationService:
         ]}
         
         graphAccess.execute_query(query, params)
-
-        ########################################
-        # Need to associate each question with its topic
-        ########################################

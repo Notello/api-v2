@@ -157,6 +157,8 @@ class GraphQueryService():
                                    id: str, 
                                    topics: List[str] = None
                                    ) -> str | None:
+        
+        logging.info(f"Getting topic graph for {param} with id {id}")
 
         graphAccess = graphDBdataAccess(current_app.config['NEO4J_GRAPH'])
         com_string = GraphQueryService.get_com_string(communityType=param, communityId=id)
@@ -194,26 +196,33 @@ class GraphQueryService():
 
 
         MAIN_QUERY = f"""
-        // Match Concept-Concept relationships
+        // First, collect up to 100 relationships
         MATCH (c1:Concept)-[r]-(c2:Concept)
-        WHERE c1['{com_string}'] IN {communities} AND c2['{com_string}'] IN {communities}
+        WHERE c1['{com_string}'] IN {communities}
+        AND c2['{com_string}'] IN {communities}
+        WITH c1, r, c2
+        LIMIT 100
 
-        // Match Chunk nodes
-        WITH COLLECT(DISTINCT {{source: c1.id, type: r.type, target: c2.id}}) AS conceptRels
+        WITH COLLECT(DISTINCT {{source: c1.id, type: r.type, target: c2.id}}) AS conceptRels, 
+            COLLECT(DISTINCT c1) + COLLECT(DISTINCT c2) AS allConcepts
+
+        // Then, match up to 5 chunks related to these concepts
         MATCH (chunk:Chunk)
         WHERE chunk['{com_string}'] IN {communities}
+        WITH conceptRels, chunk
+        LIMIT 5
 
         RETURN 
-            conceptRels,
-            COLLECT(DISTINCT {{
-                id: chunk.id,
-                text: chunk.text,
-                noteId: chunk.noteId,
-                position: chunk.position
-            }}) AS chunks
+        conceptRels, 
+        COLLECT(DISTINCT {{
+            id: chunk.id,
+            text: chunk.text,
+            noteId: chunk.noteId,
+            position: chunk.position
+        }}) AS chunks
         """
 
-        result = graphAccess.execute_query(MAIN_QUERY)
+        result = graphAccess.execute_query(query=MAIN_QUERY)
 
         return result[0]
     

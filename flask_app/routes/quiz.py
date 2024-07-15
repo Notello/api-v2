@@ -56,7 +56,6 @@ class GenerateQuizFor(Resource):
             or (specifierParam is not None and specifierParam not in QuizService.validSpecifiers)
             or (not HelperService.validate_uuid4(noteId) and specifierParam == 'noteId')
             or not isinstance(topics, list)
-                
         ):
             return {'message': 'Must have userId, courseId, optionally noteId and a valid specifierParam'}, 400
                 

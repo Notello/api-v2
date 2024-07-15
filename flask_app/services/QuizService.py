@@ -89,7 +89,7 @@ def setup_llm(
     Please provide the questions in the JSON format specified in the system prompt.
     """
 
-    extraction_llm = get_llm("mixtral-8x7b-32768").with_structured_output(QuizQuestions)
+    extraction_llm = get_llm("gpt-3.5-turbo-0125").with_structured_output(QuizQuestions)
     extraction_prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
         ("human", user_template),
@@ -150,6 +150,8 @@ class QuizService():
         if topic_graph is None:
             return None
         
+        logging.info(f"Generated topic graph for quiz: {quizId}, topics: {topics}")
+        
         questionIds = []
         
         for _ in range(numQuestions):
@@ -160,6 +162,8 @@ class QuizService():
                 return None
             
             questionIds.append(question[0]['id'])
+        
+        logging.info(f"Generated placeholder quiz questions for quiz {quizId}")
 
         questions = QuizService.generate_quiz_questions(
             topic_graph=topic_graph,
@@ -167,6 +171,8 @@ class QuizService():
             numQuestions=numQuestions,
             topics_to_focus_on=topics
             )
+        
+        pprint(questions)
         
         formatted_questions = []
         for i, question in enumerate(questions):
@@ -196,10 +202,14 @@ class QuizService():
         numQuestions=None,
         topics_to_focus_on=''
     ):
-        return generate_quiz_questions(
-            relationships=topic_graph['conceptRels'],
-            raw_texts=topic_graph['chunks'],
-            average_difficulty=difficulty,
-            num_questions=numQuestions,
-            topics_to_focus_on=topics_to_focus_on
-        )
+        try:
+            return generate_quiz_questions(
+                relationships=topic_graph['conceptRels'],
+                raw_texts=topic_graph['chunks'],
+                average_difficulty=difficulty,
+                num_questions=numQuestions,
+                topics_to_focus_on=topics_to_focus_on
+            )
+        except Exception as e:
+            logging.exception(f"Error generating quiz questions: {str(e)}")
+            return None
