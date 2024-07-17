@@ -1,0 +1,36 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flask-restx-api-deployment
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: flask-restx-api
+  template:
+    metadata:
+      labels:
+        app: flask-restx-api
+    spec:
+      containers:
+      - name: flask-restx-api
+        image: registry.digitalocean.com/notello/api-dev
+        ports:
+        - containerPort: 8080
+        env:
+        - name: FLASK_ENV
+          value: "production"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: flask-restx-api-service
+spec:
+  selector:
+    app: flask-restx-api
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+  type: LoadBalancer

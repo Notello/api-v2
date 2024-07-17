@@ -137,6 +137,12 @@ class SummaryService():
 
         summaries = []
         futures=[]
+        imporant_concepts = []
+
+        for graph in importance_graph:
+            if graph is not None:
+                imporant_concepts.append(graph['conceptId'])
+
         with ThreadPoolExecutor(max_workers=10) as executor:
             for graph in importance_graph:
                 if graph is not None:
