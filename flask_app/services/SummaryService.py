@@ -22,8 +22,9 @@ class Summary(BaseModel):
     )
 
 def setup_llm(
-    relationship_str, 
-    raw_text_str,
+    main_concept_str: str,
+    related_concepts_str: str,
+    chunks_str: str,
 ):
     system_prompt = """
     You are an advanced Markdown formatted summarization system, specializing in creating insightful and informative summaries
@@ -71,24 +72,22 @@ def setup_llm(
 
 @retry(tries=3, delay=2)
 def generate_summary(
-    relationships: List[Dict[str, str]],
-    raw_texts: List[Dict[str, str]]
+    main_concept: str,
+    related_concepts: List[str],
+    chunks: List[Dict[str, str]],
 ) -> Optional[Summary]:
     try:
-        relationship_str = "\n".join([f"""SourceName: {relationship['source']}, 
-                                      SourceUUID: {relationship['sourceUUID']}, 
-                                      RelType: {relationship['type']}, 
-                                      TargetName: {relationship['target']},
-                                      TargetUUID: {relationship['targetUUID']}"""
-                                      for relationship in relationships])
-        raw_text_str = "\n".join([f"""ChunkId: {raw_text['id']}, 
-                                  ChunkName: {raw_text['document_name']}, 
-                                  Text: {raw_text['text']}""" 
-                                  for raw_text in raw_texts])
+        main_concept_str = f"""MainConceptName: {main_concept}"""
+        related_concepts_str = "\n".join([f"""RelatedConceptName: {related_concept}""" for related_concept in related_concepts])
+        chunks_str = "\n".join([f"""ChunkId: {chunk['id']}, 
+                                  ChunkName: {chunk['document_name']}, 
+                                  Text: {chunk['text']}""" 
+                                  for chunk in chunks])
 
         extraction_chain = setup_llm(
-            relationship_str=relationship_str, 
-            raw_text_str=raw_text_str
+            main_concept=main_concept, 
+            related_concepts=related_concepts,
+            chunks=chunks
         )
 
         result = extraction_chain.invoke({})
@@ -107,11 +106,10 @@ class SummaryService():
     ):
         print(f"main_concept: {main_concept}, related_concepts: {related_concepts}, chunks: {chunks}")
 
-        return None
-
         return generate_summary(
-            relationships=relationships,
-            raw_texts=raw_texts
+            main_concept=main_concept,
+            related_concepts=related_concepts,
+            chunks=chunks
         )
 
     @staticmethod

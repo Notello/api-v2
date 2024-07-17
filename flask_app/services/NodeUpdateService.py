@@ -1,85 +1,26 @@
-from concurrent.futures import ThreadPoolExecutor
-from typing import Dict
 import uuid
-from flask_app.src.shared.common_fn import load_embedding_model
-from flask import current_app
 import logging
-from itertools import combinations
-
-from langchain_core.pydantic_v1 import BaseModel, Field
-from typing import List, Optional
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
-from retry import retry
+from typing import Dict
 from concurrent.futures import ThreadPoolExecutor
+from neo4j.exceptions import ClientError, TransientError
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from tqdm import tqdm
 
+from .Neo4jTransactionManager import transactional
+from flask_app.src.shared.common_fn import load_embedding_model
 from flask_app.services.GraphQueryService import GraphQueryService
-from flask_app.src.graphDB_dataAccess import graphDBdataAccess
-
-class EntityGroup(BaseModel):
-    final_label: str = Field(description="The final label for the merged entity")
-    entities: List[str] = Field(description="List of entities to be merged into the final label")
-
-class Disambiguate(BaseModel):
-    merge_groups: List[EntityGroup] = Field(
-        description="Groups of entities that should be merged, with their final labels"
-    )
-
-def setup_llm():
-    system_prompt = """You are a data processing assistant. Your task is to identify duplicate entities in a list and decide which of them should be merged.
-    The entities might be slightly different in format or content, but essentially refer to the same thing. Use your analytical skills to determine duplicates.
-
-    Here are the rules for identifying duplicates:
-    1. You do not need to merge all entities, it is up to your discretion.
-    2. Entities with minor typographical differences should be considered duplicates.
-    3. Entities with different formats but the same content should be considered duplicates.
-    4. Entities should only be merged if they refer to the same real-world object or concept.
-    5. If it refers to different numbers, dates, or products, do not merge results.
-    6. If it refers to a name of a person or thing, choose the full name as the final label.
-
-    ## IMPORTANT NOTES:
-    - Do not merge nodes just because they have the same words in them, they MUST be the same real world entity.
-    - Example: entity1 = 'America', entity2 = 'American Football', DO NOT merge these entities (One is a country, the other is a sport).
-    - Example: entity1 = 'New York', entity2 = 'New York City', DO merge these entities (they are the same city).
-    - Example: entity1 = 'Aidan Gollan', entity2 = 'Audrey Gollan', DO merge these entities (they are siblings not the same person).
-
-    Your output should be a list of groups, where each group is represented by a dictionary. The dictionary should have a 'final_label' key with the chosen label for the merged entity, and an 'entities' key with a list of all entities that should be merged into this label.
-    """
-    
-    user_template = """
-    Here is the list of entities to process:
-    {entities}
-
-    Please identify duplicates, merge them, and provide the merged groups in the specified format.
-    """
-
-    extraction_llm = ChatOpenAI(model_name='gpt-3.5-turbo-0125').with_structured_output(Disambiguate)
-    extraction_prompt = ChatPromptTemplate.from_messages([
-        ("system", system_prompt),
-        ("human", user_template),
-    ])
-    
-    return extraction_prompt | extraction_llm
-
-@retry(tries=3, delay=2)
-def entity_resolution(entities: List[str]) -> Optional[List[Dict[str, List[str]]]]:
-    extraction_chain = setup_llm()
-    result = extraction_chain.invoke({"entities": entities})
-    
-    return [
-        {group.final_label: group.entities}
-        for group in result.merge_groups
-    ]
+from flask_app.services.EntityResolver import entity_resolution
 
 class NodeUpdateService:
     @staticmethod
-    def merge_similar_nodes() -> None:
-        graphAccess = graphDBdataAccess(current_app.config['NEO4J_GRAPH'])
-
-        distance = 3
-        embedding_cutoff = 0.95
-
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+        retry=retry_if_exception_type((ClientError, TransientError)),
+        reraise=True
+    )
+    @transactional
+    def merge_similar_nodes(tx, distance: int = 3, embedding_cutoff: float = 0.95) -> None:
         query = """
         MATCH (e:Concept)
         WHERE e.embedding IS NOT NULL
@@ -88,7 +29,7 @@ class NodeUpdateService:
         CALL db.index.vector.queryNodes('concept_embedding', 10, e.embedding)
         YIELD node, score
         WITH node, score
-        WHERE score > toFLoat($embedding_cutoff)
+        WHERE score > toFloat($embedding_cutoff)
             AND (toLower(node.id) CONTAINS toLower(e.id) OR toLower(e.id) CONTAINS toLower(node.id)
                 OR apoc.text.distance(toLower(node.id), toLower(e.id)) < $distance)
             AND labels(e) = labels(node)
@@ -120,7 +61,7 @@ class NodeUpdateService:
         """
 
         logging.info(f"query: {query}, distance: {distance}, embedding_cutoff: {embedding_cutoff}")
-        result = graphAccess.execute_query(query, {'distance': distance, 'embedding_cutoff': embedding_cutoff})
+        result = tx.run(query, {'distance': distance, 'embedding_cutoff': embedding_cutoff})
 
         print(f"Potential merges: {result}")
 
@@ -135,7 +76,6 @@ class NodeUpdateService:
                 two_options.append(record['combinedResult'])
             else:
                 llm_options.append(record['combinedResult'])
-        
 
         for option in two_options:
             word1, word2 = option
@@ -146,7 +86,6 @@ class NodeUpdateService:
                     two_options.remove(option)
                     combined_words.append({word2: [word1, word2]})
                     seen = True
-
                 elif word2.endswith(ending) and word1 == word2[:-len(ending)]:
                     logging.info(f"Easy Merge: {word1} -> {word2}")
                     two_options.remove(option)
@@ -155,7 +94,6 @@ class NodeUpdateService:
             
             if not seen:
                 llm_options.append(option)
-                    
 
         if llm_options:       
             with ThreadPoolExecutor(max_workers=10) as executor:
@@ -171,11 +109,9 @@ class NodeUpdateService:
         # Merge the nodes
         for merge_group in combined_words:
             for final_label, entities in merge_group.items():
-                # Sort entities to ensure consistent merging
                 sorted_entities = sorted(entities)
                 primary_node = sorted_entities[0]
                 
-                # Merge properties and relationships
                 merge_query = """
                 MATCH (primary:Concept {id: $primary_id})
                 UNWIND $other_ids AS other_id
@@ -225,13 +161,8 @@ class NodeUpdateService:
                 }
                 
                 try:
-                    result = graphAccess.execute_query(merge_query, merge_params)
+                    result = tx.run(merge_query, merge_params)
                     logging.info(f"Merged nodes: {sorted_entities} into {final_label}")
-                    
-                    # Log the properties of the merged node
-                    if result and result[0]['node']:
-                        merged_node = result[0]['node']
-                        logging.info(f"Merged node properties: {dict(merged_node)}")
                     
                 except Exception as e:
                     logging.error(f"Error merging nodes {sorted_entities}: {str(e)}")
@@ -239,8 +170,14 @@ class NodeUpdateService:
         logging.info("Node merging process completed.")
 
     @staticmethod
-    def update_note_embeddings(noteId: str) -> None:
-        graphAccess = graphDBdataAccess(current_app.config['NEO4J_GRAPH'])
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+        retry=retry_if_exception_type((ClientError, TransientError)),
+        reraise=True
+    )
+    @transactional
+    def update_embeddings(tx, noteId: str) -> None:
         embeddings, dimension = load_embedding_model()
 
         query = """
@@ -249,23 +186,36 @@ class NodeUpdateService:
         RETURN n.id as id
         """
 
-        result = graphAccess.execute_query(query, {'noteId': noteId})
+        result = tx.run(query, {'noteId': noteId})
 
+        nodes_to_update = []
         for record in result:
             name = record['id']
             embedding = embeddings.embed_query(text=name)
-            record['embedding'] = embedding
+            nodes_to_update.append({'id': name, 'embedding': embedding})
 
         update_query = """
         UNWIND $nodes AS node
-        MATCH (n)
+        MATCH (n:Concept)
         WHERE $noteId IN n.noteId AND n.id = node.id
-        SET n += node
+        SET n.embedding = node.embedding
         RETURN count(n) as updatedCount
         """
 
-        update_result = graphAccess.execute_query(update_query, {'nodes': result, 'noteId': noteId})
+        update_result = tx.run(update_query, {'nodes': nodes_to_update, 'noteId': noteId})
+        logging.info(f"Updated nodes: {update_result.single()['updatedCount']}")
 
+        return dimension
+
+    @staticmethod
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+        retry=retry_if_exception_type((ClientError, TransientError)),
+        reraise=True
+    )
+    @transactional
+    def create_embedding_index(tx, dimension: int) -> None:
         index_query = f"""
         CREATE VECTOR INDEX concept_embedding IF NOT EXISTS
         FOR (n:Concept)
@@ -276,125 +226,169 @@ class NodeUpdateService:
         }}}}
         """
 
-        index_result = graphAccess.execute_query(index_query)
-
-        logging.info(f"Updated nodes: {update_result}")
+        tx.run(index_query)
+        logging.info("Created or updated embedding index")
 
     @staticmethod
-    def update_communities_for_param(id_type: str, target_id: str) -> Dict:
-        graphAccess = graphDBdataAccess(current_app.config['NEO4J_GRAPH'])
+    def update_note_embeddings(noteId: str) -> None:
+        dimension = NodeUpdateService.update_embeddings(noteId)
+        
+        NodeUpdateService.create_embedding_index(dimension)
+
+    @staticmethod
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+        retry=retry_if_exception_type((ClientError, TransientError)),
+        reraise=True
+    )
+    @transactional
+    def update_communities_for_param(tx, id_type: str, target_id: str) -> Dict:
         com_string = GraphQueryService.get_com_string(communityType=id_type, communityId=target_id)
+        graph_id = str(uuid.uuid4())
+
+        # Step 1: Compute communities
+        query = f"""
+        MATCH (n:Concept)
+        WHERE "{target_id}" IN n.{id_type}
+        WITH collect(n) AS nodes
+
+        CALL gds.graph.project.cypher(
+        '{graph_id}_temp_graph',
+        'UNWIND $nodes AS n RETURN id(n) AS id',
+        'MATCH (n1:Concept)-[:RELATED]-(n2:Concept)
+         WHERE n1 IN $nodes AND n2 IN $nodes
+         RETURN id(n1) AS source, id(n2) AS target',
+        {{parameters: {{nodes: nodes}}}}
+        )
+        YIELD graphName, nodeCount, relationshipCount
+
+        CALL gds.louvain.stream(graphName)
+        YIELD nodeId, communityId
+
+        WITH gds.util.asNode(nodeId) AS node, communityId, graphName
+
+        WITH collect({{node: node, communityId: communityId}}) AS communities, graphName
+
+        CALL gds.graph.drop(graphName)
+        YIELD graphName AS droppedGraph
+
+        UNWIND communities AS community
+        RETURN community.node AS node, community.communityId AS communityId
+        """
 
         try:
-            query = f"""
-            MATCH (n)-[r]-(relatedNode)
-            WHERE "{target_id}" IN n.{id_type} AND "{target_id}" IN relatedNode.{id_type}
+            result = tx.run(query)
+            communities = [(record["node"].id, record["communityId"]) for record in result]
 
-            WITH collect(distinct n) + collect(distinct relatedNode) AS nodes, collect(distinct r) AS rels
-
-            CALL gds.graph.project.cypher(
-            '{target_id}_temp_graph',
-            'UNWIND $nodes AS n RETURN id(n) AS id',
-            'UNWIND $rels AS r RETURN id(startNode(r)) AS source, id(endNode(r)) AS target',
-            {{parameters: {{nodes: nodes, rels: rels}}}}
-            )
-            YIELD graphName
-
-            CALL gds.louvain.stream('{target_id}_temp_graph')
-            YIELD nodeId, communityId
-
-            WITH gds.util.asNode(nodeId) AS node, communityId
-
-            WITH collect({{node: node, communityId: communityId}}) AS results
-
-            CALL gds.graph.drop('{target_id}_temp_graph') YIELD graphName
-
-            UNWIND results AS result
-            RETURN result.node AS node, result.communityId AS communityId
+            # Step 2: Update nodes with community information
+            update_query = f"""
+            UNWIND $communities AS community
+            MATCH (n:Concept)
+            WHERE id(n) = community[0]
+            SET n.{com_string} = community[1]
             """
 
-            result = graphAccess.execute_query(query)
+            update_result = tx.run(update_query, {"communities": communities})
+            
+            stats = {
+                "updatedNodes": update_result.consume().counters.properties_set,
+                "communityCount": len(set(c[1] for c in communities))
+            }
+            
+            logging.info(f"Updated communities for {id_type}: {target_id}")
+            logging.info(f"Community stats: {stats}")
 
-            updated_nodes = []
+            return stats
 
-            for record in result:
-                node = record['node']
-                communityId = record['communityId']
-
-                node[com_string] = communityId
-
-                updated_nodes.append(node)
-
-
-            update_query = """
-            UNWIND $nodes AS node
-            MATCH (n)
-            WHERE n.id = node.id
-            SET n += node
-            RETURN count(n) as updatedCount
-            """
-
-            update_result = graphAccess.execute_query(update_query, {'nodes': updated_nodes})
-
-            logging.info(f"Updated nodes: {update_result}")
-
-        except ValueError as ve:
-            logging.error(f"Invalid input: {str(ve)}")
-            raise
         except Exception as e:
-            logging.error(f"An error occurred: {str(e)}")
+            logging.error(f"Error in update_communities_for_param: {str(e)}")
+            # If there was an error, attempt to drop the graph
+            try:
+                tx.run(f"CALL gds.graph.drop('{graph_id}_temp_graph')")
+            except Exception as drop_error:
+                logging.error(f"Error dropping graph after failure: {str(drop_error)}")
             raise
-    
+
     @staticmethod
-    def update_page_rank(param: str, id: str) -> None:
-        graphAccess = graphDBdataAccess(current_app.config['NEO4J_GRAPH'])
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+        retry=retry_if_exception_type((ClientError, TransientError)),
+        reraise=True
+    )
+    @transactional
+    def update_page_rank(tx, param: str, id: str) -> Dict:
         page_rank_string = GraphQueryService.get_page_rank_string(param=param, id=id)
         max_iterations = 20
         damping_factor = 0.85
-        
-        # Generate a unique identifier for this PageRank calculation
         unique_id = str(uuid.uuid4())
         
-        # Create the unique property name for this note's PageRank
-        
-        QUERY = f"""
-        // First, filter and collect the relevant nodes
+        # Step 1: Compute PageRank
+        query = f"""
         MATCH (c:Concept)
         WHERE "{id}" IN c.{param}
         WITH collect(c) AS relevantNodes
 
-        // Now project the graph using only these relevant nodes
         CALL gds.graph.project.cypher(
           'noteGraph_{unique_id}',
           'MATCH (c) WHERE c IN $relevantNodes RETURN id(c) AS id',
           'MATCH (c1)-[:RELATED]-(c2) 
            WHERE c1 IN $relevantNodes AND c2 IN $relevantNodes 
            RETURN id(c1) AS source, id(c2) AS target',
-          {{
-            parameters: {{relevantNodes: relevantNodes}}
-          }}
+          {{parameters: {{relevantNodes: relevantNodes}}}}
         )
         YIELD graphName, nodeCount, relationshipCount
 
-        CALL gds.pageRank.write(
-          'noteGraph_{unique_id}',
+        CALL gds.pageRank.stream(
+          graphName,
           {{
             maxIterations: {max_iterations},
-            dampingFactor: {damping_factor},
-            writeProperty: '{page_rank_string}'
+            dampingFactor: {damping_factor}
           }}
         )
-        YIELD nodePropertiesWritten, ranIterations
+        YIELD nodeId, score
 
-        CALL gds.graph.drop('noteGraph_{unique_id}')
+        WITH gds.util.asNode(nodeId) AS node, score, graphName
+
+        WITH collect({{node: node, score: score}}) AS pageRanks, graphName
+
+        CALL gds.graph.drop(graphName)
         YIELD graphName AS droppedGraph
 
-        RETURN nodeCount, relationshipCount, nodePropertiesWritten, ranIterations, droppedGraph
+        UNWIND pageRanks AS pageRank
+        RETURN pageRank.node AS node, pageRank.score AS score
         """
         
         try:
-            graphAccess.execute_query(QUERY)
+            result = tx.run(query)
+            page_ranks = [(record["node"].id, record["score"]) for record in result]
+
+            # Step 2: Update nodes with PageRank scores
+            update_query = f"""
+            UNWIND $pageRanks AS pageRank
+            MATCH (n:Concept)
+            WHERE id(n) = pageRank[0]
+            SET n.{page_rank_string} = pageRank[1]
+            """
+
+            update_result = tx.run(update_query, {"pageRanks": page_ranks})
+            
+            stats = {
+                "updatedNodes": update_result.consume().counters.properties_set,
+                "nodeCount": len(page_ranks)
+            }
+
             logging.info(f"Updated page rank for param: {param}, id: {id}")
+            logging.info(f"PageRank stats: {stats}")
+
+            return stats
+
         except Exception as e:
-            logging.error(f"An error occurred: {str(e)}")
+            logging.error(f"Error in update_page_rank: {str(e)}")
+            # If there was an error, attempt to drop the graph
+            try:
+                tx.run(f"CALL gds.graph.drop('noteGraph_{unique_id}')")
+            except Exception as drop_error:
+                logging.error(f"Error dropping graph after failure: {str(drop_error)}")
             raise

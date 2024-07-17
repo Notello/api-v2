@@ -1,20 +1,18 @@
-import json
 import logging
 import random
 from typing import Any, Dict, List, Tuple
 from flask_app.src.graphDB_dataAccess import graphDBdataAccess
 from flask import current_app
-from flask_app.models.Quiz import QuizQuestion
 
 class GraphQueryService():
 
     @staticmethod
     def get_com_string(communityType: str, communityId: str) -> str:
-        return f"{communityType}_{communityId}_community"
+        return f"{communityType}_{communityId}_community".replace("-", "_")
 
     @staticmethod
     def get_page_rank_string(param: str, id: str) -> str:
-        return f"{param}_{id}_pagerank"
+        return f"{param}_{id}_pagerank".replace("-", "_")
 
     @staticmethod
     def get_default_graph_params(communityType: str, communityId: str) -> List[Tuple[str, str]]:
