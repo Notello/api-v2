@@ -13,6 +13,10 @@ class GraphQueryService():
         return f"{communityType}_{communityId}_community"
 
     @staticmethod
+    def get_page_rank_string(param: str, id: str) -> str:
+        return f"{param}_{id}_pagerank"
+
+    @staticmethod
     def get_default_graph_params(communityType: str, communityId: str) -> List[Tuple[str, str]]:
         com_string = GraphQueryService.get_com_string(communityType=communityType, communityId=communityId)
 
@@ -259,28 +263,108 @@ class GraphQueryService():
             return None
         
         return result[0]
-    
+
     @staticmethod
-    def get_quiz_questions_by_id(quizId: str) -> List[QuizQuestion]:
-        graphDb_data_Access = graphDBdataAccess(current_app.config['NEO4J_GRAPH'])
+    def get_importance_graph_by_param(param: str, id: str) -> str | None:
+        graphAccess = graphDBdataAccess(current_app.config['NEO4J_GRAPH'])
+        pagerank_string = GraphQueryService.get_page_rank_string(param=param, id=id)
+        print(pagerank_string)
 
         QUERY = f"""
-        MATCH (q:QuizQuestion)
-        WHERE q.quizId = $quizId
-        RETURN q
+        // Calculate graph size and importance scores for all nodes
+        MATCH (c:Concept)
+        WHERE $id IN c.{param} AND c[$pagerank_string] IS NOT NULL
+        WITH count(c) AS graphSize, collect(c) AS allNodes, $pagerank_string AS prString
+
+        UNWIND allNodes AS c
+        WITH graphSize, c, prString, COUNT {{ (c)-[:RELATED]-() }} AS connectionCount
+        WITH graphSize, c, prString, connectionCount, c[prString] * log(1 + connectionCount) AS importanceScore
+
+        // Calculate statistics
+        WITH graphSize, prString,
+            collect({{
+                node: c, 
+                score: importanceScore, 
+                connections: connectionCount, 
+                pageRank: c[prString]
+                }}) AS nodeScores,
+            avg(importanceScore) AS meanScore,
+            stDev(importanceScore) AS stdDevScore,
+            avg(connectionCount) AS avgConnections,
+            avg(c[prString]) AS avgPageRank
+
+        // Calculate 75th percentile (Q3)
+        WITH graphSize, nodeScores, meanScore, stdDevScore, avgConnections, avgPageRank, prString,
+            [score IN nodeScores | score.score] AS scores
+        WITH graphSize, nodeScores, meanScore, stdDevScore, avgConnections, avgPageRank, prString,
+            scores ORDER BY scores
+        WITH graphSize, nodeScores, meanScore, stdDevScore, avgConnections, avgPageRank, prString,
+            scores[toInteger(0.75 * size(scores))] AS q3Score
+
+        // Determine adaptive threshold based on graph size
+        WITH *, CASE 
+            WHEN graphSize < 100 THEN 0.5  // Less strict for small graphs
+            WHEN graphSize < 500 THEN 1.0  // Moderately strict for medium graphs
+            ELSE 1.5  // More strict for large graphs
+        END AS thresholdMultiplier
+
+        // Filter nodes using adaptive criteria
+        UNWIND nodeScores AS nodeScore
+        WITH nodeScore.node AS c, nodeScore.score AS importanceScore, 
+            nodeScore.connections AS connectionCount, nodeScore.pageRank AS pageRank,
+            meanScore, stdDevScore, q3Score, avgConnections, avgPageRank, thresholdMultiplier, prString
+        WHERE importanceScore > meanScore + thresholdMultiplier * stdDevScore  // Adaptive threshold
+        AND importanceScore > q3Score  // Must be in top 25%
+        AND (connectionCount > avgConnections OR pageRank > avgPageRank)  // Must be above average in at least one metric
+
+        // Find immediate neighbors of important nodes
+        MATCH (c)-[:RELATED]-(neighbor:Concept)
+        WHERE $id IN neighbor.{param}
+
+        // Find related chunks
+        WITH c, pageRank, connectionCount, importanceScore, collect(neighbor) AS neighbors,
+            meanScore, stdDevScore, q3Score, avgConnections, avgPageRank, thresholdMultiplier, prString
+        MATCH (chunk:Chunk)-[:REFERENCES]->(relatedConcept:Concept)
+        WHERE relatedConcept = c OR relatedConcept IN neighbors
+        WITH c, pageRank, connectionCount, importanceScore, neighbors, chunk, count(DISTINCT relatedConcept) AS relevanceScore,
+            meanScore, stdDevScore, q3Score, avgConnections, avgPageRank, thresholdMultiplier, prString
+        ORDER BY relevanceScore DESC
+        WITH c, pageRank, connectionCount, importanceScore, neighbors,
+            COLLECT({{
+                id: chunk.id,
+                text: chunk.text, 
+                relevanceScore: relevanceScore
+                }})[0..3] AS topChunks,
+            meanScore, stdDevScore, q3Score, avgConnections, avgPageRank, thresholdMultiplier, prString
+
+        // Return the results
+        RETURN DISTINCT
+            c.id AS conceptId,
+            pageRank AS conceptPageRank,
+            connectionCount,
+            importanceScore,
+            [neighbor IN neighbors | {{id: neighbor.id, pageRank: neighbor[prString]}}] AS relatedConcepts,
+            topChunks,
+            meanScore,
+            stdDevScore,
+            q3Score,
+            avgConnections,
+            avgPageRank,
+            thresholdMultiplier  // Include this to see the applied threshold
+        ORDER BY importanceScore DESC
         """
 
         parameters = {
-            "quizId": quizId
+            "id": id,
+            "pagerank_string": pagerank_string
         }
 
-        result = graphDb_data_Access.execute_query(QUERY, parameters)
+        print(QUERY)
 
-        out = []
-
-        for record in result:
-            question = record.get('q')
-            question['answers'] = json.loads(question.get('answers'))
-            out.append(question)
-
-        return out
+        try:
+            result = graphAccess.execute_query(QUERY, parameters)   
+            print(result)
+            return result
+        except Exception as e:
+            logging.error(f"Error executing query: {e}")
+            return None

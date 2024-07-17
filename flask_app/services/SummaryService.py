@@ -11,24 +11,22 @@ from flask_app.services.GraphQueryService import GraphQueryService
 from flask_app.services.HelperService import HelperService
 from flask_app.services.GraphQueryService import GraphQueryService
 from flask_app.src.shared.common_fn import get_llm
-
-from pydantic import BaseModel, Field
-from typing import List, Dict, Optional
-from langchain.prompts import ChatPromptTemplate
-from retry import retry
-import logging
+from flask_app.constants import GPT_35_TURBO_MODEL
 
 class Summary(BaseModel):
     summary: str = Field(
-        description="A markdown formatted summary of the given relationships and raw text chunks"
+        description="A markdown formatted summary of the given relationships and raw text chunks."
+    )
+    oneLineSummary: str = Field(
+        description="A one line summary of what was talkd about in the full length summary."
     )
 
 def setup_llm(
-        relationship_str, 
-        raw_text_str,
+    relationship_str, 
+    raw_text_str,
 ):
     system_prompt = """
-    You are an advanced summarization system, specializing in creating insightful and informative summaries
+    You are an advanced Markdown formatted summarization system, specializing in creating insightful and informative summaries
     based on provided information. Your task is to generate a summary tailored to the given relationships and raw text chunks.
 
     Input:
@@ -63,7 +61,7 @@ def setup_llm(
     Please provide the summary in the format specified in the Summary model.
     """
 
-    extraction_llm = get_llm(model_name="gpt-3.5-turbo-0125").with_structured_output(Summary)
+    extraction_llm = get_llm(GPT_35_TURBO_MODEL).with_structured_output(Summary)
     extraction_prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
         ("human", user_template),
@@ -103,9 +101,14 @@ def generate_summary(
 class SummaryService():
     @staticmethod
     def get_inidividual_summary(
-        relationships: List[Dict[str, str]],
-        raw_texts: List[Dict[str, str]],
+        main_concept: str,
+        related_concepts: List[str],
+        chunks: List[Dict[str, str]],
     ):
+        print(f"main_concept: {main_concept}, related_concepts: {related_concepts}, chunks: {chunks}")
+
+        return None
+
         return generate_summary(
             relationships=relationships,
             raw_texts=raw_texts
@@ -129,41 +132,23 @@ class SummaryService():
 
         id = noteId if specifierParam == 'noteId' else courseId
 
-        communities = GraphQueryService.get_communities_for_param(
-            param=specifierParam, 
-            id=id, 
-            topics=topics,
-            num_communities=None
-            )
-        
-        if len(communities) == 0:
-            return None
+        importance_graph = GraphQueryService.get_importance_graph_by_param(param=specifierParam, id=id)
 
-        topic_graphs = []
-        if specifierParam == 'noteId':
-            for community in communities:
-                topic_graphs.append(GraphQueryService.get_topic_graph_for_communities(
-                    param=specifierParam, 
-                    id=id, 
-                    communities=[community]
-                    ))
-        else:
-            topic_graphs.append(GraphQueryService.get_topic_graph_for_communities(
-                param=specifierParam, 
-                id=id, 
-                communities=communities
-                ))
+        if importance_graph is None:
+            return None
 
         summaries = []
         futures=[]
         with ThreadPoolExecutor(max_workers=10) as executor:
-            for graph in topic_graphs:
-                futures.append(
-                    executor.submit(
-                        SummaryService.get_inidividual_summary,
-                        relationships=graph['conceptRels'],
-                        raw_texts=graph['chunks']
-                    ))
+            for graph in importance_graph:
+                if graph is not None:
+                    futures.append(
+                        executor.submit(
+                            SummaryService.get_inidividual_summary,
+                            main_concept=graph['conceptId'],
+                            related_concepts=graph['relatedConcepts'],
+                            chunks=graph['topChunks']
+                        ))
         
             for i, future in enumerate(concurrent.futures.as_completed(futures)):
                 summary = future.result()

@@ -85,6 +85,9 @@ def processing_source(
 
   NodeUpdateService.update_communities_for_param(id_type='noteId', target_id=noteId)
   NodeUpdateService.update_communities_for_param(id_type='courseId', target_id=courseId)
+
+  NodeUpdateService.update_page_rank(param='noteId', id=noteId)
+  NodeUpdateService.update_page_rank(param='courseId', id=courseId)
   
   logging.info('Updated the nodeCount and relCount properties in Document node')
   logging.info(f'file:{fileName} extraction has been completed')

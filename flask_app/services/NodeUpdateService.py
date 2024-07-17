@@ -1,5 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 from typing import Dict
+import uuid
 from flask_app.src.shared.common_fn import load_embedding_model
 from flask import current_app
 import logging
@@ -13,6 +14,7 @@ from retry import retry
 from concurrent.futures import ThreadPoolExecutor
 from tqdm import tqdm
 
+from flask_app.services.GraphQueryService import GraphQueryService
 from flask_app.src.graphDB_dataAccess import graphDBdataAccess
 
 class EntityGroup(BaseModel):
@@ -281,6 +283,7 @@ class NodeUpdateService:
     @staticmethod
     def update_communities_for_param(id_type: str, target_id: str) -> Dict:
         graphAccess = graphDBdataAccess(current_app.config['NEO4J_GRAPH'])
+        com_string = GraphQueryService.get_com_string(communityType=id_type, communityId=target_id)
 
         try:
             query = f"""
@@ -318,7 +321,7 @@ class NodeUpdateService:
                 node = record['node']
                 communityId = record['communityId']
 
-                node[f'{id_type}_{target_id}_community'] = communityId
+                node[com_string] = communityId
 
                 updated_nodes.append(node)
 
@@ -338,6 +341,60 @@ class NodeUpdateService:
         except ValueError as ve:
             logging.error(f"Invalid input: {str(ve)}")
             raise
+        except Exception as e:
+            logging.error(f"An error occurred: {str(e)}")
+            raise
+    
+    @staticmethod
+    def update_page_rank(param: str, id: str) -> None:
+        graphAccess = graphDBdataAccess(current_app.config['NEO4J_GRAPH'])
+        page_rank_string = GraphQueryService.get_page_rank_string(param=param, id=id)
+        max_iterations = 20
+        damping_factor = 0.85
+        
+        # Generate a unique identifier for this PageRank calculation
+        unique_id = str(uuid.uuid4())
+        
+        # Create the unique property name for this note's PageRank
+        
+        QUERY = f"""
+        // First, filter and collect the relevant nodes
+        MATCH (c:Concept)
+        WHERE "{id}" IN c.{param}
+        WITH collect(c) AS relevantNodes
+
+        // Now project the graph using only these relevant nodes
+        CALL gds.graph.project.cypher(
+          'noteGraph_{unique_id}',
+          'MATCH (c) WHERE c IN $relevantNodes RETURN id(c) AS id',
+          'MATCH (c1)-[:RELATED]-(c2) 
+           WHERE c1 IN $relevantNodes AND c2 IN $relevantNodes 
+           RETURN id(c1) AS source, id(c2) AS target',
+          {{
+            parameters: {{relevantNodes: relevantNodes}}
+          }}
+        )
+        YIELD graphName, nodeCount, relationshipCount
+
+        CALL gds.pageRank.write(
+          'noteGraph_{unique_id}',
+          {{
+            maxIterations: {max_iterations},
+            dampingFactor: {damping_factor},
+            writeProperty: '{page_rank_string}'
+          }}
+        )
+        YIELD nodePropertiesWritten, ranIterations
+
+        CALL gds.graph.drop('noteGraph_{unique_id}')
+        YIELD graphName AS droppedGraph
+
+        RETURN nodeCount, relationshipCount, nodePropertiesWritten, ranIterations, droppedGraph
+        """
+        
+        try:
+            graphAccess.execute_query(QUERY)
+            logging.info(f"Updated page rank for param: {param}, id: {id}")
         except Exception as e:
             logging.error(f"An error occurred: {str(e)}")
             raise
