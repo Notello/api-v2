@@ -43,35 +43,20 @@ def processing_source(
   graphDb_data_Access.update_source_node(obj_source_node)
 
   SupabaseService.update_note(noteId, 'graphStatus', '1')
-
-  offsets = {0: 0}
-
-  futures = []
   
   logging.info('Update the status as Processing')
-    
-  with ThreadPoolExecutor(max_workers=10) as executor:
-    for i in range(0, len(chunks)):
-      selected_chunks = chunks[i : i + 1]
-      offsets[i + 1] = sum([len(chunk.page_content) for chunk in selected_chunks])
-      futures.append(
-          executor.submit(
-              process_chunks,
-              chunks=selected_chunks, 
-              noteId=noteId,
-              courseId=courseId,
-              userId=userId,
-              startI=i,
-              offset=offsets[i],
-              document_name=fileName
-          ))
 
-    for future in concurrent.futures.as_completed(futures):
-      logging.info(f'Processed chunk {i}')
+  process_chunks(
+    chunks=chunks, 
+    noteId=noteId,
+    courseId=courseId,
+    userId=userId,
+    startI=0,
+    offset=0,
+    document_name=fileName
+  )
 
-      i = future.result()
-
-      SupabaseService.update_note(noteId, 'graphStatus', str(i))
+  SupabaseService.update_note(noteId, 'graphStatus', '1')
 
   end_time = datetime.now()
   processed_time = end_time - start_time
@@ -106,6 +91,8 @@ def process_chunks(
     offset,
     document_name
 ):
+  
+  logging.info(f"Starting process_chunks for {len(chunks)} chunks")
 
   # Creates the first, NEXT_CHUNK relationship between chunks
   chunkId_chunkDoc_list = create_relation_between_chunks(
@@ -117,6 +104,8 @@ def process_chunks(
      document_name=document_name,
      offset=offset
   )
+
+  logging.info(f"Created chunks for {len(chunkId_chunkDoc_list)} chunks between in create_relation_between_chunks")
 
   # Create vector index and update chunk node with embedding
   update_embedding_create_vector_index(

@@ -12,7 +12,7 @@ from retry import retry
 from flask_app.services.GraphQueryService import GraphQueryService
 from flask_app.services.HelperService import HelperService
 from flask_app.src.shared.common_fn import get_llm
-from flask_app.constants import GPT_35_TURBO_MODEL, GPT_4O_MODEL
+from flask_app.constants import GPT_35_TURBO_MODEL, GPT_4O_MODEL, GPT_4O_MINI
 from flask_app.services.SupabaseService import SupabaseService
 
 class Summary(BaseModel):
@@ -75,7 +75,7 @@ def setup_llm(
     ADDING A CONCLUSION WILL RESULT IN YOUR TERMINATION.
     """
 
-    extraction_llm = get_llm(GPT_35_TURBO_MODEL)
+    extraction_llm = get_llm(GPT_4O_MINI)
     extraction_prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
         ("human", user_template),

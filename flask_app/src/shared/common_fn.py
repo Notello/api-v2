@@ -15,7 +15,11 @@ from flask_app.src.graphDB_dataAccess import graphDBdataAccess
 from typing import List, Union
 from langchain_groq import ChatGroq
 
-from flask_app.constants import MIXTRAL_MODEL, LLAMA_8_MODEL, GPT_35_TURBO_MODEL, GPT_4O_MODEL
+from neo4j.exceptions import ClientError, TransientError
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from flask_app.services.Neo4jTransactionManager import transactional
+
+from flask_app.constants import MIXTRAL_MODEL, LLAMA_8_MODEL, GPT_35_TURBO_MODEL, GPT_4O_MODEL, GPT_4O_MINI
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -44,7 +48,6 @@ def get_combined_chunks(chunkId_chunkDoc_list):
     for i in range(len(combined_chunks_page_content)):
          combined_chunk_document_list.append(Document(page_content=combined_chunks_page_content[i], metadata={"combined_chunk_ids":combined_chunks_ids[i]}))
     return combined_chunk_document_list
-
 
 def get_chunk_and_graphDocument(graph_document_list, chunkId_chunkDoc_list):
   logging.info("creating list of chunks and graph documents in get_chunk_and_graphDocument func")
@@ -77,8 +80,6 @@ def update_graph_documents(
     courseId: str = None, 
     userId: str = None
 ):
-    graphDb_data_Access = graphDBdataAccess(get_graph())
-
     nodes_data = []
     relationships_data = []
 
@@ -148,8 +149,8 @@ def update_graph_documents(
     MERGE (source)-[r:RELATED {type: rel.type}]->(target)
     """
 
-    graphDb_data_Access.execute_query(node_query, {"nodes": nodes_data})
-    graphDb_data_Access.execute_query(relationship_query, {"relationships": relationships_data})
+    get_graph().query(node_query, {"nodes": nodes_data})
+    get_graph().query(relationship_query, {"relationships": relationships_data})
    
 def close_db_connection(graph, api_name):
   if not graph._driver._closed:
@@ -158,7 +159,7 @@ def close_db_connection(graph, api_name):
       
 def get_llm(model_version:str):
 
-  if model_version == GPT_35_TURBO_MODEL or model_version == GPT_4O_MODEL:
+  if model_version == GPT_35_TURBO_MODEL or model_version == GPT_4O_MODEL or model_version == GPT_4O_MINI:
     llm = ChatOpenAI(api_key=os.environ.get('OPENAI_KEY'), 
                       model=model_version, 
                       temperature=.1)
@@ -198,3 +199,6 @@ def get_graph():
 
 def embed_name(name: str, embeddings: OpenAIEmbeddings) -> Tuple[str, List[float]]:
   return name, embeddings.embed_query(text=name)
+
+def embed_chunk(row, embeddings: OpenAIEmbeddings) -> Tuple[str, List[float]]:
+  return row['chunk_id'], embeddings.embed_query(text=row['chunk_doc'].page_content)
