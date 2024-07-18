@@ -249,16 +249,18 @@ class NodeUpdateService:
 
         # Step 1: Compute communities
         query = f"""
-        MATCH (n:Concept)
-        WHERE "{target_id}" IN n.{id_type}
+        MATCH (n)
+        WHERE n:Concept OR n:Chunk
+        AND "{target_id}" IN n.{id_type}
         WITH collect(n) AS nodes
 
         CALL gds.graph.project.cypher(
         '{graph_id}_temp_graph',
         'UNWIND $nodes AS n RETURN id(n) AS id',
-        'MATCH (n1:Concept)-[:RELATED]-(n2:Concept)
-         WHERE n1 IN $nodes AND n2 IN $nodes
-         RETURN id(n1) AS source, id(n2) AS target',
+        'MATCH (n1)-[:RELATED]-(n2)
+        WHERE n1 IN $nodes AND n2 IN $nodes
+        AND (n1:Concept OR n1:Chunk) AND (n2:Concept OR n2:Chunk)
+        RETURN id(n1) AS source, id(n2) AS target',
         {{parameters: {{nodes: nodes}}}}
         )
         YIELD graphName, nodeCount, relationshipCount
@@ -284,8 +286,8 @@ class NodeUpdateService:
             # Step 2: Update nodes with community information
             update_query = f"""
             UNWIND $communities AS community
-            MATCH (n:Concept)
-            WHERE id(n) = community[0]
+            MATCH (n)
+            WHERE id(n) = community[0] AND (n:Concept OR n:Chunk)
             SET n.{com_string} = community[1]
             """
 

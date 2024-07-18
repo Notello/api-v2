@@ -15,6 +15,8 @@ from flask_app.src.graphDB_dataAccess import graphDBdataAccess
 from typing import List, Union
 from langchain_groq import ChatGroq
 
+from flask_app.constants import MIXTRAL_MODEL, LLAMA_8_MODEL, GPT_35_TURBO_MODEL, GPT_4O_MODEL
+
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -156,13 +158,13 @@ def close_db_connection(graph, api_name):
       
 def get_llm(model_version:str):
 
-  if model_version == "gpt-3.5-turbo-0125":
+  if model_version == GPT_35_TURBO_MODEL or model_version == GPT_4O_MODEL:
     llm = ChatOpenAI(api_key=os.environ.get('OPENAI_KEY'), 
                       model=model_version, 
                       temperature=0)
     logging.info(f"Model created : Model Version: {model_version}")
     return llm
-  elif model_version == "mixtral-8x7b-32768":
+  elif model_version == MIXTRAL_MODEL or model_version == LLAMA_8_MODEL:
     llm = ChatGroq(api_key=os.environ.get('GROQ_KEY'), 
                     model=model_version, 
                     temperature=0)

@@ -12,7 +12,7 @@ from flask_app.services.GraphQueryService import GraphQueryService
 from flask_app.services.SupabaseService import SupabaseService
 from flask_app.services.GraphCreationService import GraphCreationService
 from flask_app.src.shared.common_fn import get_llm
-from flask_app.constants import DEFAULT_COMMUNITIES
+from flask_app.constants import DEFAULT_COMMUNITIES, GPT_35_TURBO_MODEL, MIXTRAL_MODEL, LLAMA_8_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +102,7 @@ def setup_llm(
     Please provide the questions in the JSON format specified in the system prompt.
     """
 
-    extraction_llm = get_llm("gpt-3.5-turbo-0125").with_structured_output(QuizQuestions)
+    extraction_llm = get_llm(GPT_35_TURBO_MODEL).with_structured_output(QuizQuestions)
     extraction_prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
         ("human", user_template),
@@ -165,6 +165,7 @@ class QuizService():
             )
     
         if topic_graph is None:
+            logging.error(f"Failed to generate topic graph for quiz {quizId}")
             return None
         
         logging.info(f"Generated topic graph for quiz: {quizId}, topics: {topics}")

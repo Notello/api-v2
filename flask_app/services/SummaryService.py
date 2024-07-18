@@ -2,6 +2,7 @@ import concurrent.futures
 from concurrent.futures import ThreadPoolExecutor
 import logging
 from typing import Dict, List, Optional
+from tiktoken import encoding_for_model
 
 from langchain_core.pydantic_v1 import BaseModel, Field
 from langchain_core.prompts import ChatPromptTemplate
@@ -9,57 +10,69 @@ from retry import retry
 
 from flask_app.services.GraphQueryService import GraphQueryService
 from flask_app.services.HelperService import HelperService
-from flask_app.services.GraphQueryService import GraphQueryService
 from flask_app.src.shared.common_fn import get_llm
-from flask_app.constants import GPT_35_TURBO_MODEL
+from flask_app.constants import GPT_35_TURBO_MODEL, GPT_4O_MODEL
 
 class Summary(BaseModel):
     summary: str = Field(
-        description="A markdown formatted summary of the given relationships and raw text chunks."
-    )
-    oneLineSummary: str = Field(
-        description="A one line summary of what was talkd about in the full length summary."
+        description="A markdown formatted summary of the given relationships and raw text chunks, 3-4 paragraphs long."
     )
 
 def setup_llm(
-    main_concept_str: str,
+    main_concept: str,
     related_concepts_str: str,
     chunks_str: str,
 ):
     system_prompt = """
-    You are an advanced Markdown formatted summarization system, specializing in creating insightful and informative summaries
-    based on provided information. Your task is to generate a summary tailored to the given relationships and raw text chunks.
-
-    Input:
-    - A list of relationships between entities that contains the following fields: SourceName, SourceUUID, RelType, TargetName, TargetUUID
-    - A list of raw text chunks that contains the following fields: ChunkId, ChunkName, Text
+    You are an advanced Markdown formatted summarization system, specializing in creating insightful and informative sub-summaries
+    focused on a single main concept. Your task is to generate a focused, extended sub-summary that delves deeply into the main concept,
+    which will be part of a larger, comprehensive summary.
 
     ## Guidelines:
-    1. Create a coherent summary that incorporates information from both the relationships and raw text chunks.
-    2. Use markdown formatting for the summary.
-    3. Include references to concepts and chunks in the summary using the following format:
-       (Concept name or Chunk Name)[Concept UUID or Chunk UUID]
-    4. Ensure the summary is comprehensive yet concise, capturing the main ideas and connections.
-    5. Maintain a logical flow of information in the summary.
+    1. Create a coherent, detailed sub-summary that focuses exclusively on the main concept, only mentioning related concepts in the context of how they directly relate to or impact the main concept.
+    2. The sub-summary should be equivalent to 6-8 paragraphs in length, using creative markdown formatting to enhance readability and structure.
+    3. Start immediately with the content relevant to the main concept. Do not write an introduction or conclusion paragraph.
+    4. Ensure the sub-summary is comprehensive and in-depth about the main concept, capturing its key ideas, nuances, and various aspects while maintaining a logical flow.
+    5. Use the provided information extensively to support your summary with specific details, examples, and elaborations related to the main concept.
+    6. Utilize markdown features creatively and extensively, including:
+       - Multiple levels of headings (##, ###, ####) to organize different aspects of the main concept
+       - Bullet points and numbered lists for clarity on main concept details
+       - Bold and italic text for emphasis on key points about the main concept
+       - Blockquotes for important information or notable quotes directly related to the main concept
+       - Code blocks for technical content if applicable to the main concept
+       - Tables for comparing information or presenting data about the main concept if relevant
+       - Horizontal rules to separate major sections, all of which should be about the main concept
+    7. Do not include any form of conclusion or summary at the end. The sub-summary should end with substantive information about the main concept.
 
-    Remember to create a balanced summary that effectively represents the provided information while being easy to read and understand.
+    Remember to create a focused, extended sub-summary that thoroughly explores the main concept while being easy to read and understand.
+    Always start the summary with a level 2 heading of the main concept and end with relevant, substantive information.
     """
     
     user_template = f"""
-    Please generate a summary based on the following information:
+    Please generate a focused, extended sub-summary based on the following information:
 
-    1. Entity Relationships: {relationship_str}
+    Main Concept: {main_concept}
+    Related Concepts: {related_concepts_str}
 
-    2. Raw Text Chunks: {raw_text_str}
+    Text Information:
+    {chunks_str}
 
-    Generate a summary that:
-    - Incorporates information from both the relationships and raw text chunks
-    - Uses markdown formatting
-    - Includes references to concepts and chunks using the format: (Concept Name or Chunk Name)[Concept UUID or Chunk UUID]
-    - Is comprehensive and informative
-    - Maintains a logical flow of information
+    Generate a markdown-formatted sub-summary that:
+    - Starts with a level 2 heading of the main concept
+    - Is equivalent to 6-8 paragraphs in length, using creative and extensive markdown formatting
+    - Focuses exclusively on the main concept, only mentioning related concepts in terms of their direct relationship to the main concept
+    - Immediately delves into various aspects, characteristics, and implications of the main concept without any introductory or concluding paragraphs
+    - Incorporates extensive and relevant information from the provided text, always in the context of the main concept
+    - Is comprehensive, in-depth, and highly informative about the main concept
+    - Maintains a logical flow of information while exploring various aspects of the main topic
+    - Uses various markdown features creatively and extensively to enhance readability, structure, and information hierarchy, always in service of explaining the main concept
+    - Ends with substantive information about the main concept, without any form of conclusion or summary
 
-    Please provide the summary in the format specified in the Summary model.
+    Please provide the extended sub-summary in the format specified in the Summary model, ensuring it's in markdown format. Remember, this is part of a larger summary, so focus solely on the content of the main concept without any introductions or conclusions. The goal is to create a detailed, informative, and well-structured summary that is approximately twice as long as previous versions, while remaining tightly focused on the main concept throughout and ending with substantive information rather than a conclusion.
+
+    #IMPORTANT:
+    UNDER NO CIRCUMSTANCE SHOULD THE SUMMARY CONTAIN ANY FORM OF CONCLUSION.
+    ADDING A CONCLUSION WILL RESULT IN YOUR TERMINATION.
     """
 
     extraction_llm = get_llm(GPT_35_TURBO_MODEL).with_structured_output(Summary)
@@ -70,27 +83,60 @@ def setup_llm(
     
     return extraction_prompt | extraction_llm
 
+def count_tokens(text: str) -> int:
+    enc = encoding_for_model("gpt-3.5-turbo")
+    return len(enc.encode(text))
+
 @retry(tries=3, delay=2)
 def generate_summary(
     main_concept: str,
-    related_concepts: List[str],
+    related_concepts: List[Dict[str, str]],
     chunks: List[Dict[str, str]],
 ) -> Optional[Summary]:
     try:
-        main_concept_str = f"""MainConceptName: {main_concept}"""
-        related_concepts_str = "\n".join([f"""RelatedConceptName: {related_concept}""" for related_concept in related_concepts])
-        chunks_str = "\n".join([f"""ChunkId: {chunk['id']}, 
-                                  ChunkName: {chunk['document_name']}, 
-                                  Text: {chunk['text']}""" 
-                                  for chunk in chunks])
+        logging.info(f"Generating summary for Main Concept: {main_concept}")
+        related_concepts_str = ", ".join([concept['id'] for concept in related_concepts])
+        chunks_str = "\n".join([f"Text: {chunk['text']}" for chunk in chunks])
 
         extraction_chain = setup_llm(
             main_concept=main_concept, 
-            related_concepts=related_concepts,
-            chunks=chunks
+            related_concepts_str=related_concepts_str,
+            chunks_str=chunks_str
         )
 
         result = extraction_chain.invoke({})
+        token_count = count_tokens(result.summary)
+        logging.info(f"Generated summary for {main_concept}. Token count: {token_count}")
+        
+        return result
+    except Exception as e:
+        logging.error(f"Error generating summary: {str(e)}")
+        raise
+
+def count_tokens(text: str) -> int:
+    enc = encoding_for_model("gpt-3.5-turbo")
+    return len(enc.encode(text))
+
+@retry(tries=3, delay=2)
+def generate_summary(
+    main_concept: str,
+    related_concepts: List[Dict[str, str]],
+    chunks: List[Dict[str, str]],
+) -> Optional[Summary]:
+    try:
+        logging.info(f"Related Concepts: {related_concepts}, Chunks: {chunks}")
+        related_concepts_str = "\n".join([f"Concept Name: {concept['id']}" for concept in related_concepts])
+        chunks_str = "\n".join([f"Chunk UUID: {chunk['id']}, Chunk Name: {chunk['document_name']}, Text: {chunk['text']}" for chunk in chunks])
+
+        extraction_chain = setup_llm(
+            main_concept=main_concept, 
+            related_concepts_str=related_concepts_str,
+            chunks_str=chunks_str
+        )
+
+        result = extraction_chain.invoke({})
+        token_count = count_tokens(result.summary)
+        logging.info(f"Generated summary for {main_concept}. Token count: {token_count}")
         
         return result
     except Exception as e:
@@ -99,13 +145,12 @@ def generate_summary(
 
 class SummaryService():
     @staticmethod
-    def get_inidividual_summary(
+    def get_individual_summary(
         main_concept: str,
-        related_concepts: List[str],
+        related_concepts: List[Dict[str, str]],
         chunks: List[Dict[str, str]],
     ):
-        print(f"main_concept: {main_concept}, related_concepts: {related_concepts}, chunks: {chunks}")
-
+        logging.info(f"Generating individual summary for {main_concept}")
         return generate_summary(
             main_concept=main_concept,
             related_concepts=related_concepts,
@@ -125,7 +170,7 @@ class SummaryService():
             not HelperService.validate_uuid4(noteId)
             and (not HelperService.validate_uuid4(courseId) and len(topics) == 0)
         ): 
-            logging.error(f"Must have noeId or courseId and at least one topic")
+            logging.error(f"Must have noteId or courseId and at least one topic")
             return None
 
         id = noteId if specifierParam == 'noteId' else courseId
@@ -136,28 +181,26 @@ class SummaryService():
             return None
 
         summaries = []
-        futures=[]
-        imporant_concepts = []
-
-        for graph in importance_graph:
-            if graph is not None:
-                imporant_concepts.append(graph['conceptId'])
+        futures = []
 
         with ThreadPoolExecutor(max_workers=10) as executor:
             for graph in importance_graph:
                 if graph is not None:
                     futures.append(
                         executor.submit(
-                            SummaryService.get_inidividual_summary,
+                            SummaryService.get_individual_summary,
                             main_concept=graph['conceptId'],
                             related_concepts=graph['relatedConcepts'],
                             chunks=graph['topChunks']
                         ))
         
-            for i, future in enumerate(concurrent.futures.as_completed(futures)):
+            for future in concurrent.futures.as_completed(futures):
                 summary = future.result()
                 summaries.append(summary)   
 
-        print(f"summaries: {summaries}")
+        for summary in summaries:
+            print(summary.summary)
+            print('\n\n')
+       
         
         return summaries

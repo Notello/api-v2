@@ -1,3 +1,4 @@
+import json
 import logging
 import random
 from typing import Any, Dict, List, Tuple
@@ -155,6 +156,7 @@ class GraphQueryService():
             )
 
         if len(communities) == 0:
+            logging.error(f"Failed to generate topic graph for {specifierParam} {id}")
             return None
 
         return GraphQueryService.get_topic_graph_for_communities(
@@ -171,7 +173,7 @@ class GraphQueryService():
                                    num_communities: int = None
                                    ) -> str | None:
         
-        logging.info(f"Getting topic graph for {param} with id {id}")
+        logging.info(f"Getting communities for {param} with id {id}")
 
         graphAccess = graphDBdataAccess(current_app.config['NEO4J_GRAPH'])
         com_string = GraphQueryService.get_com_string(communityType=param, communityId=id)
@@ -207,6 +209,8 @@ class GraphQueryService():
             communities = topics_communities[0]['all_community_ids']
             if num_communities is not None:
                 communities = random.sample(communities, min(num_communities, len(communities)))
+        
+        logging.info(f"Communities for {param} with id {id}: {communities}")
 
         return communities
     
@@ -258,7 +262,11 @@ class GraphQueryService():
         result = graphAccess.execute_query(query=MAIN_QUERY)
 
         if len(result) == 0:
+            logging.error(f"Failed to get topic graph for {param} with id {id}: {result}")
+            logging.info(f"Query: {MAIN_QUERY}")
             return None
+        
+        logging.info(f"Topic graph for {param} with id {id}: {result[0]}")
         
         return result[0]
 
@@ -266,7 +274,6 @@ class GraphQueryService():
     def get_importance_graph_by_param(param: str, id: str) -> str | None:
         graphAccess = graphDBdataAccess(current_app.config['NEO4J_GRAPH'])
         pagerank_string = GraphQueryService.get_page_rank_string(param=param, id=id)
-        print(pagerank_string)
 
         QUERY = f"""
         // Calculate graph size and importance scores for all nodes
@@ -331,7 +338,7 @@ class GraphQueryService():
             COLLECT({{
                 id: chunk.id,
                 text: chunk.text, 
-                relevanceScore: relevanceScore
+                document_name: chunk.document_name
                 }})[0..3] AS topChunks,
             meanScore, stdDevScore, q3Score, avgConnections, avgPageRank, thresholdMultiplier, prString
 
@@ -341,7 +348,7 @@ class GraphQueryService():
             pageRank AS conceptPageRank,
             connectionCount,
             importanceScore,
-            [neighbor IN neighbors | {{id: neighbor.id, pageRank: neighbor[prString]}}] AS relatedConcepts,
+            [neighbor IN neighbors | {{id: neighbor.id, uuid: neighbor.uuid[0], pageRank: neighbor[prString]}}] AS relatedConcepts,
             topChunks,
             meanScore,
             stdDevScore,
@@ -357,12 +364,35 @@ class GraphQueryService():
             "pagerank_string": pagerank_string
         }
 
-        print(QUERY)
 
         try:
             result = graphAccess.execute_query(QUERY, parameters)   
-            print(result)
             return result
         except Exception as e:
             logging.error(f"Error executing query: {e}")
             return None
+        
+    @staticmethod
+    def get_quiz_questions_by_id(quizId: str):
+        graphDb_data_Access = graphDBdataAccess(current_app.config['NEO4J_GRAPH'])
+
+        QUERY = f"""
+        MATCH (q:QuizQuestion)
+        WHERE q.quizId = $quizId
+        RETURN q
+        """
+
+        parameters = {
+            "quizId": quizId
+        }
+
+        result = graphDb_data_Access.execute_query(QUERY, parameters)
+
+        out = []
+
+        for record in result:
+            question = record.get('q')
+            question['answers'] = json.loads(question.get('answers'))
+            out.append(question)
+
+        return out
