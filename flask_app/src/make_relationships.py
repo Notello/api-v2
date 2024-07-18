@@ -1,6 +1,6 @@
 import uuid
 from langchain.docstore.document import Document
-from flask_app.src.shared.common_fn import load_embedding_model
+from flask_app.src.shared.common_fn import get_graph, load_embedding_model
 import logging
 from typing import List
 from flask import current_app
@@ -26,7 +26,7 @@ def merge_relationship_between_chunk_and_entities(graph_documents_chunk_chunk_Id
                     CALL apoc.merge.node([data.node_type], {id: data.node_id}) YIELD node AS n
                     MERGE (c)-[r:REFERENCES {type: 'HAS_ENTITY'}]->(n)
                 """
-        current_app.config['NEO4J_GRAPH'].query(unwind_query, params={"batch_data": batch_data})
+        get_graph().query(unwind_query, params={"batch_data": batch_data})
 
     
 def update_embedding_create_vector_index(chunkId_chunkDoc_list, noteId):
@@ -43,7 +43,7 @@ def update_embedding_create_vector_index(chunkId_chunkDoc_list, noteId):
             "embeddings": embeddings_arr
         })
 
-        current_app.config['NEO4J_GRAPH'].query("""CREATE VECTOR INDEX `vector` if not exists for (c:Chunk) on (c.embedding)
+        get_graph().query("""CREATE VECTOR INDEX `vector` if not exists for (c:Chunk) on (c.embedding)
                         OPTIONS {indexConfig: {
                         `vector.dimensions`: $dimensions,
                         `vector.similarity_function`: 'cosine'
@@ -61,7 +61,7 @@ def update_embedding_create_vector_index(chunkId_chunkDoc_list, noteId):
         SET c.embedding = row.embeddings
         MERGE (c)-[r:HAS_DOCUMENT {type: 'PART_OF'}]->(d)
     """       
-    current_app.config['NEO4J_GRAPH'].query(query_to_create_embedding, params={"noteId":noteId, "data":data_for_query})
+    get_graph().query(query_to_create_embedding, params={"noteId":noteId, "data":data_for_query})
     
 def create_relation_between_chunks(
         noteId, 
@@ -145,7 +145,7 @@ def create_relation_between_chunks(
         MATCH (d:Document {noteId: data.noteId})
         MERGE (c)-[r:HAS_DOCUMENT {type: 'PART_OF'}]->(d)
     """
-    current_app.config['NEO4J_GRAPH'].query(query_to_create_chunk_and_PART_OF_relation, params={"batch_data": batch_data})
+    get_graph().query(query_to_create_chunk_and_PART_OF_relation, params={"batch_data": batch_data})
     
     query_to_create_FIRST_relation = """ 
         UNWIND $relationships AS relationship
@@ -154,7 +154,7 @@ def create_relation_between_chunks(
         FOREACH(r IN CASE WHEN relationship.type = 'FIRST_CHUNK' THEN [1] ELSE [] END |
                 MERGE (d)-[:HAS_CHUNK {type: 'FIRST_CHUNK'}]->(c))
         """
-    current_app.config['NEO4J_GRAPH'].query(query_to_create_FIRST_relation, params={"noteId": noteId, "relationships": relationships})   
+    get_graph().query(query_to_create_FIRST_relation, params={"noteId": noteId, "relationships": relationships})   
     
     query_to_create_NEXT_CHUNK_relation = """ 
         UNWIND $relationships AS relationship
@@ -164,7 +164,7 @@ def create_relation_between_chunks(
         FOREACH(r IN CASE WHEN relationship.type = 'NEXT_CHUNK' THEN [1] ELSE [] END |
                 MERGE (c)<-[:HAS_CHUNK {type: 'NEXT_CHUNK'}]-(pc))
         """
-    current_app.config['NEO4J_GRAPH'].query(query_to_create_NEXT_CHUNK_relation, params={"relationships": relationships})   
+    get_graph().query(query_to_create_NEXT_CHUNK_relation, params={"relationships": relationships})   
     
     return lst_chunks_including_hash
 

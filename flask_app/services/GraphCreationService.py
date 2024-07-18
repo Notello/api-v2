@@ -13,8 +13,7 @@ from flask_app.src.document_sources.text_loader import get_text_chunks_langchain
 from .HelperService import HelperService
 from .SimilarityService import SimilarityService
 from flask_app.models.Quiz import QuizQuestion
-from flask_app.src.shared.common_fn import load_embedding_model
-
+from flask_app.src.shared.common_fn import get_graph
 
 class GraphCreationService:
     @staticmethod
@@ -76,7 +75,7 @@ class GraphCreationService:
                 file_size=sys.getsizeof(transcript)
             )
             
-            graphDb_data_Access: graphDBdataAccess = graphDBdataAccess(current_app.config['NEO4J_GRAPH'])
+            graphDb_data_Access: graphDBdataAccess = graphDBdataAccess(get_graph())
 
             fileName, pages = get_documents_from_youtube(obj_source_node.url)
 
@@ -155,7 +154,7 @@ class GraphCreationService:
                 file_size=sys.getsizeof(rawText)
             )
 
-            graphDb_data_Access: graphDBdataAccess = graphDBdataAccess(current_app.config['NEO4J_GRAPH'])
+            graphDb_data_Access: graphDBdataAccess = graphDBdataAccess(get_graph())
 
             obj_source_node.noteId = noteId
 
@@ -179,7 +178,7 @@ class GraphCreationService:
 
     @staticmethod
     def insert_quiz_question(questions: List[QuizQuestion]) -> None:
-        graphAccess = graphDBdataAccess(current_app.config['NEO4J_GRAPH'])
+        graphAccess = graphDBdataAccess(get_graph())
         
         query = """
         UNWIND $questions AS q

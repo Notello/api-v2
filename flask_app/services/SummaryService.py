@@ -1,5 +1,6 @@
 import concurrent.futures
 from concurrent.futures import ThreadPoolExecutor
+import json
 import logging
 from typing import Dict, List, Optional
 from tiktoken import encoding_for_model
@@ -12,6 +13,7 @@ from flask_app.services.GraphQueryService import GraphQueryService
 from flask_app.services.HelperService import HelperService
 from flask_app.src.shared.common_fn import get_llm
 from flask_app.constants import GPT_35_TURBO_MODEL, GPT_4O_MODEL
+from flask_app.services.SupabaseService import SupabaseService
 
 class Summary(BaseModel):
     summary: str = Field(
@@ -68,14 +70,12 @@ def setup_llm(
     - Uses various markdown features creatively and extensively to enhance readability, structure, and information hierarchy, always in service of explaining the main concept
     - Ends with substantive information about the main concept, without any form of conclusion or summary
 
-    Please provide the extended sub-summary in the format specified in the Summary model, ensuring it's in markdown format. Remember, this is part of a larger summary, so focus solely on the content of the main concept without any introductions or conclusions. The goal is to create a detailed, informative, and well-structured summary that is approximately twice as long as previous versions, while remaining tightly focused on the main concept throughout and ending with substantive information rather than a conclusion.
-
     #IMPORTANT:
     UNDER NO CIRCUMSTANCE SHOULD THE SUMMARY CONTAIN ANY FORM OF CONCLUSION.
     ADDING A CONCLUSION WILL RESULT IN YOUR TERMINATION.
     """
 
-    extraction_llm = get_llm(GPT_35_TURBO_MODEL).with_structured_output(Summary)
+    extraction_llm = get_llm(GPT_35_TURBO_MODEL)
     extraction_prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
         ("human", user_template),
@@ -105,40 +105,10 @@ def generate_summary(
         )
 
         result = extraction_chain.invoke({})
-        token_count = count_tokens(result.summary)
-        logging.info(f"Generated summary for {main_concept}. Token count: {token_count}")
         
-        return result
-    except Exception as e:
-        logging.error(f"Error generating summary: {str(e)}")
-        raise
+        logging.info(f"Generated summary for {main_concept}. Token count: {result.dict()['usage_metadata']['total_tokens']}")
 
-def count_tokens(text: str) -> int:
-    enc = encoding_for_model("gpt-3.5-turbo")
-    return len(enc.encode(text))
-
-@retry(tries=3, delay=2)
-def generate_summary(
-    main_concept: str,
-    related_concepts: List[Dict[str, str]],
-    chunks: List[Dict[str, str]],
-) -> Optional[Summary]:
-    try:
-        logging.info(f"Related Concepts: {related_concepts}, Chunks: {chunks}")
-        related_concepts_str = "\n".join([f"Concept Name: {concept['id']}" for concept in related_concepts])
-        chunks_str = "\n".join([f"Chunk UUID: {chunk['id']}, Chunk Name: {chunk['document_name']}, Text: {chunk['text']}" for chunk in chunks])
-
-        extraction_chain = setup_llm(
-            main_concept=main_concept, 
-            related_concepts_str=related_concepts_str,
-            chunks_str=chunks_str
-        )
-
-        result = extraction_chain.invoke({})
-        token_count = count_tokens(result.summary)
-        logging.info(f"Generated summary for {main_concept}. Token count: {token_count}")
-        
-        return result
+        return result.dict()['content']
     except Exception as e:
         logging.error(f"Error generating summary: {str(e)}")
         raise
@@ -158,7 +128,7 @@ class SummaryService():
         )
 
     @staticmethod
-    def generate_summary(
+    def generate_note_summary(
         userId: str, 
         courseId: str,
         specifierParam: str,
@@ -179,8 +149,20 @@ class SummaryService():
 
         if importance_graph is None:
             return None
+        
+        summaryIds = set()
 
-        summaries = []
+        for _ in range(len(importance_graph)):
+            summaryId = SupabaseService.add_summary(
+                noteId=noteId
+                )
+            
+            if len(summaryId) == 0 or not HelperService.validate_uuid4(summaryId[0]['id']):
+                logging.error(f"Failed to add summary for note {noteId}")
+                return None
+            
+            summaryIds.add(summaryId[0]['id'])
+
         futures = []
 
         with ThreadPoolExecutor(max_workers=10) as executor:
@@ -195,12 +177,12 @@ class SummaryService():
                         ))
         
             for future in concurrent.futures.as_completed(futures):
-                summary = future.result()
-                summaries.append(summary)   
+                try:
+                    summary = future.result()
+                    summaryId = summaryIds.pop()
 
-        for summary in summaries:
-            print(summary.summary)
-            print('\n\n')
-       
-        
-        return summaries
+                    SupabaseService.update_summary(summaryId, 'summary', summary)
+                    logging.info(f"Generated summary for {summaryId}")
+                except Exception as e:
+                    logging.error(f"Error generating summary: {str(e)}")
+                    raise

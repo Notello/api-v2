@@ -67,7 +67,9 @@ class GenerateNoteSummary(Resource):
         ):
             return {'message': 'Must have userId, courseId, and noteId'}, 400
         
-        summary = SummaryService.generate_summary(
+
+        
+        summary = SummaryService.generate_note_summary(
             userId=userId, 
             courseId=courseId,
             noteId=noteId,

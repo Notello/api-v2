@@ -1,3 +1,6 @@
+from concurrent.futures import ThreadPoolExecutor
+import concurrent.futures
+import logging
 from datetime import datetime
 import logging
 
@@ -41,32 +44,34 @@ def processing_source(
 
   SupabaseService.update_note(noteId, 'graphStatus', '1')
 
-  offset = 0
+  offsets = {0: 0}
+
+  futures = []
   
   logging.info('Update the status as Processing')
-  for i in range(0, len(chunks)):
+    
+  with ThreadPoolExecutor(max_workers=10) as executor:
+    for i in range(0, len(chunks)):
+      selected_chunks = chunks[i : i + 1]
+      offsets[i + 1] = sum([len(chunk.page_content) for chunk in selected_chunks])
+      futures.append(
+          executor.submit(
+              process_chunks,
+              chunks=selected_chunks, 
+              noteId=noteId,
+              courseId=courseId,
+              userId=userId,
+              startI=i,
+              offset=offsets[i],
+              document_name=fileName
+          ))
 
-    logging.info(f'Processing chunk {i}')
+    for future in concurrent.futures.as_completed(futures):
+      logging.info(f'Processed chunk {i}')
 
-    selected_chunks = chunks[i : i + 1]
+      i = future.result()
 
-    logging.info(f'offset: {offset}')
-
-    process_chunks(
-      chunks=selected_chunks, 
-      noteId=noteId,
-      courseId=courseId,
-      userId=userId,
-      startI=i,
-      offset=offset,
-      document_name=fileName
-    )
-
-    logging.info(f'offset after processing: {offset}')
-
-    offset += sum([len(chunk.page_content) for chunk in selected_chunks])
-
-    SupabaseService.update_note(noteId, 'graphStatus', str(i))
+      SupabaseService.update_note(noteId, 'graphStatus', str(i))
 
   end_time = datetime.now()
   processed_time = end_time - start_time
@@ -142,3 +147,5 @@ def process_chunks(
   merge_relationship_between_chunk_and_entities(
     graph_documents_chunk_chunk_Id=chunks_and_graphDocuments_list
   )
+
+  return startI

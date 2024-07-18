@@ -5,6 +5,7 @@ import logging
 from .SupabaseService import SupabaseService
 from .RunpodService import RunpodService
 from .GraphCreationService import GraphCreationService
+from .SummaryService import SummaryService
 from flask_app.src.document_sources.pdf_loader import extract_text
 
 class NoteForm(Enum):
@@ -91,6 +92,13 @@ class NoteService:
                 fileName=audio_file.filename
                 )
             
+            SummaryService.generate_note_summary(
+                specifierParam='noteId',
+                userId=userId, 
+                courseId=courseId,
+                noteId=noteId
+                )
+            
             logging.info(f"File uploaded successfully for note {noteId}")
 
         except Exception as e:
@@ -130,6 +138,13 @@ class NoteService:
                 courseId=courseId, 
                 userId=userId,
                 fileName=file_name
+                )
+            
+            SummaryService.generate_note_summary(
+                specifierParam='noteId',
+                userId=userId, 
+                courseId=courseId,
+                noteId=noteId
                 )
             
             logging.info(f"File uploaded successfully for note {noteId}")

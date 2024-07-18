@@ -2,12 +2,13 @@ import uuid
 import logging
 from typing import Dict
 from concurrent.futures import ThreadPoolExecutor
+import concurrent.futures
 from neo4j.exceptions import ClientError, TransientError
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from tqdm import tqdm
 
 from .Neo4jTransactionManager import transactional
-from flask_app.src.shared.common_fn import load_embedding_model
+from flask_app.src.shared.common_fn import load_embedding_model, embed_name
 from flask_app.services.GraphQueryService import GraphQueryService
 from flask_app.services.EntityResolver import entity_resolution
 
@@ -189,10 +190,24 @@ class NodeUpdateService:
         result = tx.run(query, {'noteId': noteId})
 
         nodes_to_update = []
-        for record in result:
-            name = record['id']
-            embedding = embeddings.embed_query(text=name)
-            nodes_to_update.append({'id': name, 'embedding': embedding})
+        futures = []
+
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            for record in result:
+                name = record['id']
+                futures.append(
+                    executor.submit(
+                        embed_name,
+                        name=name,
+                        embeddings=embeddings
+                    ))
+
+            for future in concurrent.futures.as_completed(futures):
+                name, embedding = future.result()
+
+                logging.info(f"Embedded: {name}")
+
+                nodes_to_update.append({'id': name, 'embedding': embedding})
 
         update_query = """
         UNWIND $nodes AS node

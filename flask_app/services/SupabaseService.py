@@ -5,7 +5,7 @@ from supabase import Client
 from flask import current_app
 from flask_app.services.HelperService import HelperService
 
-from flask_app.constants import NOTE_TABLE_NAME, QUIZ_QUESTION_TABLE_NAME, QUIZ_TABLE_NAME
+from flask_app.constants import NOTE_TABLE_NAME, QUIZ_QUESTION_TABLE_NAME, QUIZ_TABLE_NAME, SUMMARY_TABLE_NAME
 
 supabase: Client = current_app.config['SUPABASE_CLIENT']
 
@@ -115,3 +115,31 @@ class SupabaseService:
         return supabase.table(QUIZ_QUESTION_TABLE_NAME).insert({
             'quizId': quizId,
         }).execute().data
+    
+    @staticmethod
+    def add_summary(
+        noteId: str
+    ) -> List[str]:
+        if not HelperService.validate_all_uuid4(noteId):
+            logging.error(f'Invalid noteId: {noteId}')
+            return []
+
+        return supabase.table(SUMMARY_TABLE_NAME).insert({
+            'noteId': noteId,
+            'summary': '',
+        }).execute().data
+    
+    @staticmethod
+    def update_summary(
+        summaryId: str,
+        key: str,
+        value: str
+    ):
+        if not HelperService.validate_all_uuid4(summaryId):
+            logging.error(f'Invalid summaryId: {summaryId}')
+            return None
+
+        logging.info(f'Updating summary {summaryId} with key {key}')
+        return supabase.table(SUMMARY_TABLE_NAME).update({
+            key: value
+            }).eq('id', summaryId).execute().data

@@ -1,5 +1,5 @@
 import logging
-from flask_app.src.shared.common_fn import load_embedding_model
+from flask_app.src.shared.common_fn import get_graph, load_embedding_model
 
 from flask import current_app
 
@@ -16,7 +16,7 @@ class SimilarityService:
 
         logging.info(f"Embedding: Using OpenAI Embeddings , Dimension:{dimension}")
 
-        current_app.config['NEO4J_GRAPH'].query("""
+        get_graph().query("""
             CREATE VECTOR INDEX `doc_embedding` IF NOT EXISTS FOR (d:Document) ON (d.embedding)
             OPTIONS {indexConfig: {
                 `vector.dimensions`: $dimensions,
@@ -33,7 +33,7 @@ class SimilarityService:
         RETURN ID(d) as id
         """
 
-        node = current_app.config['NEO4J_GRAPH'].query(
+        node = get_graph().query(
             query_to_create_or_update_document,
             params={"noteId": noteId, "embedding": embeddings_arr}
         )
@@ -54,7 +54,7 @@ class SimilarityService:
         ORDER BY similarity DESC
         """
 
-        result = current_app.config['NEO4J_GRAPH'].query(
+        result = get_graph().query(
             query,
             params={
                 "courseId": courseId,
@@ -94,7 +94,7 @@ class SimilarityService:
         LIMIT 1
         """
 
-        result = current_app.config['NEO4J_GRAPH'].query(
+        result = get_graph().query(
             query,
             params={
                 "courseId": course_id,
@@ -110,7 +110,7 @@ class SimilarityService:
             return None
         
     def delete_node(self, node):
-        current_app.config['NEO4J_GRAPH'].query("""
+        get_graph().query("""
             MATCH (d:Document)
             WHERE ID(d) = $nodeId
             DETACH DELETE d

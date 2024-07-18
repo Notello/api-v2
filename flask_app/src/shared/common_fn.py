@@ -1,6 +1,6 @@
 from itertools import combinations
 import logging
-from typing import List
+from typing import List, Tuple
 import re
 import os
 import uuid
@@ -77,7 +77,7 @@ def update_graph_documents(
     courseId: str = None, 
     userId: str = None
 ):
-    graphDb_data_Access = graphDBdataAccess(current_app.config['NEO4J_GRAPH'])
+    graphDb_data_Access = graphDBdataAccess(get_graph())
 
     nodes_data = []
     relationships_data = []
@@ -161,13 +161,13 @@ def get_llm(model_version:str):
   if model_version == GPT_35_TURBO_MODEL or model_version == GPT_4O_MODEL:
     llm = ChatOpenAI(api_key=os.environ.get('OPENAI_KEY'), 
                       model=model_version, 
-                      temperature=0)
+                      temperature=.1)
     logging.info(f"Model created : Model Version: {model_version}")
     return llm
   elif model_version == MIXTRAL_MODEL or model_version == LLAMA_8_MODEL:
     llm = ChatGroq(api_key=os.environ.get('GROQ_KEY'), 
                     model=model_version, 
-                    temperature=0)
+                    temperature=.1)
     logging.info(f"Model created : Model Version: {model_version}")
     return llm
   else:
@@ -187,3 +187,14 @@ def compare_similar_words(options, bad_ends=['s', 'ed', 'ing', 'er']):
         words_to_combine.append((word1, word2))
 
   return words_to_combine
+
+def get_graph():
+  return create_graph_database_connection(
+      uri=os.getenv('NEO4J_URI'),
+      userName=os.getenv('NEO4J_USERNAME'),
+      password=os.getenv('NEO4J_PASSWORD'),
+      database=os.getenv('NEO4J_DATABASE')
+  )
+
+def embed_name(name: str, embeddings: OpenAIEmbeddings) -> Tuple[str, List[float]]:
+  return name, embeddings.embed_query(text=name)

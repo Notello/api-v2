@@ -4,6 +4,7 @@ import random
 from typing import Any, Dict, List, Tuple
 from flask_app.src.graphDB_dataAccess import graphDBdataAccess
 from flask import current_app
+from flask_app.src.shared.common_fn import get_graph
 
 class GraphQueryService():
 
@@ -45,7 +46,7 @@ class GraphQueryService():
         return_params: List[Tuple[str, str]] = None
     ) -> Tuple[Dict[str, List[Dict]], List[Dict[str, Any]]]:
         try:
-            graphDb_data_Access = graphDBdataAccess(current_app.config['NEO4J_GRAPH'])
+            graphDb_data_Access = graphDBdataAccess(get_graph())
 
             final_params = return_params = return_params if return_params is not None else \
                 GraphQueryService.get_default_graph_params(communityType=key, communityId=value)
@@ -175,7 +176,7 @@ class GraphQueryService():
         
         logging.info(f"Getting communities for {param} with id {id}")
 
-        graphAccess = graphDBdataAccess(current_app.config['NEO4J_GRAPH'])
+        graphAccess = graphDBdataAccess(get_graph())
         com_string = GraphQueryService.get_com_string(communityType=param, communityId=id)
 
         
@@ -222,7 +223,7 @@ class GraphQueryService():
         num_rels: int = 50,
         num_chunks: int = 3
     ):
-        graphAccess = graphDBdataAccess(current_app.config['NEO4J_GRAPH'])
+        graphAccess = graphDBdataAccess(get_graph())
         com_string = GraphQueryService.get_com_string(communityType=param, communityId=id)
 
         MAIN_QUERY = f"""
@@ -272,7 +273,7 @@ class GraphQueryService():
 
     @staticmethod
     def get_importance_graph_by_param(param: str, id: str) -> str | None:
-        graphAccess = graphDBdataAccess(current_app.config['NEO4J_GRAPH'])
+        graphAccess = graphDBdataAccess(get_graph())
         pagerank_string = GraphQueryService.get_page_rank_string(param=param, id=id)
 
         QUERY = f"""
@@ -374,7 +375,7 @@ class GraphQueryService():
         
     @staticmethod
     def get_quiz_questions_by_id(quizId: str):
-        graphDb_data_Access = graphDBdataAccess(current_app.config['NEO4J_GRAPH'])
+        graphDb_data_Access = graphDBdataAccess(get_graph())
 
         QUERY = f"""
         MATCH (q:QuizQuestion)
