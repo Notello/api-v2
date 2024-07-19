@@ -105,16 +105,18 @@ class SupabaseService:
         return quizId
     
     @staticmethod
-    def add_quiz_question(
-        quizId: str, 
+    def update_quiz(
+        quizId: str,
+        key: str,
+        value: str
     ) -> List[str]:
         if not HelperService.validate_all_uuid4(quizId):
             logging.error(f'Invalid quizId: {quizId}')
             return []
 
-        return supabase.table(QUIZ_QUESTION_TABLE_NAME).insert({
-            'quizId': quizId,
-        }).execute().data
+        return supabase.table(QUIZ_TABLE_NAME).update({
+            key: value
+            }).eq('id', quizId).execute().data
     
     @staticmethod
     def add_summary(

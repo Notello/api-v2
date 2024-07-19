@@ -19,7 +19,7 @@ from neo4j.exceptions import ClientError, TransientError
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from flask_app.services.Neo4jTransactionManager import transactional
 
-from flask_app.constants import MIXTRAL_MODEL, LLAMA_8_MODEL, GPT_35_TURBO_MODEL, GPT_4O_MODEL, GPT_4O_MINI
+from flask_app.constants import MIXTRAL_MODEL, LLAMA_8_MODEL, GPT_35_TURBO_MODEL, GPT_4O_MODEL, GPT_4O_MINI, LLAMA_8_TOOL_MODEL
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -165,7 +165,7 @@ def get_llm(model_version:str):
                       temperature=.1)
     logging.info(f"Model created : Model Version: {model_version}")
     return llm
-  elif model_version == MIXTRAL_MODEL or model_version == LLAMA_8_MODEL:
+  elif model_version == MIXTRAL_MODEL or model_version == LLAMA_8_MODEL or model_version == LLAMA_8_TOOL_MODEL:
     llm = ChatGroq(api_key=os.environ.get('GROQ_KEY'), 
                     model=model_version, 
                     temperature=.1)
@@ -190,6 +190,11 @@ def compare_similar_words(options, bad_ends=['s', 'ed', 'ing', 'er']):
   return words_to_combine
 
 def get_graph():
+  logging.info("Getting graph")
+  logging.info(f"Graph URI: {os.getenv('NEO4J_URI')}")
+  logging.info(f"Graph Username: {os.getenv('NEO4J_USERNAME')}")
+  logging.info(f"Graph Password: {os.getenv('NEO4J_PASSWORD')}")
+  logging.info(f"Graph Database: {os.getenv('NEO4J_DATABASE')}")
   return create_graph_database_connection(
       uri=os.getenv('NEO4J_URI'),
       userName=os.getenv('NEO4J_USERNAME'),

@@ -1,5 +1,6 @@
 import logging
 from typing import Dict
+import uuid
 
 from langchain_core.pydantic_v1 import BaseModel, Field
 from typing import List, Optional
@@ -12,7 +13,7 @@ from flask_app.services.GraphQueryService import GraphQueryService
 from flask_app.services.SupabaseService import SupabaseService
 from flask_app.services.GraphCreationService import GraphCreationService
 from flask_app.src.shared.common_fn import get_llm
-from flask_app.constants import DEFAULT_COMMUNITIES, GPT_35_TURBO_MODEL, MIXTRAL_MODEL, LLAMA_8_MODEL, GPT_4O_MINI
+from flask_app.constants import DEFAULT_COMMUNITIES, GPT_35_TURBO_MODEL, LLAMA_8_TOOL_MODEL, MIXTRAL_MODEL, LLAMA_8_MODEL, GPT_4O_MINI
 
 logger = logging.getLogger(__name__)
 
@@ -155,66 +156,60 @@ class QuizService():
                       specifierParam=None
                       ):
         
-        id = noteId if specifierParam == 'noteId' else courseId
+        try:
+            id = noteId if specifierParam == 'noteId' else courseId
 
-        topic_graph = GraphQueryService.get_topic_graph(
-            id=id,
-            specifierParam=specifierParam,
-            topics=topics,
-            num_communities=DEFAULT_COMMUNITIES
-            )
-    
-        if topic_graph is None:
-            logging.error(f"Failed to generate topic graph for quiz {quizId}")
-            return None
+            topic_graph = GraphQueryService.get_topic_graph(
+                id=id,
+                specifierParam=specifierParam,
+                topics=topics,
+                num_communities=DEFAULT_COMMUNITIES
+                )
         
-        logging.info(f"Generated topic graph for quiz: {quizId}, topics: {topics}")
-        
-        questionIds = []
-        
-        for _ in range(numQuestions):
-            question = SupabaseService.add_quiz_question(quizId=quizId)
-
-            if len(question) == 0:
-                logging.error(f"Failed to add question for quiz {quizId}")
+            if topic_graph is None:
+                logging.error(f"Failed to generate topic graph for quiz {quizId}")
                 return None
             
-            questionIds.append(question[0]['id'])
-        
-        logging.info(f"Generated placeholder quiz questions for quiz {quizId}")
+            logging.info(f"Generated topic graph for quiz: {quizId}, topics: {topics}")
 
-        questions = QuizService.generate_quiz_questions(
-            topic_graph=topic_graph,
-            difficulty=difficulty,
-            numQuestions=numQuestions,
-            topics_to_focus_on=topics
-            )
-        
-        pprint(questions)
+            questions = QuizService.generate_quiz_questions(
+                topic_graph=topic_graph,
+                difficulty=difficulty,
+                numQuestions=numQuestions,
+                topics_to_focus_on=topics
+                )
+            
+            pprint(questions)
 
-        if questions is None or len(questions) == 0:
+            if questions is None or len(questions) == 0:
+                return None
+
+            formatted_questions = []
+            for question in questions:
+                formatted_questions.append(
+                    {
+                        'questionId': str(uuid.uuid4()),
+                        'quizId': [quizId],
+                        'courseId': [courseId],
+                        'noteId': [noteId],
+                        'userId': [userId],
+                        'question': question.question,
+                        'difficulty': question.difficulty,
+                        'answers': [{'label': answer.answer, 'correct': answer.correct, 'explanation': answer.explanation} for answer in question.answers],
+                        'chunkIds': question.chunkIds,
+                        'topics': question.topics
+                    }
+                )
+            
+            GraphCreationService.insert_quiz_question(questions=formatted_questions)
+
+            SupabaseService.update_quiz(quizId=quizId, key='status', value='complete')
+
+            logging.info(f"Generated quiz questions for quiz {quizId}")
+        except Exception as e:
+            logging.exception(f"Error generating quiz: {str(e)}")
+            SupabaseService.update_quiz(quizId=quizId, key='status', value='error')
             return None
-
-        formatted_questions = []
-        for i, question in enumerate(questions):
-            formatted_questions.append(
-                {
-                    'questionId': questionIds[i],
-                    'quizId': quizId,
-                    'courseId': courseId,
-                    'noteId': noteId,
-                    'userId': userId,
-                    'question': question.question,
-                    'difficulty': question.difficulty,
-                    'answers': [{'label': answer.answer, 'correct': answer.correct, 'explanation': answer.explanation} for answer in question.answers],
-                    'chunkIds': question.chunkIds,
-                    'topics': question.topics
-                }
-            )
-        
-        GraphCreationService.insert_quiz_question(questions=formatted_questions)
-
-        logging.info(f"Generated quiz questions for quiz {quizId}")
     
     @staticmethod
     def generate_quiz_questions(
@@ -233,4 +228,4 @@ class QuizService():
             )
         except Exception as e:
             logging.exception(f"Error generating quiz questions: {str(e)}")
-            return None
+            raise

@@ -166,25 +166,23 @@ class GraphQueryService():
             communities=communities
             )
 
-        
     @staticmethod
     def get_communities_for_param(param: str, 
-                                   id: str, 
-                                   topics: List[str] = None,
-                                   num_communities: int = None
-                                   ) -> str | None:
+                                id: str, 
+                                topics: List[str] = None,
+                                num_communities: int = None,
+                                min_node_count: int = 10
+                                ) -> List[int] | None:
         
         logging.info(f"Getting communities for {param} with id {id}")
 
         graphAccess = graphDBdataAccess(get_graph())
         com_string = GraphQueryService.get_com_string(communityType=param, communityId=id)
 
-        
         parameters = {
             'value': id,
+            'min_node_count': min_node_count
         }
-
-        communities = []
 
         if len(topics) > 0:
             TOPIC_COMMUNITIES_QUERY = f"""
@@ -192,26 +190,32 @@ class GraphQueryService():
             WHERE ANY(label IN labels(n) WHERE label IN ['Concept', 'Chunk']) AND $value in n.{param}
             WITH n
             WHERE ANY(topic IN {topics} WHERE n.id = topic)
-            RETURN COLLECT(DISTINCT n['{com_string}']) AS all_community_ids
+            WITH n['{com_string}'] AS community_id, COUNT(n) AS node_count
+            WHERE node_count >= $min_node_count
+            RETURN DISTINCT community_id AS community_id
             """
 
-            topics_communities = graphAccess.execute_query(TOPIC_COMMUNITIES_QUERY, parameters)
-
-            communities = topics_communities[0]['all_community_ids']
+            result = graphAccess.execute_query(TOPIC_COMMUNITIES_QUERY, parameters)
+            communities = [community['community_id'] for community in result]
         else:
             ALL_COMMUNITIES_QUERY = f"""
             MATCH (n)
             WHERE $value in n.{param}
-            RETURN COLLECT(DISTINCT n['{com_string}']) AS all_community_ids
+            WITH n['{com_string}'] AS community_id, COUNT(n) AS node_count
+            WHERE community_id IS NOT NULL AND node_count >= $min_node_count
+            RETURN DISTINCT community_id AS community_id
             """
 
-            topics_communities = graphAccess.execute_query(ALL_COMMUNITIES_QUERY, parameters)
+            result = graphAccess.execute_query(ALL_COMMUNITIES_QUERY, parameters)
+            communities = [community['community_id'] for community in result]
 
-            communities = topics_communities[0]['all_community_ids']
-            if num_communities is not None:
-                communities = random.sample(communities, min(num_communities, len(communities)))
+        logging.info(f"Query: {ALL_COMMUNITIES_QUERY if len(topics) == 0 else TOPIC_COMMUNITIES_QUERY}")
+        logging.info(f"Result: {communities}")
+
+        if num_communities is not None:
+            communities = random.sample(communities, min(num_communities, len(communities)))
         
-        logging.info(f"Communities for {param} with id {id}: {communities}")
+        logging.info(f"Filtered communities for {param} with id {id}: {communities}")
 
         return communities
     
@@ -379,7 +383,7 @@ class GraphQueryService():
 
         QUERY = f"""
         MATCH (q:QuizQuestion)
-        WHERE q.quizId = $quizId
+        WHERE $quizId in q.quizId
         RETURN q
         """
 

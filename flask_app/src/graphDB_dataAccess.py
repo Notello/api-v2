@@ -1,6 +1,5 @@
 import logging
 import os
-from flask import current_app
 from langchain_community.graphs import Neo4jGraph
 from flask_app.src.entities.source_node import sourceNode
 import json
@@ -45,9 +44,7 @@ class graphDBdataAccess:
 
             logging.info(f'query : {query}')
 
-            graph: Neo4jGraph = current_app.config["NEO4J_GRAPH"]
-
-            graph.query(query, attributes)
+            self.graph.query(query, attributes)
 
             logging.info(f"source node created successfully")
 
@@ -70,9 +67,7 @@ class graphDBdataAccess:
 
             logging.info("Updating source node properties")
 
-            graph: Neo4jGraph = current_app.config["NEO4J_GRAPH"]
-
-            graph.query(query, params)
+            self.graph.query(query, params)
         except Exception as e:
             error_message = str(e)
             logging.info(f"error_message = {error_message}")
