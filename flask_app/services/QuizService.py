@@ -161,10 +161,12 @@ class QuizService():
 
             topic_graph = GraphQueryService.get_topic_graph(
                 id=id,
-                specifierParam=specifierParam,
+                param=specifierParam,
                 topics=topics,
-                num_communities=DEFAULT_COMMUNITIES
+                num_rels=numQuestions
                 )
+            
+            return None
         
             if topic_graph is None:
                 logging.error(f"Failed to generate topic graph for quiz {quizId}")

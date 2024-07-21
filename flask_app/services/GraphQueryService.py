@@ -1,6 +1,7 @@
 import json
 import logging
 import random
+from pprint import pprint
 from typing import Any, Dict, List, Tuple
 from flask_app.src.graphDB_dataAccess import graphDBdataAccess
 from flask import current_app
@@ -141,30 +142,6 @@ class GraphQueryService():
         except Exception as e:
             logging.error(f"Error executing query: {e}")
             return None, None
-        
-    @staticmethod
-    def get_topic_graph(id: str | None = None, 
-                        specifierParam: str = None,
-                        topics: List[str] = [],
-                        num_communities: int = None
-                    ) -> str | None:
-                
-        communities = GraphQueryService.get_communities_for_param(
-            param=specifierParam, 
-            id=id, 
-            topics=topics,
-            num_communities=num_communities
-            )
-
-        if len(communities) == 0:
-            logging.error(f"Failed to generate topic graph for {specifierParam} {id}")
-            return None
-
-        return GraphQueryService.get_topic_graph_for_communities(
-            param=specifierParam, 
-            id=id, 
-            communities=communities
-            )
 
     @staticmethod
     def get_communities_for_param(param: str, 
@@ -220,60 +197,107 @@ class GraphQueryService():
         return communities
     
     @staticmethod
-    def get_topic_graph_for_communities(
-        param: str,
+    def get_random_topics(
+        param: str, 
         id: str,
-        communities: List[str],
-        num_rels: int = 50,
-        num_chunks: int = 3
+        num_topics: int = 1
     ):
         graphAccess = graphDBdataAccess(get_graph())
-        com_string = GraphQueryService.get_com_string(communityType=param, communityId=id)
+        
+        QUERY = f"""
+        MATCH (c:Concept)
+        WHERE '{id}' IN c.{param}
+        WITH c, rand() AS r
+        ORDER BY r
+        LIMIT {num_topics}
+        RETURN c.id AS id, c.uuid AS uuid
+        """
+        
+        result = graphAccess.execute_query(query=QUERY)
+        
+        if len(result) == 0:
+            logging.error(f"Failed to get random topics for {param} with id {id}")
+            return None
+        
+        return [{'id': item['id'], 'uuid': item['uuid']} for item in result]
+
+    @staticmethod
+    def get_topic_graph(
+        param: str, 
+        id: str, 
+        num_rels: int = 5,
+        topics: List[str] = [],
+    ):
+        if len(topics) == 0:
+            random_topics = GraphQueryService.get_random_topics(param=param, id=id, num_topics=num_rels)
+            if random_topics is None:
+                return None
+            topics = [topic['id'] for topic in random_topics]
+        
+        print(topics)
+        
+        topic_graph = GraphQueryService.get_topic_graph_for_topics(topics=topics, param=param, id=id, num_rels=num_rels)
+        pprint(topic_graph)
+
+    @staticmethod
+    def get_topic_graph_for_topics(
+        topics: List[str],
+        param: str,
+        id: str,
+        num_rels: int = 5,
+        chunks_per_rel: int = 1
+    ):
+        graphAccess = graphDBdataAccess(get_graph())
 
         MAIN_QUERY = f"""
-        // First, collect up to num_rels relationships
-        MATCH (c1:Concept)-[r]-(c2:Concept)
-        WHERE c1['{com_string}'] IN {communities}
-        AND c2['{com_string}'] IN {communities}
-        WITH c1, r, c2
+        WITH {topics} AS allTopics
+        UNWIND range(0, {num_rels} - 1) AS i
+        WITH allTopics[i % (size(allTopics) - 1)] AS topic, i
+        MATCH (start:Concept)
+        WHERE topic IN start.id
+        MATCH (start)-[rel]-(related:Concept)
+        WHERE '{id}' IN related.{param}
+        WITH start, rel, related, i
+        ORDER BY i, rand()
+        WITH DISTINCT start, rel, related
         LIMIT {num_rels}
 
-        WITH COLLECT(DISTINCT {{
-            source: c1.id, 
-            sourceUUID: c1.uuid,
-            type: r.type, 
-            target: c2.id,
-            targetUUID: c2.uuid
-            }}) AS conceptRels, 
-            COLLECT(DISTINCT c1) + COLLECT(DISTINCT c2) AS allConcepts
-
-        // Then, match up to num_chunks chunks related to these concepts
         MATCH (chunk:Chunk)
-        WHERE chunk['{com_string}'] IN {communities}
-        WITH conceptRels, chunk
-        LIMIT {num_chunks}
+        WHERE chunk.{param} = '{id}'
+        WITH start, rel, related, chunk,
+            apoc.coll.sum([
+            CASE WHEN exists((chunk)-[:REFERENCES]->(start)) THEN 1 ELSE 0 END,
+            CASE WHEN exists((chunk)-[:REFERENCES]->(related)) THEN 1 ELSE 0 END
+            ]) AS relevance
+        ORDER BY relevance DESC
+        WITH start, rel, related, collect(chunk)[0..{chunks_per_rel}] AS relevantChunks
 
-        RETURN 
-        conceptRels, 
-        COLLECT(DISTINCT {{
-            id: chunk.id,
-            text: chunk.text,
-            noteId: chunk.noteId,
-            position: chunk.position,
-            document_name: chunk.document_name
-        }}) AS chunks
+        RETURN {{
+            source: start.id,
+            sourceUUID: start.uuid,
+            target: related.id,
+            targetUUID: related.uuid,
+            type: rel.type,
+            chunks: [chunk IN relevantChunks | {{
+                id: chunk.id,
+                text: chunk.text,
+                noteId: chunk.noteId,
+                position: chunk.position,
+                document_name: chunk.document_name
+            }}]
+        }} AS result
         """
 
         result = graphAccess.execute_query(query=MAIN_QUERY)
 
         if len(result) == 0:
-            logging.error(f"Failed to get topic graph for {param} with id {id}: {result}")
+            logging.error(f"Failed to get topic graph for topics {topics}: {result}")
             logging.info(f"Query: {MAIN_QUERY}")
             return None
         
-        logging.info(f"Topic graph for {param} with id {id}: {result[0]}")
+        logging.info(f"Topic graph for topics {topics}: {result}")
         
-        return result[0]
+        return result
 
     @staticmethod
     def get_importance_graph_by_param(param: str, id: str) -> str | None:

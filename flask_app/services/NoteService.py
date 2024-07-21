@@ -92,13 +92,6 @@ class NoteService:
                 fileName=audio_file.filename
                 )
             
-            SummaryService.generate_note_summary(
-                specifierParam='noteId',
-                userId=userId, 
-                courseId=courseId,
-                noteId=noteId
-                )
-            
             logging.info(f"File uploaded successfully for note {noteId}")
 
         except Exception as e:
@@ -138,13 +131,6 @@ class NoteService:
                 courseId=courseId, 
                 userId=userId,
                 fileName=file_name
-                )
-            
-            SummaryService.generate_note_summary(
-                specifierParam='noteId',
-                userId=userId, 
-                courseId=courseId,
-                noteId=noteId
                 )
             
             logging.info(f"File uploaded successfully for note {noteId}")
