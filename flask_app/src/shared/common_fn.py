@@ -74,11 +74,20 @@ def load_embedding_model():
   logging.info(f"Embedding: Using OpenAI Embeddings , Dimension:{dimension}")
   return embeddings, dimension
 
+@staticmethod
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=4, max=30),
+    retry=retry_if_exception_type((ClientError, TransientError, AttributeError)),
+    reraise=True
+)
+@transactional
 def update_graph_documents(
-    graph_document_list: List[GraphDocument], 
-    noteId: str = None, 
-    courseId: str = None, 
-    userId: str = None
+  tx,
+  graph_document_list: List[GraphDocument], 
+  noteId: str = None, 
+  courseId: str = None, 
+  userId: str = None
 ):
     nodes_data = []
     relationships_data = []
@@ -149,8 +158,8 @@ def update_graph_documents(
     MERGE (source)-[r:RELATED {type: rel.type}]->(target)
     """
 
-    get_graph().query(node_query, {"nodes": nodes_data})
-    get_graph().query(relationship_query, {"relationships": relationships_data})
+    tx.run(node_query, {"nodes": nodes_data})
+    tx.run(relationship_query, {"relationships": relationships_data})
    
 def close_db_connection(graph, api_name):
   if not graph._driver._closed:

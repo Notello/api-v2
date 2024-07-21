@@ -11,7 +11,15 @@ from flask_app.services.Neo4jTransactionManager import transactional
 
 logging.basicConfig(format='%(asctime)s - %(message)s', level='INFO')
 
-def merge_relationship_between_chunk_and_entities(graph_documents_chunk_chunk_Id : list):
+@staticmethod
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=4, max=30),
+    retry=retry_if_exception_type((ClientError, TransientError, AttributeError)),
+    reraise=True
+)
+@transactional
+def merge_relationship_between_chunk_and_entities(tx, graph_documents_chunk_chunk_Id : list):
     batch_data = []
     logging.info("Create HAS_ENTITY relationship between chunks and entities")
     for graph_doc_chunk_id in graph_documents_chunk_chunk_Id:
@@ -30,7 +38,7 @@ def merge_relationship_between_chunk_and_entities(graph_documents_chunk_chunk_Id
                     CALL apoc.merge.node([data.node_type], {id: data.node_id}) YIELD node AS n
                     MERGE (c)-[r:REFERENCES {type: 'HAS_ENTITY'}]->(n)
                 """
-        get_graph().query(unwind_query, {"batch_data": batch_data})
+        tx.run(unwind_query, {"batch_data": batch_data})
 
 def update_embedding_create_vector_index(chunkId_chunkDoc_list, noteId):
     embeddings, dimension = load_embedding_model()
