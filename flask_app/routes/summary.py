@@ -66,10 +66,8 @@ class GenerateNoteSummary(Resource):
             not HelperService.validate_all_uuid4(userId, courseId, noteId)
         ):
             return {'message': 'Must have userId, courseId, and noteId'}, 400
-        
-
-        
-        summary = SummaryService.generate_note_summary(
+          
+        SummaryService.generate_note_summary(
             userId=userId, 
             courseId=courseId,
             noteId=noteId,

@@ -234,10 +234,13 @@ class GraphQueryService():
                 return None
             topics = [topic['id'] for topic in random_topics]
         
-        print(topics)
+        logging.info(f"Generating topic graph for topics {topics}")
         
         topic_graph = GraphQueryService.get_topic_graph_for_topics(topics=topics, param=param, id=id, num_rels=num_rels)
-        pprint(topic_graph)
+        
+        logging.info(f"Topic graph for topics {topics} generated.")
+
+        return topic_graph
 
     @staticmethod
     def get_topic_graph_for_topics(
@@ -252,7 +255,7 @@ class GraphQueryService():
         MAIN_QUERY = f"""
         WITH {topics} AS allTopics
         UNWIND range(0, {num_rels} - 1) AS i
-        WITH allTopics[i % (size(allTopics) - 1)] AS topic, i
+        WITH allTopics[i % size(allTopics)] AS topic, i
         MATCH (start:Concept)
         WHERE topic IN start.id
         MATCH (start)-[rel]-(related:Concept)
@@ -290,13 +293,14 @@ class GraphQueryService():
 
         result = graphAccess.execute_query(query=MAIN_QUERY)
 
+        logging.info(f"Len of result: {len(result)}")
+
+
         if len(result) == 0:
             logging.error(f"Failed to get topic graph for topics {topics}: {result}")
             logging.info(f"Query: {MAIN_QUERY}")
             return None
-        
-        logging.info(f"Topic graph for topics {topics}: {result}")
-        
+                
         return result
 
     @staticmethod

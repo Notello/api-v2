@@ -1,9 +1,11 @@
+import concurrent.futures
+from concurrent.futures import ThreadPoolExecutor
 import logging
-from typing import Dict
+from typing import Dict, List, Optional
 import uuid
+import numpy as np
 
 from langchain_core.pydantic_v1 import BaseModel, Field
-from typing import List, Optional
 from langchain_core.prompts import ChatPromptTemplate
 from retry import retry
 
@@ -13,7 +15,7 @@ from flask_app.services.GraphQueryService import GraphQueryService
 from flask_app.services.SupabaseService import SupabaseService
 from flask_app.services.GraphCreationService import GraphCreationService
 from flask_app.src.shared.common_fn import get_llm
-from flask_app.constants import DEFAULT_COMMUNITIES, GPT_35_TURBO_MODEL, LLAMA_8_TOOL_MODEL, MIXTRAL_MODEL, LLAMA_8_MODEL, GPT_4O_MINI
+from flask_app.constants import GPT_4O_MINI
 
 logger = logging.getLogger(__name__)
 
@@ -25,85 +27,73 @@ class Answer(BaseModel):
 class QuizQuestion(BaseModel):
     question: str = Field(description="The question text")
     difficulty: int = Field(description="The difficulty level of the question (1-5, where 1 is easiest and 5 is most difficult)")
-    answers: List[Answer] = Field(description="A list of four possible answers, each answer is represented by a dictionary")
-    chunkIds: List[str] = Field(description="A list of chunk ids that you used to generate the questions")
-    topics: List[str] = Field(description="A list of topics that you used to generate the questions")
+    answers: List[Answer] = Field(description="A list of four possible answers")
+    chunkIds: List[str] = Field(description="A list of chunk ids that were used to generate the question")
 
-class QuizQuestions(BaseModel):
-    questions: List[QuizQuestion] = Field(
-        description="A list of questions, where each question is represented by a dictionary"
-    )
+class QuestionResult(BaseModel):
+    questions: List[QuizQuestion] = Field(description="A list of questions generated for a given topic pair")
 
 def setup_llm(
-        relationship_str, 
-        raw_text_str, 
-        average_difficulty, 
-        num_questions,
-        topics_to_focus_on
+        source_str, 
+        target_str,
+        relationship_type_str,
+        chunks_str,
+        difficulty_str,
+        num_questions
 ):
     system_prompt = """
     You are an advanced quiz question generator, specializing in creating insightful and thought-provoking questions 
-    based on provided information. Your task is to generate questions tailored to specified topics, a general difficulty level, and number of questions.
+    based on provided information. Your task is to generate multiple questions based on a given relationship between concepts and associated text chunks.
 
     Input:
-    - A list of topics to focus on
-    - A list of relationships between concepts
-    - A list of raw text chunks
-    - Average Desired Difficulty level (1-5, where 1 is easiest and 5 is most difficult)
+    - A relationship between two concepts
+    - A list of text chunks related to the concepts
     - Number of questions to generate
+    - Difficulty level for the questions
 
     ## Guidelines:
-    1. Focus primarily on the provided topics when generating questions.
-    2. Ensure questions are diverse and cover different aspects of the provided information within the specified topics.
-    3. Adjust complexity based on the given average difficulty level, but assign each question its own difficulty rating.
-    4. Use the relationships and raw text to craft accurate and relevant questions.
-    5. Provide clear and concise explanations for each answer option.
-    6. Include relevant chunk IDs and topics for each question.
-    7. Ensure that exactly one answer per question is marked as correct.
-    8. Always provide 4 possible answers for each question.
-    9. Assign a difficulty level (1-5) to each individual question, considering the average difficulty provided.
-    10. Use natural language in questions and answers. Avoid mentioning "entities" or "relationships" explicitly.
-    11. Ensure that questions and answers are understandable to someone unfamiliar with the internal structure of the knowledge base.
+    1. Create questions that explore the relationship between the given concepts.
+    2. Use the provided text chunks to inform the questions and answers.
+    3. Provide four possible answers for each question, with exactly one marked as correct.
+    4. Include clear and concise explanations for each answer option.
+    5. Assign the given difficulty level to each question, where 1 is easiest and 5 is most difficult.
+    6. Use natural language in the questions and answers. Avoid mentioning "entities" or "relationships" explicitly.
+    7. Ensure that the questions and answers are understandable to someone unfamiliar with the internal structure of the knowledge base.
 
     ## Important:
-    - Do NOT mention or reference chunk IDs, entities, or relationships in the question text, answer options, or explanations.
+    - Do NOT mention or reference chunk IDs in the question text, answer options, or explanations.
     - Only include chunk IDs in the designated 'chunkIds' list for each question.
-    - Frame questions and answers in a way that's natural and easy for a general audience to understand.
+    - Frame the questions and answers in a way that's natural and easy for a general audience to understand.
 
-    Remember to maintain a balance between challenging the quiz-taker and ensuring the questions are answerable based on the provided information.
+    Remember to create questions that are both challenging and answerable based on the provided information.
     """
     
     user_template = f"""
-    Please generate a quiz based on the following information:
+    Please generate {num_questions} quiz questions based on the following information:
 
-    1. Topics to Focus On: {topics_to_focus_on}
+    1. Relationship: {source_str} {relationship_type_str} {target_str}
 
-    2. Topic Relationships: {relationship_str}
+    2. Related Text Chunks:
+    {chunks_str}
 
-    3. Raw Text Chunks: {raw_text_str}
+    3. Difficulty level: {difficulty_str}
 
-    4. Quiz Parameters:
-    - Average Difficulty Level: {average_difficulty} (1-5, where 1 is easiest and 5 is most difficult)
-    - Number of Questions: {num_questions}
-
-    Generate the specified number of questions, ensuring they:
-    - Primarily focus on the provided topics
-    - Are based on the provided concept relationships and raw text
+    Generate questions that:
+    - Explore the relationship between {source_str} and {target_str}
+    - Are based on the provided text chunks
     - Each have four possible answers
-    - Have an individual difficulty rating (1-5) for each question, considering the average difficulty provided
-    - Cover aspects of the given information within the specified topics
-    - Include relevant chunk IDs and topics for each question
+    - Have the specified difficulty level ({difficulty_str})
     - Are phrased in natural language, avoiding technical terms like "entities" or "relationships"
 
     ## Important:
-    - Do NOT mention or reference chunk IDs, entities, or relationships in the question text, answer options, or explanations.
+    - Do NOT mention or reference chunk IDs in the question text, answer options, or explanations.
     - Only include chunk IDs in the designated 'chunkIds' list for each question.
-    - Ensure that questions and answers are clear and understandable to a general audience.
+    - Ensure that the questions and answers are clear and understandable to a general audience.
 
     Please provide the questions in the JSON format specified in the system prompt.
     """
 
-    extraction_llm = get_llm(GPT_4O_MINI).with_structured_output(QuizQuestions)
+    extraction_llm = get_llm(GPT_4O_MINI).with_structured_output(QuestionResult)
     extraction_prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
         ("human", user_template),
@@ -113,31 +103,30 @@ def setup_llm(
 
 @retry(tries=3, delay=2)
 def generate_quiz_questions(
-    relationships: List[Dict[str, str]],
-    raw_texts: List[Dict[str, str]],
-    average_difficulty: int,
-    num_questions: int,
-    topics_to_focus_on: List[str]
-) -> Optional[List[QuizQuestion]]:
+    source: str,
+    target: str,
+    relationship_type: str,
+    chunks: List[Dict[str, str]],
+    difficulty: int,
+    num_questions: int
+) -> Optional[List[Dict]]:
     try:
-        relationship_str = "\n".join([f"{relationship['source']} {relationship['type']} {relationship['target']}" for relationship in relationships])
-        raw_text_str = "\n".join([f"Chunk ID: {raw_text['id']}, Text: {raw_text['text']}" for raw_text in raw_texts])
-        topics_to_focus_on_str = ", ".join(topics_to_focus_on) if topics_to_focus_on else "Any"
-
-        print(f"relationship_str: {relationship_str}")
-        print(f"raw_text_str: {raw_text_str}")
+        chunks_str = "\n".join([f"Chunk ID: {chunk['id']}, Text: {chunk['text']}" for chunk in chunks])
 
         extraction_chain = setup_llm(
-            relationship_str=relationship_str, 
-            raw_text_str=raw_text_str, 
-            average_difficulty=average_difficulty, 
-            num_questions=num_questions,
-            topics_to_focus_on=topics_to_focus_on_str
+            source_str=source,
+            target_str=target,
+            relationship_type_str=relationship_type,
+            chunks_str=chunks_str,
+            difficulty_str=difficulty,
+            num_questions=num_questions
         )
 
-        result = extraction_chain.invoke({})
+        results = extraction_chain.invoke({})
+
+        output = [{"question": question, "topics": [source, target]} for question in results.questions]
         
-        return result.questions
+        return output
     except Exception as e:
         logger.error(f"Error generating quiz questions: {str(e)}")
         raise
@@ -166,28 +155,25 @@ class QuizService():
                 num_rels=numQuestions
                 )
             
-            return None
-        
             if topic_graph is None:
                 logging.error(f"Failed to generate topic graph for quiz {quizId}")
                 return None
             
             logging.info(f"Generated topic graph for quiz: {quizId}, topics: {topics}")
 
-            questions = QuizService.generate_quiz_questions(
+            results = QuizService.generate_quiz_questions(
                 topic_graph=topic_graph,
                 difficulty=difficulty,
-                numQuestions=numQuestions,
-                topics_to_focus_on=topics
+                numQuestions=numQuestions
                 )
             
-            pprint(questions)
 
-            if questions is None or len(questions) == 0:
+            if results is None or len(results) == 0:
                 return None
 
             formatted_questions = []
-            for question in questions:
+
+            for question in results:
                 formatted_questions.append(
                     {
                         'questionId': str(uuid.uuid4()),
@@ -195,11 +181,11 @@ class QuizService():
                         'courseId': [courseId],
                         'noteId': [noteId],
                         'userId': [userId],
-                        'question': question.question,
-                        'difficulty': question.difficulty,
-                        'answers': [{'label': answer.answer, 'correct': answer.correct, 'explanation': answer.explanation} for answer in question.answers],
-                        'chunkIds': question.chunkIds,
-                        'topics': question.topics
+                        'question': question['question'].question,
+                        'difficulty': question['question'].difficulty,
+                        'answers': [{'label': answer.answer, 'correct': answer.correct, 'explanation': answer.explanation} for answer in question['question'].answers],
+                        'chunkIds': question['question'].chunkIds,
+                        'topics': question['topics']
                     }
                 )
             
@@ -218,16 +204,42 @@ class QuizService():
         topic_graph, 
         difficulty=None,
         numQuestions=None,
-        topics_to_focus_on=''
     ):
-        try:
-            return generate_quiz_questions(
-                relationships=topic_graph['conceptRels'],
-                raw_texts=topic_graph['chunks'],
-                average_difficulty=difficulty,
-                num_questions=numQuestions,
-                topics_to_focus_on=topics_to_focus_on
-            )
-        except Exception as e:
-            logging.exception(f"Error generating quiz questions: {str(e)}")
-            raise
+        futures = []
+        questions = []
+
+        numQuestionsList = [0 for _ in range(len(topic_graph))]
+        for i in range(numQuestions):
+            numQuestionsList[i % len(topic_graph)] += 1
+
+        # Generate a normal distribution around the difficulty parameter
+        difficultyList = np.random.normal(difficulty, 0.5, len(topic_graph))
+        difficultyList = np.clip(difficultyList, 1, 5)  # Ensure difficulties are between 1 and 5
+        difficultyList = [round(d) for d in difficultyList]  # Round to nearest integer
+
+        print(f"LEN OF TOPIC GRAPH: {len(topic_graph)}")
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            for i, result_dict in enumerate(topic_graph):
+                if result_dict is not None and numQuestionsList[i] > 0:
+                    result = result_dict['result']
+                    futures.append(
+                        executor.submit(
+                            generate_quiz_questions,
+                            source=result['source'],
+                            target=result['target'],
+                            relationship_type=result['type'],
+                            chunks=result['chunks'],
+                            difficulty=difficultyList[i],
+                            num_questions=numQuestionsList[i]
+                        ))
+        
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    result = future.result()
+                    questions.extend(result)
+                    logging.info(f"Generated {len(result)} questions for topic pair")
+                except Exception as e:
+                    logging.error(f"Error generating questions: {str(e)}")
+                    raise
+
+        return questions
