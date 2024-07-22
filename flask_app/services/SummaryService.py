@@ -26,32 +26,25 @@ def setup_llm(
     chunks_str: str,
 ):
     system_prompt = """
-    You are an advanced Markdown formatted summarization system, specializing in creating insightful and informative sub-summaries
-    focused on a single main concept. Your task is to generate a focused, extended sub-summary that delves deeply into the main concept,
-    which will be part of a larger, comprehensive summary.
+    You are an advanced Markdown formatted summarization system. Your task is to generate a focused, extended sub-summary that delves deeply into a single main concept.
 
-    ## Guidelines:
-    1. Create a coherent, detailed sub-summary that focuses exclusively on the main concept, only mentioning related concepts in the context of how they directly relate to or impact the main concept.
-    2. The sub-summary should be equivalent to 6-8 paragraphs in length, using creative markdown formatting to enhance readability and structure.
-    3. Start immediately with the content relevant to the main concept. Do not write an introduction or conclusion paragraph.
-    4. Ensure the sub-summary is comprehensive and in-depth about the main concept, capturing its key ideas, nuances, and various aspects while maintaining a logical flow.
-    5. Use the provided information extensively to support your summary with specific details, examples, and elaborations related to the main concept.
-    6. Utilize markdown features creatively and extensively, including:
-       - Multiple levels of headings (##, ###, ####) to organize different aspects of the main concept
-       - Bullet points and numbered lists for clarity on main concept details
-       - Bold and italic text for emphasis on key points about the main concept
-       - Blockquotes for important information or notable quotes directly related to the main concept
-       - Code blocks for technical content if applicable to the main concept
-       - Tables for comparing information or presenting data about the main concept if relevant
-       - Horizontal rules to separate major sections, all of which should be about the main concept
-    7. Do not include any form of conclusion or summary at the end. The sub-summary should end with substantive information about the main concept.
+    ## Key Guidelines:
+    1. Focus exclusively on the main concept, only mentioning related concepts in direct relation to the main concept.
+    2. Create a sub-summary equivalent to 6-8 paragraphs in length, using markdown formatting for readability.
+    3. Start immediately with content relevant to the main concept. No introduction or conclusion.
+    4. Use provided information to support your summary with specific details and examples.
+    5. Utilize markdown features: headings, lists, bold/italic text, blockquotes, code blocks, and tables as appropriate.
+    6. IMPORTANT: Cite individual chunks using ONLY this format: (Chunk Name)[Chunk UUID]
+       Examples:
+       - (Introduction to AI)[550e8400-e29b-41d4-a716-446655440000]
+       - (Machine Learning Basics)[6ba7b810-9dad-11d1-80b4-00c04fd430c8]
+       - (Neural Networks)[6ba7b811-9dad-11d1-80b4-00c04fd430c8]
 
-    Remember to create a focused, extended sub-summary that thoroughly explores the main concept while being easy to read and understand.
-    Always start the summary with a level 2 heading of the main concept and end with relevant, substantive information.
+    Always start with a level 2 heading of the main concept and end with relevant, substantive information.
     """
     
     user_template = f"""
-    Please generate a focused, extended sub-summary based on the following information:
+    Generate a focused, extended sub-summary based on:
 
     Main Concept: {main_concept}
     Related Concepts: {related_concepts_str}
@@ -59,20 +52,18 @@ def setup_llm(
     Text Information:
     {chunks_str}
 
-    Generate a markdown-formatted sub-summary that:
-    - Starts with a level 2 heading of the main concept
-    - Is equivalent to 6-8 paragraphs in length, using creative and extensive markdown formatting
-    - Focuses exclusively on the main concept, only mentioning related concepts in terms of their direct relationship to the main concept
-    - Immediately delves into various aspects, characteristics, and implications of the main concept without any introductory or concluding paragraphs
-    - Incorporates extensive and relevant information from the provided text, always in the context of the main concept
-    - Is comprehensive, in-depth, and highly informative about the main concept
-    - Maintains a logical flow of information while exploring various aspects of the main topic
-    - Uses various markdown features creatively and extensively to enhance readability, structure, and information hierarchy, always in service of explaining the main concept
-    - Ends with substantive information about the main concept, without any form of conclusion or summary
+    Your markdown-formatted sub-summary should:
+    - Start with a level 2 heading of the main concept
+    - Be equivalent to 6-8 paragraphs, using extensive markdown formatting
+    - Focus exclusively on the main concept
+    - Incorporate relevant information from the provided text
+    - Use markdown features to enhance readability and structure
+    - End with substantive information about the main concept
 
-    #IMPORTANT:
-    UNDER NO CIRCUMSTANCE SHOULD THE SUMMARY CONTAIN ANY FORM OF CONCLUSION.
-    ADDING A CONCLUSION WILL RESULT IN YOUR TERMINATION.
+    #CRITICAL:
+    - ALWAYS cite chunks using ONLY this format: (Chunk Name)[Chunk UUID]
+    - NO conclusions or summaries at the end
+    - Failure to cite correctly or adding a conclusion will result in immediate termination
     """
 
     extraction_llm = get_llm(GPT_4O_MINI)
@@ -96,7 +87,9 @@ def generate_summary(
     try:
         logging.info(f"Generating summary for Main Concept: {main_concept}")
         related_concepts_str = ", ".join([concept['id'] for concept in related_concepts])
-        chunks_str = "\n".join([f"Text: {chunk['text']}" for chunk in chunks])
+        chunks_str = "\n".join([f"Chunk Name: {chunk['document_name']}, Chunk ID: {chunk['id']}, Chunk Text: {chunk['text']}" for chunk in chunks])
+
+        logging.info(f"Chunks: {chunks_str}")
 
         extraction_chain = setup_llm(
             main_concept=main_concept, 
@@ -182,7 +175,10 @@ class SummaryService():
                     summaryId = summaryIds.pop()
 
                     SupabaseService.update_summary(summaryId, 'summary', summary)
+                    SupabaseService.update_note(noteId, 'summaryStatus', summaryId)
                     logging.info(f"Generated summary for {summaryId}")
                 except Exception as e:
                     logging.error(f"Error generating summary: {str(e)}")
                     raise
+        
+        SupabaseService.update_note(noteId, 'summaryStatus', 'complete')

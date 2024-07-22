@@ -14,3 +14,5 @@ MIXTRAL_MODEL = "mixtral-8x7b-32768"
 LLAMA_8_MODEL = "llama3-8b-8192"
 LLAMA_8_TOOL_MODEL = "llama3-groq-8b-8192-tool-use-preview"
 DEFAULT_COMMUNITIES = 3
+
+K8S_VER = '1.7'
