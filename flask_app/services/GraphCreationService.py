@@ -214,7 +214,7 @@ class GraphCreationService:
                 'quizId': q['quizId'],
                 'userId': q['userId'],
                 'courseId': q['courseId'],
-                'noteId': q['noteId'],
+                'noteId': q['noteId'] if q['noteId'] != [None] else "None",
                 'question': q['question'],
                 'difficulty': q['difficulty'],
                 'answers': json.dumps([{  # When getting answers, need to do json.loads()
@@ -226,5 +226,8 @@ class GraphCreationService:
                 'topics': q['topics'],
             } for q in questions
         ]}
+
+        print(params)
+        print(query)
         
         graphAccess.execute_query(query, params)

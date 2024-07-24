@@ -1,0 +1,25 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: create-neo4j-certs
+  namespace: neo4j
+spec:
+  template:
+    spec:
+      containers:
+      - name: create-certs
+        image: neo4j:5.11.0-enterprise
+        command: ["/bin/bash"]
+        args:
+        - -c
+        - |
+          openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /var/lib/neo4j/certificates/private.key -out /var/lib/neo4j/certificates/public.crt -subj "/CN=neo4j.notello.ai"
+          chmod 644 /var/lib/neo4j/certificates/public.crt
+          chmod 600 /var/lib/neo4j/certificates/private.key
+        volumeMounts:
+        - name: certs
+          mountPath: /var/lib/neo4j/certificates
+      restartPolicy: Never
+      volumes:
+      - name: certs
+        emptyDir: {}
