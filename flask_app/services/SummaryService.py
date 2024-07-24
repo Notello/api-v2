@@ -14,6 +14,7 @@ from flask_app.services.HelperService import HelperService
 from flask_app.src.shared.common_fn import get_llm
 from flask_app.constants import GPT_35_TURBO_MODEL, GPT_4O_MODEL, GPT_4O_MINI
 from flask_app.services.SupabaseService import SupabaseService
+from flask_app.services.GraphCreationService import GraphCreationService
 
 class Summary(BaseModel):
     summary: str = Field(
@@ -101,7 +102,10 @@ def generate_summary(
         
         logging.info(f"Generated summary for {main_concept}. Token count: {result.dict()['usage_metadata']['total_tokens']}")
 
-        return result.dict()['content']
+        return {
+            'content':result.dict()['content'],
+            'concept': main_concept
+        }
     except Exception as e:
         logging.error(f"Error generating summary: {str(e)}")
         raise
@@ -157,6 +161,7 @@ class SummaryService():
             summaryIds.add(summaryId[0]['id'])
 
         futures = []
+        summaries = []
 
         with ThreadPoolExecutor(max_workers=10) as executor:
             for graph in importance_graph:
@@ -174,11 +179,21 @@ class SummaryService():
                     summary = future.result()
                     summaryId = summaryIds.pop()
 
-                    SupabaseService.update_summary(summaryId, 'summary', summary)
+                    SupabaseService.update_summary(summaryId, 'summary', summary['content'])
                     SupabaseService.update_note(noteId, 'summaryStatus', summaryId)
+                    summaries.append({
+                        'summaryId': summaryId,
+                        'content': summary['content'],
+                        'concept': summary['concept'],
+                        'userId': userId,
+                        'courseId': courseId,
+                        'noteId': noteId if noteId is not None else 'None'
+                    })
                     logging.info(f"Generated summary for {summaryId}")
                 except Exception as e:
                     logging.error(f"Error generating summary: {str(e)}")
                     raise
         
         SupabaseService.update_note(noteId, 'summaryStatus', 'complete')
+        
+        GraphCreationService.insert_summaries(summaries)

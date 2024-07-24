@@ -1,7 +1,7 @@
 from datetime import datetime
 import sys
 import logging
-from typing import List
+from typing import Dict, List
 import json
 from flask import current_app
 from .SupabaseService import SupabaseService
@@ -230,4 +230,41 @@ class GraphCreationService:
         print(params)
         print(query)
         
+        graphAccess.execute_query(query, params)
+
+    def insert_summaries(summaries: List[Dict[str, str]]) -> None:
+        graphAccess = graphDBdataAccess(get_graph())
+        
+        query = """
+        UNWIND $summaries AS s
+        CREATE (summary:Summary {
+            id: s.summaryId,
+            userId: s.userId,
+            courseId: s.courseId,
+            noteId: s.noteId,
+            content: s.content,
+            concept: s.concept
+        })
+
+        WITH summary, s
+        MATCH (concept:Concept {id: s.concept})
+        CREATE (concept)-[:HAS_SUMMARY]->(summary)
+        
+        RETURN s
+        """
+
+        params = {'summaries': [
+            {
+                'summaryId': s['summaryId'],
+                'userId': s['userId'],
+                'courseId': s['courseId'],
+                'noteId': s['noteId'],
+                'content': s['content'],
+                'concept': s['concept'],
+            } for s in summaries
+        ]}
+
+        print(params)
+        print(query)
+
         graphAccess.execute_query(query, params)

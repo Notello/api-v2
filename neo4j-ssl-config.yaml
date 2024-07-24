@@ -4,5 +4,5 @@ metadata:
   name: neo4j-ssl-config
   namespace: neo4j
 data:
-  NEO4J_dbms_ssl_policy_bolt_enabled: "false"
-  NEO4J_dbms_connector_bolt_tls__level: DISABLED
+  NEO4J_server_bolt_tls__level: OPTIONAL
+  NEO4J_dbms_ssl_policy_bolt_enabled: "true"
