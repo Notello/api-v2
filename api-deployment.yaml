@@ -13,6 +13,13 @@ spec:
       labels:
         app: flask-restx-api
     spec:
+      nodeSelector:
+        doks.digitalocean.com/node-pool: api-pool
+      tolerations:
+      - key: "dedicated"
+        operator: "Equal"
+        value: "api"
+        effect: "NoSchedule"
       containers:
       - name: flask-restx-api
         image: registry.digitalocean.com/notello/api-dev
