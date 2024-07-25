@@ -490,9 +490,10 @@ class GraphQueryService():
         graphAccess = graphDBdataAccess(get_graph())
         
         QUERY = f"""
-        MATCH (n:Concept)-[r:HAS_SUMMARY]->(s:Summary)
+        MATCH (n:Concept)
         WHERE $id IN n.{param}
-        RETURN s
+        OPTIONAL MATCH (n)-[r:HAS_SUMMARY]->(s:Summary)
+        RETURN n.id AS conceptId, s
         """
 
         parameters = {
@@ -501,4 +502,7 @@ class GraphQueryService():
 
         result = graphAccess.execute_query(QUERY, parameters)
 
-        return [res['s'] for res in result]
+        return {
+            'summaries': [res.get('s') for res in result if res.get('s') is not None],
+            'concept': result[0].get('conceptId') if len(result) > 0 else None
+        }

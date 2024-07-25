@@ -46,19 +46,15 @@ create_note_summary_parser.add_argument('userId', location='form',
                         help='Supabase ID of the user')
 create_note_summary_parser.add_argument('courseId', location='form',
                         type=str, required=True,
-                        help='Course ID associated with the summary')
-create_note_summary_parser.add_argument('noteId', location='form',
-                        type=str, required=True,
-                        help='Note ID associated with the summary')    
+                        help='Course ID associated with the summary')  
 
 @api.expect(create_note_summary_parser)
-@api.route('/generate-note-summary')
+@api.route('/generate-note-summary/<string:noteId>')
 class GenerateNoteSummary(Resource):
-    def post(self):
+    def post(self, noteId):
         args = create_note_summary_parser.parse_args()
         userId = args.get('userId', None)
         courseId = args.get('courseId', None)
-        noteId = args.get('noteId', None)
 
         if (
             not HelperService.validate_all_uuid4(userId, courseId, noteId)

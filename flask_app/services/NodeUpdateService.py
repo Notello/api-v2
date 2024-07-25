@@ -252,6 +252,111 @@ class NodeUpdateService:
 
     @staticmethod
     @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+        retry=retry_if_exception_type((ClientError, TransientError)),
+        reraise=True
+    )
+    @transactional
+    def update_page_rank(tx, param: str, id: str) -> Dict:
+        page_rank_string = GraphQueryService.get_page_rank_string(param=param, id=id)
+        max_iterations = 20
+        damping_factor = 0.85
+        unique_id = str(uuid.uuid4())
+
+        # First, check if there are any relevant nodes
+        check_query = f"""
+        MATCH (c:Concept)
+        WHERE "{id}" IN c.{param}
+        RETURN count(c) AS nodeCount
+        """
+
+        result = tx.run(check_query)
+        node_count = result.single()["nodeCount"]
+
+        if node_count == 0:
+            logging.info(f"No relevant nodes found for {param} with id {id}")
+            return {"updatedNodes": 0, "nodeCount": 0}
+
+        # Step 1: Compute PageRank
+        query = f"""
+        MATCH (c:Concept)
+        WHERE "{id}" IN c.{param}
+        WITH collect(c) AS relevantNodes
+
+        CALL gds.graph.project.cypher(
+        'noteGraph_{unique_id}',
+        'MATCH (c) WHERE c IN $relevantNodes RETURN id(c) AS id',
+        'MATCH (c1)-[:RELATED]-(c2) 
+        WHERE c1 IN $relevantNodes AND c2 IN $relevantNodes 
+        RETURN id(c1) AS source, id(c2) AS target',
+        {{parameters: {{relevantNodes: relevantNodes}}}}
+        )
+        YIELD graphName, nodeCount, relationshipCount
+
+        CALL gds.pageRank.stream(
+        graphName,
+        {{
+            maxIterations: {max_iterations},
+            dampingFactor: {damping_factor}
+        }}
+        )
+        YIELD nodeId, score
+
+        WITH gds.util.asNode(nodeId) AS node, score, graphName
+
+        WITH collect({{node: node, score: score}}) AS pageRanks, graphName
+
+        CALL gds.graph.drop(graphName)
+        YIELD graphName AS droppedGraph
+
+        UNWIND pageRanks AS pageRank
+        RETURN pageRank.node AS node, pageRank.score AS score
+        """
+        
+        try:
+            result = tx.run(query)
+            records = list(result)
+
+            logging.info(f"Page ranks computed: {len(records)}")
+
+            if len(records) == 0:
+                logging.info(f"No page ranks found for {param} with id {id}")
+                return {"updatedNodes": 0, "nodeCount": node_count}
+
+            page_ranks = [(record["node"].id, record["score"]) for record in records]
+
+            # Step 2: Update nodes with PageRank scores
+            update_query = f"""
+            UNWIND $pageRanks AS pageRank
+            MATCH (n:Concept)
+            WHERE id(n) = pageRank[0]
+            SET n.{page_rank_string} = pageRank[1]
+            """
+
+            update_result = tx.run(update_query, {"pageRanks": page_ranks})
+            
+            stats = {
+                "updatedNodes": update_result.consume().counters.properties_set,
+                "nodeCount": len(page_ranks)
+            }
+
+            logging.info(f"Updated page rank for param: {param}, id: {id}")
+            logging.info(f"PageRank stats: {stats}")
+
+            return stats
+
+        except Exception as e:
+            logging.error(f"Error in update_page_rank: {str(e)}")
+            # If there was an error, attempt to drop the graph
+            try:
+                tx.run(f"CALL gds.graph.drop('noteGraph_{unique_id}')")
+            except Exception as drop_error:
+                logging.error(f"Error dropping graph after failure: {str(drop_error)}")
+            raise
+
+    @staticmethod
+    @retry(
         stop=stop_after_attempt(5),
         wait=wait_exponential(multiplier=1, min=4, max=30),
         retry=retry_if_exception_type((ClientError, TransientError, AttributeError)),
@@ -262,7 +367,22 @@ class NodeUpdateService:
         com_string = GraphQueryService.get_com_string(communityType=id_type, communityId=target_id)
         graph_id = str(uuid.uuid4())
 
-        # Step 1: Compute communities
+        # First, check if there are any nodes that match the criteria
+        check_query = f"""
+        MATCH (n)
+        WHERE n:Concept OR n:Chunk
+        AND "{target_id}" IN n.{id_type}
+        RETURN count(n) AS nodeCount
+        """
+
+        result = tx.run(check_query)
+        node_count = result.single()["nodeCount"]
+
+        if node_count == 0:
+            logging.info(f"No nodes found for {id_type}: {target_id}")
+            return {"updatedNodes": 0, "communityCount": 0}
+
+        # If nodes exist, proceed with the community detection
         query = f"""
         MATCH (n)
         WHERE n:Concept OR n:Chunk
@@ -298,6 +418,10 @@ class NodeUpdateService:
             result = tx.run(query)
             communities = [(record["node"].id, record["communityId"]) for record in result]
 
+            if not communities:
+                logging.info(f"No communities detected for {id_type}: {target_id}")
+                return {"updatedNodes": 0, "communityCount": 0}
+
             # Step 2: Update nodes with community information
             update_query = f"""
             UNWIND $communities AS community
@@ -323,89 +447,6 @@ class NodeUpdateService:
             # If there was an error, attempt to drop the graph
             try:
                 tx.run(f"CALL gds.graph.drop('{graph_id}_temp_graph')")
-            except Exception as drop_error:
-                logging.error(f"Error dropping graph after failure: {str(drop_error)}")
-            raise
-
-    @staticmethod
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=4, max=10),
-        retry=retry_if_exception_type((ClientError, TransientError)),
-        reraise=True
-    )
-    @transactional
-    def update_page_rank(tx, param: str, id: str) -> Dict:
-        page_rank_string = GraphQueryService.get_page_rank_string(param=param, id=id)
-        max_iterations = 20
-        damping_factor = 0.85
-        unique_id = str(uuid.uuid4())
-        
-        # Step 1: Compute PageRank
-        query = f"""
-        MATCH (c:Concept)
-        WHERE "{id}" IN c.{param}
-        WITH collect(c) AS relevantNodes
-
-        CALL gds.graph.project.cypher(
-          'noteGraph_{unique_id}',
-          'MATCH (c) WHERE c IN $relevantNodes RETURN id(c) AS id',
-          'MATCH (c1)-[:RELATED]-(c2) 
-           WHERE c1 IN $relevantNodes AND c2 IN $relevantNodes 
-           RETURN id(c1) AS source, id(c2) AS target',
-          {{parameters: {{relevantNodes: relevantNodes}}}}
-        )
-        YIELD graphName, nodeCount, relationshipCount
-
-        CALL gds.pageRank.stream(
-          graphName,
-          {{
-            maxIterations: {max_iterations},
-            dampingFactor: {damping_factor}
-          }}
-        )
-        YIELD nodeId, score
-
-        WITH gds.util.asNode(nodeId) AS node, score, graphName
-
-        WITH collect({{node: node, score: score}}) AS pageRanks, graphName
-
-        CALL gds.graph.drop(graphName)
-        YIELD graphName AS droppedGraph
-
-        UNWIND pageRanks AS pageRank
-        RETURN pageRank.node AS node, pageRank.score AS score
-        """
-        
-        try:
-            result = tx.run(query)
-            page_ranks = [(record["node"].id, record["score"]) for record in result]
-
-            # Step 2: Update nodes with PageRank scores
-            update_query = f"""
-            UNWIND $pageRanks AS pageRank
-            MATCH (n:Concept)
-            WHERE id(n) = pageRank[0]
-            SET n.{page_rank_string} = pageRank[1]
-            """
-
-            update_result = tx.run(update_query, {"pageRanks": page_ranks})
-            
-            stats = {
-                "updatedNodes": update_result.consume().counters.properties_set,
-                "nodeCount": len(page_ranks)
-            }
-
-            logging.info(f"Updated page rank for param: {param}, id: {id}")
-            logging.info(f"PageRank stats: {stats}")
-
-            return stats
-
-        except Exception as e:
-            logging.error(f"Error in update_page_rank: {str(e)}")
-            # If there was an error, attempt to drop the graph
-            try:
-                tx.run(f"CALL gds.graph.drop('noteGraph_{unique_id}')")
             except Exception as drop_error:
                 logging.error(f"Error dropping graph after failure: {str(drop_error)}")
             raise

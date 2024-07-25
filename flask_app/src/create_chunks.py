@@ -23,8 +23,8 @@ class CreateChunksofDocument:
         logging.info("Split file into smaller chunks")
         # number_of_chunks_allowed = int(os.environ.get('NUMBER_OF_CHUNKS_ALLOWED'))
         text_splitter = TokenTextSplitter(chunk_size=200, chunk_overlap=20)
-        if 'page' in self.pages[0].metadata:
-            chunks = []
+        chunks = []
+        if self.pages and 'page' in self.pages[0].metadata:
             for i, document in enumerate(self.pages):
                 page_number = i + 1
                 for chunk in text_splitter.split_documents([document]):

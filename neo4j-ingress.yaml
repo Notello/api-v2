@@ -6,6 +6,7 @@ metadata:
   annotations:
     kubernetes.io/ingress.class: nginx
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-passthrough: "true"
 spec:
   tls:
   - hosts:
@@ -22,3 +23,10 @@ spec:
             name: my-neo4j
             port: 
               number: 7474
+      - path: /bolt
+        pathType: Prefix
+        backend:
+          service:
+            name: my-neo4j
+            port: 
+              number: 7687

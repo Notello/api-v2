@@ -36,11 +36,11 @@ def setup_llm(
     3. Start immediately with content relevant to the main concept. No introduction or conclusion.
     4. Use provided information to support your summary with specific details and examples.
     5. Utilize markdown features: headings, lists, bold/italic text, blockquotes, code blocks, and tables as appropriate.
-    6. IMPORTANT: Cite individual chunks using ONLY this format: (Chunk Name)[Chunk UUID]
+    6. IMPORTANT: Cite individual chunks using ONLY this format: [Chunk Name](Chunk UUID)
        Examples:
-       - (Introduction to AI)[550e8400-e29b-41d4-a716-446655440000]
-       - (Machine Learning Basics)[6ba7b810-9dad-11d1-80b4-00c04fd430c8]
-       - (Neural Networks)[6ba7b811-9dad-11d1-80b4-00c04fd430c8]
+       - [Introduction to AI](550e8400-e29b-41d4-a716-446655440000)
+       - [Machine Learning Basics](6ba7b810-9dad-11d1-80b4-00c04fd430c8)
+       - [Neural Networks](6ba7b811-9dad-11d1-80b4-00c04fd430c8)
 
     Always start with a level 2 heading of the main concept and end with relevant, substantive information.
     """
@@ -63,7 +63,7 @@ def setup_llm(
     - End with substantive information about the main concept
 
     #CRITICAL:
-    - ALWAYS cite chunks using ONLY this format: (Chunk Name)[Chunk UUID]
+    - ALWAYS cite chunks using ONLY this format: [Chunk Name](Chunk UUID)
     - NO conclusions or summaries at the end
     - Failure to cite correctly or adding a conclusion will result in immediate termination
     """
@@ -150,6 +150,7 @@ class SummaryService():
         importance_graph = GraphQueryService.get_importance_graph_by_param(param=specifierParam, id=id)
 
         if importance_graph is None:
+            logging.error(f"No importance graph found for {specifierParam}: {id}")
             return None
 
         futures = []
@@ -171,6 +172,9 @@ class SummaryService():
                     summary = future.result()
 
                     SupabaseService.update_note(noteId, 'summaryStatus', str(uuid4()))
+
+                    modified_content = SummaryService.inject_topic_links(summary['content'])
+
                     summary = {
                         'content': summary['content'],
                         'concept': summary['concept'],
@@ -226,3 +230,7 @@ class SummaryService():
         GraphCreationService.insert_summaries([summary_final])
 
         SupabaseService.update_summary(summaryId, 'status', 'complete')
+
+    # @staticmethod
+    # def inject_topic_links(content: str) -> str:
+    #     topics = 
