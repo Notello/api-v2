@@ -1,7 +1,8 @@
 from langchain_core.pydantic_v1 import BaseModel, Field
 from typing import Dict, List, Optional
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
+from flask_app.src.shared.common_fn import get_llm
+from flask_app.constants import GPT_4O_MINI
 from retry import retry
 
 class EntityGroup(BaseModel):
@@ -14,22 +15,29 @@ class Disambiguate(BaseModel):
     )
 
 def setup_llm():
-    system_prompt = """You are a data processing assistant. Your task is to identify duplicate entities in a list and decide which of them should be merged.
-    The entities might be slightly different in format or content, but essentially refer to the same thing. Use your analytical skills to determine duplicates.
+    system_prompt = """You are a data processing assistant tasked with identifying and merging duplicate entities in a list. Your primary focus is on preserving important details while still combining entities that reasonably refer to the same concept, object, person, or place.
 
-    Here are the rules for identifying duplicates:
-    1. You do not need to merge all entities, it is up to your discretion.
-    2. Entities with minor typographical differences should be considered duplicates.
-    3. Entities with different formats but the same content should be considered duplicates.
-    4. Entities should only be merged if they refer to the same real-world object or concept.
-    5. If it refers to different numbers, dates, or products, do not merge results.
-    6. If it refers to a name of a person or thing, choose the full name as the final label.
+    Guidelines for identifying and merging entities:
+    1. Merge entities that refer to the same real-world concept, even if they have slight variations in wording or formatting.
+    2. Preserve important distinctions and details. If merging would result in a loss of significant information, keep the entities separate.
+    3. Consider context and common sense when deciding whether to merge entities.
+    4. For people's names, merge variations of the same person's name (e.g., "John Smith" and "J. Smith") but keep distinct individuals separate.
+    5. For place names, merge entities that refer to the same location, but be mindful of different levels of specificity (e.g., keep "New York City" and "New York State" separate).
+    6. For product names or brands, merge clear variations of the same product but keep distinct products or models separate.
+    7. Merge numbers or measurements only if they represent the same quantity in different formats.
+    8. When in doubt about whether merging would lose important detail, err on the side of keeping entities separate.
 
-    ## IMPORTANT NOTES:
-    - Do not merge nodes just because they have the same words in them, they MUST be the same real world entity.
-    - Example: entity1 = 'America', entity2 = 'American Football', DO NOT merge these entities (One is a country, the other is a sport).
-    - Example: entity1 = 'New York', entity2 = 'New York City', DO merge these entities (they are the same city).
-    - Example: entity1 = 'Aidan Gollan', entity2 = 'Audrey Gollan', DO merge these entities (they are siblings not the same person).
+    Examples of appropriate merging:
+    - "USA", "United States", "United States of America" -> merge
+    - "Einstein", "Albert Einstein", "A. Einstein" -> merge
+    - "COVID-19", "Coronavirus", "SARS-CoV-2" -> merge
+    - "100 km", "100 kilometers" -> merge
+
+    Examples where entities should remain separate:
+    - "Apple (company)" and "Apple (fruit)" -> keep separate
+    - "Python (programming)" and "python (snake)" -> keep separate
+    - "50 km" and "50 miles" -> keep separate
+    - "New York City" and "New York State" -> keep separate
 
     Your output should be a list of groups, where each group is represented by a dictionary. The dictionary should have a 'final_label' key with the chosen label for the merged entity, and an 'entities' key with a list of all entities that should be merged into this label.
     """
@@ -38,10 +46,10 @@ def setup_llm():
     Here is the list of entities to process:
     {entities}
 
-    Please identify duplicates, merge them, and provide the merged groups in the specified format.
+    Please identify and merge duplicate entities, focusing on preserving important details while still combining entities that reasonably refer to the same concept. Provide the merged groups in the specified format.
     """
 
-    extraction_llm = ChatOpenAI(model_name='gpt-3.5-turbo-0125').with_structured_output(Disambiguate)
+    extraction_llm = get_llm(GPT_4O_MINI).with_structured_output(Disambiguate)
     extraction_prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
         ("human", user_template),

@@ -1,19 +1,23 @@
 from langchain_community.document_loaders import YoutubeLoader
 from pytube import YouTube
-from youtube_transcript_api import YouTubeTranscriptApi 
+from youtube_transcript_api import YouTubeTranscriptApi, NoTranscriptFound
 import logging
 from urllib.parse import urlparse,parse_qs
 
 def get_youtube_transcript(youtube_id):
-  try:
-    transcript_dict = YouTubeTranscriptApi.get_transcript(youtube_id)
-    transcript=''
-    for td in transcript_dict:
-      transcript += ''.join(td['text'])
-    return transcript
-  except Exception as e:
-    message = f"Youtube transcript is not available for youtube Id: {youtube_id}"
-    raise Exception(message)
+    try:
+        try:
+            transcript_dict = YouTubeTranscriptApi.get_transcript(youtube_id, languages=('en',))
+        except NoTranscriptFound:
+            transcript_dict = YouTubeTranscriptApi.get_transcript(youtube_id, languages=('en-US',))
+        
+        transcript = ''
+        for td in transcript_dict:
+            transcript += ''.join(td['text'])
+        return transcript
+    except Exception as e:
+        message = f"Youtube transcript is not available for youtube Id: {youtube_id}"
+        raise Exception(message)
 
 
 def create_youtube_url(url):

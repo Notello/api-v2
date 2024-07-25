@@ -173,7 +173,7 @@ class SummaryService():
 
                     SupabaseService.update_note(noteId, 'summaryStatus', str(uuid4()))
 
-                    modified_content = SummaryService.inject_topic_links(summary['content'])
+                    # modified_content = SummaryService.inject_topic_links(summary['content'])
 
                     summary = {
                         'content': summary['content'],
