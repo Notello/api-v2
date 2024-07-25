@@ -20,13 +20,15 @@ class GraphQueryService():
     @staticmethod
     def get_default_graph_params(communityType: str, communityId: str) -> List[Tuple[str, str]]:
         com_string = GraphQueryService.get_com_string(communityType=communityType, communityId=communityId)
+        page_rank_string = GraphQueryService.get_page_rank_string(param=communityType, id=communityId)
 
         return [
         
             ("ID(n)", "nodeId"), ("LABELS(n)", "nodeLabels"), 
             ("n.position", "position"), ("n.fileName", "fileName"), 
-            ("n.id", "conceptId"), ("n.description", "description"), 
-            (f"n['{com_string}']", "communityId"),
+            ("n.id", "conceptId"),
+            (f"n.{com_string}", "communityId"), (f"n.{page_rank_string}", "pageRank"),
+            ("n.uuid[0]", "nodeUuid"),
 
 
             ("rel.type", "relType"), 
@@ -34,8 +36,8 @@ class GraphQueryService():
             ("ID(r)", "relatedNodeId"), ("LABELS(r)", "relatedNodeLabels"), 
             ("r.position", "relatedNodePosition"), ("r.fileName", "relatedNodeFileName"),
 
-            ("r.id", "relatedNodeConceptId"), ("r.description", "relatedNodeDescription"),
-            (f"r['{com_string}']", "relatedNodeCommunityId"),
+            ("r.id", "relatedNodeConceptId"),
+            (f"r.{com_string}", "relatedNodeCommunityId"), (f"r.{page_rank_string}", "relatedNodePageRank"),
             ]
     
     
@@ -102,7 +104,8 @@ class GraphQueryService():
                             node_info['position'] = node_data.get('position')
                         elif node_type == 'Concept':
                             node_info['conceptId'] = node_data.get('conceptId')
-                            node_info['description'] = node_data.get('description')
+                            node_info['pageRank'] = node_data.get('pageRank')
+                            node_info['nodeUuid'] = node_data.get('nodeUuid')
                         
                         if 'communityId' in node_data and 'communityId' not in node_info:
                             node_info['communityId'] = node_data['communityId']
@@ -120,7 +123,7 @@ class GraphQueryService():
                             related_node_info['position'] = related_node_data.get('Position')
                         elif related_node_type == 'Concept':
                             related_node_info['conceptId'] = related_node_data.get('ConceptId')
-                            related_node_info['description'] = related_node_data.get('Description')
+                            related_node_info['pageRank'] = related_node_data.get('PageRank')
                         
                         if 'relatedNodeCommunityId' in related_node_data and 'communityId' not in related_node_info:
                             related_node_info['communityId'] = related_node_data['relatedNodeCommunityId']
@@ -378,6 +381,7 @@ class GraphQueryService():
         // Return the results
         RETURN DISTINCT
             c.id AS conceptId,
+            c.uuid[0] as conceptUuid,
             pageRank AS conceptPageRank,
             connectionCount,
             importanceScore,
@@ -429,3 +433,72 @@ class GraphQueryService():
             out.append(question)
 
         return out
+
+    @staticmethod
+    def get_topic_graph_for_topic_uuid(
+        topic_uuid: str,
+        num_chunks: int = 5
+    ): 
+        graphAccess = graphDBdataAccess(get_graph())
+        
+        MAIN_QUERY = f"""
+            WITH $topic_uuid AS topic_uuid
+            MATCH (start:Concept)
+            WHERE topic_uuid IN start.uuid
+
+            // Find related concepts
+            OPTIONAL MATCH (start)-[r1:RELATED]-(related:Concept)
+            WHERE NOT topic_uuid IN related.uuid
+
+            // Find chunks related to the start concept
+            OPTIONAL MATCH (chunk:Chunk)-[r2:REFERENCES]-(start)
+
+            // Collect results
+            WITH start, 
+                COLLECT(DISTINCT {{
+                    uuid: related.uuid[0],
+                    id: related.id,
+                    relation_type: r1.type
+                }}) AS related_concepts,
+                COLLECT(DISTINCT {{
+                    document_name: chunk.document_name,
+                    text: chunk.text,
+                    id: chunk.id
+                }})[..{num_chunks}] AS related_chunks
+
+            // Return the results
+            RETURN {{
+                start_concept: {{
+                    uuid: start.uuid[0],
+                    id: start.id
+                }},
+                related_concepts: related_concepts,
+                related_chunks: related_chunks
+            }} as result
+        """
+
+        parameters = {
+            'topic_uuid': topic_uuid
+        }
+
+        result = graphAccess.execute_query(query=MAIN_QUERY, param=parameters)
+
+        return result
+    
+    @staticmethod
+    def get_summary_for_param(param: str, id: str) -> str | None:
+        graphAccess = graphDBdataAccess(get_graph())
+        
+        QUERY = f"""
+        MATCH (n:Concept)-[r:HAS_SUMMARY]->(s:Summary)
+        WHERE $id IN n.{param}
+        RETURN s
+        """
+
+        parameters = {
+            'id': id
+        }
+
+        result = graphAccess.execute_query(QUERY, parameters)
+
+        return [res['s'] for res in result]

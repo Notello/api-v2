@@ -1,0 +1,37 @@
+expose:
+  type: ClusterIP
+  enabled: "true"
+  config:
+    bolt:
+      enabled: "true"
+      port: 7687
+    http:
+      enabled: "true"
+      port: 7474
+    https:
+      enabled: "true"
+      port: 7473
+
+neo4j:
+  name: neo4j
+  edition: community
+  acceptLicenseAgreement: "yes"
+  password: "!neo4j!password!Aa280102423!"
+
+resources:
+  cpu: "1"
+  memory: 2Gi
+
+volumes:
+  data:
+    mode: dynamic
+    dynamic:
+      storageClassName: do-block-storage
+
+nodeSelector:
+  doks.digitalocean.com/node-pool: neo4j-pool
+
+config:
+  dbms.security.auth_enabled: "true"
+
+authEnabled: true

@@ -4,6 +4,7 @@ import json
 import logging
 from typing import Dict, List, Optional
 from tiktoken import encoding_for_model
+from uuid import uuid4
 
 from langchain_core.pydantic_v1 import BaseModel, Field
 from langchain_core.prompts import ChatPromptTemplate
@@ -82,6 +83,7 @@ def count_tokens(text: str) -> int:
 @retry(tries=3, delay=2)
 def generate_summary(
     main_concept: str,
+    main_concept_uuid: str,
     related_concepts: List[Dict[str, str]],
     chunks: List[Dict[str, str]],
 ) -> Optional[Summary]:
@@ -103,8 +105,9 @@ def generate_summary(
         logging.info(f"Generated summary for {main_concept}. Token count: {result.dict()['usage_metadata']['total_tokens']}")
 
         return {
-            'content':result.dict()['content'],
-            'concept': main_concept
+            'content': result.dict()['content'],
+            'concept': main_concept,
+            'concept_uuid': main_concept_uuid
         }
     except Exception as e:
         logging.error(f"Error generating summary: {str(e)}")
@@ -114,6 +117,7 @@ class SummaryService():
     @staticmethod
     def get_individual_summary(
         main_concept: str,
+        main_concept_uuid: str,
         related_concepts: List[Dict[str, str]],
         chunks: List[Dict[str, str]],
     ):
@@ -121,6 +125,7 @@ class SummaryService():
         return generate_summary(
             main_concept=main_concept,
             related_concepts=related_concepts,
+            main_concept_uuid=main_concept_uuid,
             chunks=chunks
         )
 
@@ -146,22 +151,8 @@ class SummaryService():
 
         if importance_graph is None:
             return None
-        
-        summaryIds = set()
-
-        for _ in range(len(importance_graph)):
-            summaryId = SupabaseService.add_summary(
-                noteId=noteId
-                )
-            
-            if len(summaryId) == 0 or not HelperService.validate_uuid4(summaryId[0]['id']):
-                logging.error(f"Failed to add summary for note {noteId}")
-                return None
-            
-            summaryIds.add(summaryId[0]['id'])
 
         futures = []
-        summaries = []
 
         with ThreadPoolExecutor(max_workers=10) as executor:
             for graph in importance_graph:
@@ -170,6 +161,7 @@ class SummaryService():
                         executor.submit(
                             SummaryService.get_individual_summary,
                             main_concept=graph['conceptId'],
+                            main_concept_uuid=graph['conceptUuid'],
                             related_concepts=graph['relatedConcepts'],
                             chunks=graph['topChunks']
                         ))
@@ -177,23 +169,60 @@ class SummaryService():
             for future in concurrent.futures.as_completed(futures):
                 try:
                     summary = future.result()
-                    summaryId = summaryIds.pop()
 
-                    SupabaseService.update_summary(summaryId, 'summary', summary['content'])
-                    SupabaseService.update_note(noteId, 'summaryStatus', summaryId)
-                    summaries.append({
-                        'summaryId': summaryId,
+                    SupabaseService.update_note(noteId, 'summaryStatus', str(uuid4()))
+                    summary = {
                         'content': summary['content'],
                         'concept': summary['concept'],
                         'userId': userId,
                         'courseId': courseId,
-                        'noteId': noteId if noteId is not None else 'None'
-                    })
-                    logging.info(f"Generated summary for {summaryId}")
+                        'noteId': noteId if noteId is not None else 'None',
+                        'topicId': summary['concept_uuid']
+                    }
+
+                    GraphCreationService.insert_summaries([summary])
+                    logging.info(f"Generated summary")
                 except Exception as e:
                     logging.error(f"Error generating summary: {str(e)}")
                     raise
         
         SupabaseService.update_note(noteId, 'summaryStatus', 'complete')
+            
+    @staticmethod
+    def generate_topic_summary(
+        userId: str,
+        courseId: str,
+        topicId: str,
+    ):
+        logging.info(f"Generating topic summary for {topicId}")
+
+        topic_graph = GraphQueryService.get_topic_graph_for_topic_uuid(topic_uuid=topicId)[0]['result']
+
+        if topic_graph is None:
+            return None
         
-        GraphCreationService.insert_summaries(summaries)
+        summaryId = SupabaseService.add_summary(topicId=topicId)[0]['id']
+        
+        summary = SummaryService.get_individual_summary(
+            main_concept=topic_graph['start_concept']['id'],
+            main_concept_uuid=topic_graph['start_concept']['uuid'],
+            related_concepts=topic_graph['related_concepts'],
+            chunks=topic_graph['related_chunks']
+        )
+
+        if summary is None:
+            return None
+        
+        summary_final = {
+            'summaryId': summaryId,
+            'content': summary['content'],
+            'concept': topic_graph['start_concept']['id'],
+            'userId': userId,
+            'courseId': courseId,
+            'topicId': topicId,
+            'noteId': 'None'
+        }
+
+        GraphCreationService.insert_summaries([summary_final])
+
+        SupabaseService.update_summary(summaryId, 'status', 'complete')

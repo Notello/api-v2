@@ -238,16 +238,17 @@ class GraphCreationService:
         query = """
         UNWIND $summaries AS s
         CREATE (summary:Summary {
-            id: s.summaryId,
             userId: s.userId,
             courseId: s.courseId,
             noteId: s.noteId,
             content: s.content,
-            concept: s.concept
+            concept: s.concept,
+            topicId: s.topicId
         })
 
         WITH summary, s
-        MATCH (concept:Concept {id: s.concept})
+        MATCH (concept:Concept)
+        WHERE s.topicId IN concept.uuid
         CREATE (concept)-[:HAS_SUMMARY]->(summary)
         
         RETURN s
@@ -255,16 +256,13 @@ class GraphCreationService:
 
         params = {'summaries': [
             {
-                'summaryId': s['summaryId'],
                 'userId': s['userId'],
                 'courseId': s['courseId'],
                 'noteId': s['noteId'],
                 'content': s['content'],
                 'concept': s['concept'],
+                'topicId': s['topicId'],
             } for s in summaries
         ]}
-
-        print(params)
-        print(query)
 
         graphAccess.execute_query(query, params)

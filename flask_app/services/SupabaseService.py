@@ -5,7 +5,7 @@ from supabase import Client
 from flask import current_app
 from flask_app.services.HelperService import HelperService
 
-from flask_app.constants import NOTE_TABLE_NAME, QUIZ_QUESTION_TABLE_NAME, QUIZ_TABLE_NAME, SUMMARY_TABLE_NAME
+from flask_app.constants import NOTE_TABLE_NAME, QUIZ_QUESTION_TABLE_NAME, QUIZ_TABLE_NAME, TOPIC_SUMMARY_TABLE_NAME
 
 supabase: Client = current_app.config['SUPABASE_CLIENT']
 
@@ -72,8 +72,8 @@ class SupabaseService:
 
         logging.info(f'Updating note {noteId} with key {key} and value {value}')
         return supabase.table(NOTE_TABLE_NAME).update({
-            key: value
-            }).eq('id', noteId).execute().data
+            str(key): str(value)
+            }).eq('id', str(noteId)).execute().data
     
     @staticmethod
     def create_quiz(
@@ -115,20 +115,19 @@ class SupabaseService:
             return []
 
         return supabase.table(QUIZ_TABLE_NAME).update({
-            key: value
-            }).eq('id', quizId).execute().data
+            str(key): str(value)
+            }).eq('id', str(quizId)).execute().data
     
     @staticmethod
     def add_summary(
-        noteId: str
+        topicId: str
     ) -> List[str]:
-        if not HelperService.validate_all_uuid4(noteId):
-            logging.error(f'Invalid noteId: {noteId}')
+        if not HelperService.validate_all_uuid4(topicId):
+            logging.error(f'Invalid noteId: {topicId}')
             return []
 
-        return supabase.table(SUMMARY_TABLE_NAME).insert({
-            'noteId': noteId,
-            'summary': '',
+        return supabase.table(TOPIC_SUMMARY_TABLE_NAME).insert({
+            'topicId': str(topicId)
         }).execute().data
     
     @staticmethod
@@ -142,6 +141,6 @@ class SupabaseService:
             return None
 
         logging.info(f'Updating summary {summaryId} with key {key}')
-        return supabase.table(SUMMARY_TABLE_NAME).update({
-            key: value
-            }).eq('id', summaryId).execute().data
+        return supabase.table(TOPIC_SUMMARY_TABLE_NAME).update({
+            str(key): str(value)
+            }).eq('id', str(summaryId)).execute().data

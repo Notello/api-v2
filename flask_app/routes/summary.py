@@ -19,27 +19,25 @@ create_topic_summary_parser.add_argument('userId', location='form',
 create_topic_summary_parser.add_argument('courseId', location='form',
                         type=str, required=True,
                         help='Course ID associated with the summary')
-create_topic_summary_parser.add_argument('topics', location='form', action='split')
 
 @api.expect(create_topic_summary_parser)
-@api.route('/generate-topic-summary')
+@api.route('/generate-topic-summary/<string:topicId>')
 class GenerateTopicSummary(Resource):
-    def post(self):
+    def post(self, topicId):
         args = create_topic_summary_parser.parse_args()
         userId = args.get('userId', None)
         courseId = args.get('courseId', None)
-        topics = args.get('topics', None)
 
-        if topics is None:
-            topics = []
-
-        if (
-            not HelperService.validate_all_uuid4(userId, courseId)
-            or len(topics) == 0
-        ):
-            return {'message': 'Must have userId, courseId, and at least one topic'}, 400
+        if (not HelperService.validate_all_uuid4(userId, courseId, topicId)):
+            return {'message': 'Must have userId, courseId, and topicId'}, 400
         
-        return {'message': 'Not implemented yet'}, 400
+        SummaryService.generate_topic_summary(
+            userId=userId, 
+            courseId=courseId,
+            topicId=topicId
+            )
+        
+        return {'message': 'Summary generating'}, 200
 
 create_note_summary_parser = api.parser()
 
@@ -73,3 +71,8 @@ class GenerateNoteSummary(Resource):
             noteId=noteId,
             specifierParam='noteId'
             )
+    
+@api.route('/get-summary-for/<string:param>/<string:id>')
+class GetSummaryFor(Resource):
+    def get(self, param, id):
+        return GraphQueryService.get_summary_for_param(param=param, id=id)
