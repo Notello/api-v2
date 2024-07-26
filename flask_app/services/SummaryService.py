@@ -1,6 +1,6 @@
 import concurrent.futures
 from concurrent.futures import ThreadPoolExecutor
-import json
+import re
 import logging
 from typing import Dict, List, Optional
 from tiktoken import encoding_for_model
@@ -13,7 +13,7 @@ from retry import retry
 from flask_app.services.GraphQueryService import GraphQueryService
 from flask_app.services.HelperService import HelperService
 from flask_app.src.shared.common_fn import get_llm
-from flask_app.constants import GPT_35_TURBO_MODEL, GPT_4O_MODEL, GPT_4O_MINI
+from flask_app.constants import COURSEID, GPT_35_TURBO_MODEL, GPT_4O_MODEL, GPT_4O_MINI, LLAMA_405_MODEL, LLAMA_70B_MODEL, NOTEID, USERID
 from flask_app.services.SupabaseService import SupabaseService
 from flask_app.services.GraphCreationService import GraphCreationService
 
@@ -28,19 +28,28 @@ def setup_llm(
     chunks_str: str,
 ):
     system_prompt = """
-    You are an advanced Markdown formatted summarization system. Your task is to generate a focused, extended sub-summary that delves deeply into a single main concept.
+    You are an advanced citation focused Markdown formatted summarization system. Your task is to generate a focused, extended sub-summary that delves deeply into a single main concept and cites as many related concepts as possible.
 
     ## Key Guidelines:
-    1. Focus exclusively on the main concept, only mentioning related concepts in direct relation to the main concept.
+    1. Focus exclusively on the main concept, mentioning as many ##RELATED CONCEPTS## as possible in direct relation to the main concept.
     2. Create a sub-summary equivalent to 6-8 paragraphs in length, using markdown formatting for readability.
     3. Start immediately with content relevant to the main concept. No introduction or conclusion.
-    4. Use provided information to support your summary with specific details and examples.
+    4. Use provided chunks to support your summary with specific details and examples.
     5. Utilize markdown features: headings, lists, bold/italic text, blockquotes, code blocks, and tables as appropriate.
-    6. IMPORTANT: Cite individual chunks using ONLY this format: [Chunk Name](Chunk UUID)
-       Examples:
-       - [Introduction to AI](550e8400-e29b-41d4-a716-446655440000)
-       - [Machine Learning Basics](6ba7b810-9dad-11d1-80b4-00c04fd430c8)
-       - [Neural Networks](6ba7b811-9dad-11d1-80b4-00c04fd430c8)
+    6. Prefer to use code blocks to highlight important information.
+
+    ## CRITICAL: Concept and Chunk Citation Guidelines
+    2. ALWAYS cite ##RELATED CONCEPTS## using this format: [Concept Name](Concept UUID)
+    3. ALWAYS cite chunks using this format: [Chunk Name](Chunk UUID)
+
+    Examples:
+    - Related Concept: [Machine Learning](6ba7b810-9dad-11d1-80b4-00c04fd430c8)
+    - Chunk: [Introduction to AI](6ba7b811-9dad-11d1-80b4-00c04fd430c8)
+
+    IMPORTANT: 
+    - Cite the main concept and ##RELATED CONCEPTS## as frequently as possible without disrupting readability.
+    - Aim to include ALL ##RELATED CONCEPTS## at least once in your summary.
+    - Failure to cite correctly or adding a conclusion will result in immediate termination.
 
     Always start with a level 2 heading of the main concept and end with relevant, substantive information.
     """
@@ -49,7 +58,7 @@ def setup_llm(
     Generate a focused, extended sub-summary based on:
 
     Main Concept: {main_concept}
-    Related Concepts: {related_concepts_str}
+    ##RELATED CONCEPTS##: {related_concepts_str}
 
     Text Information:
     {chunks_str}
@@ -63,9 +72,15 @@ def setup_llm(
     - End with substantive information about the main concept
 
     #CRITICAL:
-    - ALWAYS cite chunks using ONLY this format: [Chunk Name](Chunk UUID)
+    - ALWAYS cite ##RELATED CONCEPTS## using this format: [Concept Name](Concept UUID)
+    - ALWAYS cite chunks using this format: [Chunk Name](Chunk UUID)
+    - Include as many ##RELATED CONCEPTS## as possible, aiming to reference ALL of them at least once
+    - Cite concepts and chunks as frequently as possible without disrupting readability
+    - Never say the word "Chunk" or "Chunks" in your summary, simply refer to the document name
     - NO conclusions or summaries at the end
     - Failure to cite correctly or adding a conclusion will result in immediate termination
+
+    Remember to reference the main concept and ##RELATED CONCEPTS## using their respective UUIDs whenever mentioned.
     """
 
     extraction_llm = get_llm(GPT_4O_MINI)
@@ -89,8 +104,9 @@ def generate_summary(
 ) -> Optional[Summary]:
     try:
         logging.info(f"Generating summary for Main Concept: {main_concept}")
-        related_concepts_str = ", ".join([concept['id'] for concept in related_concepts])
-        chunks_str = "\n".join([f"Chunk Name: {chunk['document_name']}, Chunk ID: {chunk['id']}, Chunk Text: {chunk['text']}" for chunk in chunks])
+        related_concepts_str = ", ".join([f"Concept Name: {concept['id']}, Concept UUID: {concept['uuid']}" for concept in related_concepts])
+        chunks_str = "\n".join([f"Chunk Name: {chunk['document_name']}, Chunk UUID: {chunk['id']}, Chunk Text: {chunk['text']}" for chunk in chunks])
+        chunks_map = {chunk['id']: chunk['document_name'] for chunk in chunks}
 
         logging.info(f"Chunks: {chunks_str}")
 
@@ -107,7 +123,8 @@ def generate_summary(
         return {
             'content': result.dict()['content'],
             'concept': main_concept,
-            'concept_uuid': main_concept_uuid
+            'concept_uuid': main_concept_uuid,
+            'chunks_map': chunks_map
         }
     except Exception as e:
         logging.error(f"Error generating summary: {str(e)}")
@@ -145,15 +162,15 @@ class SummaryService():
             logging.error(f"Must have noteId or courseId and at least one topic")
             return None
 
-        id = noteId if specifierParam == 'noteId' else courseId
+        id = noteId if specifierParam == NOTEID else courseId
 
         importance_graph = GraphQueryService.get_importance_graph_by_param(param=specifierParam, id=id)
-        topics = GraphQueryService.get_topics_for_param(param=specifierParam, id=id)
+        topics = GraphQueryService.get_topics_for_param(param=COURSEID, id=courseId)
 
-        if importance_graph is None:
+        if importance_graph is None or len(importance_graph) == 0:
             logging.error(f"No importance graph found for {specifierParam}: {id}")
             return None
-
+        
         futures = []
 
         with ThreadPoolExecutor(max_workers=10) as executor:
@@ -174,14 +191,19 @@ class SummaryService():
 
                     SupabaseService.update_note(noteId, 'summaryStatus', str(uuid4()))
 
-                    modified_content = SummaryService.inject_topic_links(summary['content'], topics=topics)
+                    modified_content = SummaryService.inject_topic_links(
+                        summary['content'], 
+                        topics=topics, 
+                        chunks_map=summary['chunks_map'],
+                        courseId=courseId
+                        )
 
                     summary = {
                         'content': modified_content,
                         'concept': summary['concept'],
-                        'userId': userId,
-                        'courseId': courseId,
-                        'noteId': noteId if noteId is not None else 'None',
+                        USERID: userId,
+                        COURSEID: courseId,
+                        NOTEID: noteId if noteId is not None else 'None',
                         'topicId': summary['concept_uuid']
                     }
 
@@ -199,9 +221,15 @@ class SummaryService():
         courseId: str,
         topicId: str,
     ):
-        logging.info(f"Generating topic summary for {topicId}")
+        logging.info(f"Generating topic summary for topic: {topicId}")
 
-        topic_graph = GraphQueryService.get_topic_graph_for_topic_uuid(topic_uuid=topicId)[0]['result']
+        topic_graph = GraphQueryService.get_topic_graph_for_topic_uuid(topic_uuid=topicId)
+
+        if topic_graph is None or len(topic_graph) == 0:
+            logging.error(f"No topic graph found for {topicId}, topic_graph: {topic_graph}")
+            return None
+
+        topics = GraphQueryService.get_topics_for_param(param=COURSEID, id=courseId)
 
         if topic_graph is None:
             return None
@@ -215,17 +243,28 @@ class SummaryService():
             chunks=topic_graph['related_chunks']
         )
 
+        logging.info(f"Generated summary for topic {topicId}")
+
         if summary is None:
             return None
         
+        logging.info(f"All topics: {topics}")
+        
+        summary_final = SummaryService.inject_topic_links(
+            summary['content'], 
+            topics=topics, 
+            chunks_map=summary['chunks_map'],
+            courseId=courseId
+            )
+        
         summary_final = {
             'summaryId': summaryId,
-            'content': summary['content'],
+            'content': summary_final,
             'concept': topic_graph['start_concept']['id'],
-            'userId': userId,
-            'courseId': courseId,
+            USERID: userId,
+            COURSEID: courseId,
             'topicId': topicId,
-            'noteId': 'None'
+            NOTEID: 'None'
         }
 
         GraphCreationService.insert_summaries([summary_final])
@@ -235,14 +274,56 @@ class SummaryService():
     @staticmethod
     def inject_topic_links(
         content: str,
-        topics: List[Dict[str, str]]
+        topics: List[Dict[str, str]],
+        chunks_map: Dict[str, str],
+        courseId: str
     ) -> str:
-        
-        logging.info(f"Injecting topic links into content: {content}")
+        logging.info(f"Content before topic injection: {content}")
         logging.info(f"Topics: {topics}")
+        logging.info(f"Chunks Map: {chunks_map}")
         
-        for topic in topics:
-            content = content.replace(f"[{topic['conceptId']}]", f"[{topic['conceptId']}](/topic/{topic['conceptUuid']})")
+        # Sort topics by length of conceptId in descending order
+        # This ensures longer matches are replaced first
+        sorted_topics = sorted(topics, key=lambda x: len(x['conceptId']), reverse=True)
+        
+        def normalize_text(text):
+            return re.sub(r'[-_/\s]', '', text.lower())
+
+        # Step 1: Replace chunk references
+        def replace_chunk_reference(match):
+            link_text, link_url = match.groups()
+            if link_url in chunks_map:
+                return f"[{chunks_map[link_url]}]({link_url})"
+            return match.group(0)
+
+        content = re.sub(r'\[([^\]]+)\]\(([^\)]+)\)', replace_chunk_reference, content)
+
+        # Step 2: Replace concept names
+        def replace_concept(match):
+            word = match.group(0)
+            normalized_word = normalize_text(word)
+            for topic in sorted_topics:
+                if normalize_text(topic['conceptId']) == normalized_word:
+                    return f"[{word}](/course/{courseId}/topic/{topic['conceptUuid']})"
+            return word
+
+        # Split content into parts: inside links and outside links
+        parts = re.split(r'(\[[^\]]+\]\([^\)]+\))', content)
+        
+        for i in range(0, len(parts), 2):
+            # Only process parts outside of links
+            parts[i] = re.sub(r'\b[\w-]+\b', replace_concept, parts[i])
+
+        content = ''.join(parts)
+
+        # Step 3: Process remaining concept links injected by the LLM
+        def process_remaining_concepts(match):
+            concept_name, uuid = match.groups()
+            if uuid not in chunks_map:  # Ensure it's not a chunk reference
+                return f"[{concept_name}](/course/{courseId}/topic/{uuid})"
+            return match.group(0)
+
+        content = re.sub(r'\[([^\]]+)\]\(([a-f0-9-]+)\)', process_remaining_concepts, content)
 
         logging.info(f"Injected topic links into content: {content}")
 

@@ -8,7 +8,7 @@ def get_youtube_transcript(youtube_id):
     try:
         try:
             transcript_dict = YouTubeTranscriptApi.get_transcript(youtube_id, languages=('en',))
-        except NoTranscriptFound:
+        except Exception:
             transcript_dict = YouTubeTranscriptApi.get_transcript(youtube_id, languages=('en-US',))
         
         transcript = ''

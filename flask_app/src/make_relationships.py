@@ -8,6 +8,7 @@ from typing import List
 from neo4j.exceptions import ClientError, TransientError
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from flask_app.services.Neo4jTransactionManager import transactional
+from flask_app.constants import COURSEID, NOTEID, USERID
 
 logging.basicConfig(format='%(asctime)s - %(message)s', level='INFO')
 
@@ -84,7 +85,7 @@ def update_embedding_create_vector_index(chunkId_chunkDoc_list, noteId):
         SET c.embedding = row.embeddings
         MERGE (c)-[r:HAS_DOCUMENT {type: 'PART_OF'}]->(d)
     """       
-    get_graph().query(query_to_create_embedding, {"noteId": noteId, "data": data_for_query})
+    get_graph().query(query_to_create_embedding, {NOTEID: noteId, "data": data_for_query})
 
     logging.info(f"Updated embeddings for {len(data_for_query)} chunks")
 
@@ -120,9 +121,9 @@ def create_relation_between_chunks(
             "pg_content": chunk_document.page_content,
             "position": realI + 1,
             "length": chunk_document.metadata["length"],
-            "noteId": noteId,
-            "courseId": courseId,
-            "userId": userId,
+            NOTEID: noteId,
+            COURSEID: courseId,
+            USERID: userId,
             "previous_id" : previous_chunk_id,
             "document_name": document_name,
             "offset": offset
@@ -179,7 +180,7 @@ def create_relation_between_chunks(
         FOREACH(r IN CASE WHEN relationship.type = 'FIRST_CHUNK' THEN [1] ELSE [] END |
                 MERGE (d)-[:HAS_CHUNK {type: 'FIRST_CHUNK'}]->(c))
         """
-    get_graph().query(query_to_create_FIRST_relation, {"noteId": noteId, "relationships": relationships})   
+    get_graph().query(query_to_create_FIRST_relation, {NOTEID: noteId, "relationships": relationships})   
     
     query_to_create_NEXT_CHUNK_relation = """ 
         UNWIND $relationships AS relationship

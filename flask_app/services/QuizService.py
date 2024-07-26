@@ -15,7 +15,7 @@ from flask_app.services.GraphQueryService import GraphQueryService
 from flask_app.services.SupabaseService import SupabaseService
 from flask_app.services.GraphCreationService import GraphCreationService
 from flask_app.src.shared.common_fn import get_llm
-from flask_app.constants import GPT_4O_MINI
+from flask_app.constants import COURSEID, GPT_4O_MINI, NOTEID, USERID
 
 logger = logging.getLogger(__name__)
 
@@ -132,7 +132,7 @@ def generate_quiz_questions(
         raise
 
 class QuizService():
-    validSpecifiers = ['courseId', 'noteId']
+    validSpecifiers = [COURSEID, NOTEID]
 
     @staticmethod
     def generate_quiz(topics=[],
@@ -146,7 +146,7 @@ class QuizService():
                       ):
         
         try:
-            id = noteId if specifierParam == 'noteId' else courseId
+            id = noteId if specifierParam == NOTEID else courseId
 
             topic_graph = GraphQueryService.get_topic_graph(
                 id=id,
@@ -178,9 +178,9 @@ class QuizService():
                     {
                         'questionId': str(uuid.uuid4()),
                         'quizId': [quizId],
-                        'courseId': [courseId],
-                        'noteId': [noteId],
-                        'userId': [userId],
+                        COURSEID: [courseId],
+                        NOTEID: [noteId],
+                        USERID: [userId],
                         'question': question['question'].question,
                         'difficulty': question['question'].difficulty,
                         'answers': [{'label': answer.answer, 'correct': answer.correct, 'explanation': answer.explanation} for answer in question['question'].answers],

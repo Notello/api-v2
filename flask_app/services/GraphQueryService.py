@@ -521,6 +521,9 @@ class GraphQueryService():
             'id': id
         }
 
+        print(f"Query: {QUERY}")
+        print(f"Parameters: {parameters}")
+
         result = graphAccess.execute_query(QUERY, parameters)
 
         return result

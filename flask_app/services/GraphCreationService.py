@@ -14,6 +14,7 @@ from .HelperService import HelperService
 from .SimilarityService import SimilarityService
 from flask_app.models.Quiz import QuizQuestion
 from flask_app.src.shared.common_fn import get_graph
+from flask_app.constants import COURSEID, NOTEID, USERID
 
 class GraphCreationService:
     @staticmethod
@@ -208,9 +209,9 @@ class GraphCreationService:
             {
                 'questionId': q['questionId'],
                 'quizId': q['quizId'],
-                'userId': q['userId'],
-                'courseId': q['courseId'],
-                'noteId': q['noteId'] if q['noteId'] != [None] else "None",
+                USERID: q[USERID],
+                COURSEID: q[COURSEID],
+                NOTEID: q[NOTEID] if q[NOTEID] != [None] else "None",
                 'question': q['question'],
                 'difficulty': q['difficulty'],
                 'answers': json.dumps([{  # When getting answers, need to do json.loads()
@@ -252,9 +253,9 @@ class GraphCreationService:
 
         params = {'summaries': [
             {
-                'userId': s['userId'],
-                'courseId': s['courseId'],
-                'noteId': s['noteId'],
+                USERID: s[USERID],
+                COURSEID: s[COURSEID],
+                NOTEID: s[NOTEID],
                 'content': s['content'],
                 'concept': s['concept'],
                 'topicId': s['topicId'],

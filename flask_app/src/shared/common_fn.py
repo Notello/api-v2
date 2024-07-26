@@ -19,7 +19,7 @@ from neo4j.exceptions import ClientError, TransientError
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from flask_app.services.Neo4jTransactionManager import transactional
 
-from flask_app.constants import MIXTRAL_MODEL, LLAMA_8_MODEL, GPT_35_TURBO_MODEL, GPT_4O_MODEL, GPT_4O_MINI, LLAMA_8_TOOL_MODEL
+from flask_app.constants import COURSEID, LLAMA_405_MODEL, LLAMA_70B_MODEL, MIXTRAL_MODEL, LLAMA_8_MODEL, GPT_35_TURBO_MODEL, GPT_4O_MODEL, GPT_4O_MINI, LLAMA_8_TOOL_MODEL, NOTEID, USERID
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -98,9 +98,9 @@ def update_graph_documents(
                 "id": node.id,
                 "uuid": str(uuid.uuid4()),
                 "type": node.type,
-                "noteId": noteId,
-                "courseId": courseId,
-                "userId": userId
+                NOTEID: noteId,
+                COURSEID: courseId,
+                USERID: userId
             }
             if hasattr(node, 'properties') and isinstance(node.properties, dict):
                 for key, value in node.properties.items():
@@ -174,7 +174,7 @@ def get_llm(model_version:str):
                       temperature=.1)
     logging.info(f"Model created : Model Version: {model_version}")
     return llm
-  elif model_version == MIXTRAL_MODEL or model_version == LLAMA_8_MODEL or model_version == LLAMA_8_TOOL_MODEL:
+  elif model_version == MIXTRAL_MODEL or model_version == LLAMA_8_MODEL or model_version == LLAMA_8_TOOL_MODEL or model_version == LLAMA_405_MODEL or model_version == LLAMA_70B_MODEL:
     llm = ChatGroq(api_key=os.environ.get('GROQ_KEY'), 
                     model=model_version, 
                     temperature=.1)

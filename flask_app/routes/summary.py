@@ -7,16 +7,17 @@ from flask_app.services.GraphQueryService import GraphQueryService
 from flask_app.services.SupabaseService import SupabaseService
 from flask_app.services.ContextAwareThread import ContextAwareThread
 from flask_app.services.SummaryService import SummaryService
+from flask_app.constants import COURSEID, NOTEID, USERID
 
 api = Namespace('summary')
 
 
 create_topic_summary_parser = api.parser()
 
-create_topic_summary_parser.add_argument('userId', location='form',
+create_topic_summary_parser.add_argument(USERID, location='form',
                         type=str, required=True,
                         help='Supabase ID of the user')
-create_topic_summary_parser.add_argument('courseId', location='form',
+create_topic_summary_parser.add_argument(COURSEID, location='form',
                         type=str, required=True,
                         help='Course ID associated with the summary')
 
@@ -25,8 +26,8 @@ create_topic_summary_parser.add_argument('courseId', location='form',
 class GenerateTopicSummary(Resource):
     def post(self, topicId):
         args = create_topic_summary_parser.parse_args()
-        userId = args.get('userId', None)
-        courseId = args.get('courseId', None)
+        userId = args.get(USERID, None)
+        courseId = args.get(COURSEID, None)
 
         if (not HelperService.validate_all_uuid4(userId, courseId, topicId)):
             return {'message': 'Must have userId, courseId, and topicId'}, 400
@@ -41,10 +42,10 @@ class GenerateTopicSummary(Resource):
 
 create_note_summary_parser = api.parser()
 
-create_note_summary_parser.add_argument('userId', location='form',
+create_note_summary_parser.add_argument(USERID, location='form',
                         type=str, required=True,
                         help='Supabase ID of the user')
-create_note_summary_parser.add_argument('courseId', location='form',
+create_note_summary_parser.add_argument(COURSEID, location='form',
                         type=str, required=True,
                         help='Course ID associated with the summary')  
 
@@ -53,8 +54,8 @@ create_note_summary_parser.add_argument('courseId', location='form',
 class GenerateNoteSummary(Resource):
     def post(self, noteId):
         args = create_note_summary_parser.parse_args()
-        userId = args.get('userId', None)
-        courseId = args.get('courseId', None)
+        userId = args.get(USERID, None)
+        courseId = args.get(COURSEID, None)
 
         if (
             not HelperService.validate_all_uuid4(userId, courseId, noteId)
@@ -65,7 +66,7 @@ class GenerateNoteSummary(Resource):
             userId=userId, 
             courseId=courseId,
             noteId=noteId,
-            specifierParam='noteId'
+            specifierParam=NOTEID
             )
     
 @api.route('/get-summary-for/<string:param>/<string:id>')

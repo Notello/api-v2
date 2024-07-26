@@ -3,7 +3,7 @@ import logging
 from typing import Dict
 from concurrent.futures import ThreadPoolExecutor
 import concurrent.futures
-from neo4j.exceptions import ClientError, TransientError
+from neo4j.exceptions import ClientError, TransientError, TransactionError
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from tqdm import tqdm
 
@@ -11,13 +11,14 @@ from .Neo4jTransactionManager import transactional
 from flask_app.src.shared.common_fn import load_embedding_model, embed_name
 from flask_app.services.GraphQueryService import GraphQueryService
 from flask_app.services.EntityResolver import entity_resolution
+from flask_app.constants import NOTEID
 
 class NodeUpdateService:
     @staticmethod
     @retry(
-        stop=stop_after_attempt(3),
+        stop=stop_after_attempt(5),
         wait=wait_exponential(multiplier=1, min=4, max=10),
-        retry=retry_if_exception_type((ClientError, TransientError)),
+        retry=retry_if_exception_type((ClientError, TransientError, TransactionError)),
         reraise=True
     )
     @transactional
@@ -187,7 +188,7 @@ class NodeUpdateService:
         RETURN n.id as id
         """
 
-        result = tx.run(query, {'noteId': noteId})
+        result = tx.run(query, {NOTEID: noteId})
 
         nodes_to_update = []
         futures = []
@@ -217,7 +218,7 @@ class NodeUpdateService:
         RETURN count(n) as updatedCount
         """
 
-        update_result = tx.run(update_query, {'nodes': nodes_to_update, 'noteId': noteId})
+        update_result = tx.run(update_query, {'nodes': nodes_to_update, NOTEID: noteId})
         logging.info(f"Updated nodes: {update_result.single()['updatedCount']}")
 
         return dimension
@@ -370,7 +371,7 @@ class NodeUpdateService:
         # First, check if there are any nodes that match the criteria
         check_query = f"""
         MATCH (n)
-        WHERE n:Concept OR n:Chunk
+        WHERE (n:Concept OR n:Chunk)
         AND "{target_id}" IN n.{id_type}
         RETURN count(n) AS nodeCount
         """
@@ -385,16 +386,21 @@ class NodeUpdateService:
         # If nodes exist, proceed with the community detection
         query = f"""
         MATCH (n)
-        WHERE n:Concept OR n:Chunk
+        WHERE (n:Concept OR n:Chunk)
         AND "{target_id}" IN n.{id_type}
         WITH collect(n) AS nodes
 
         CALL gds.graph.project.cypher(
         '{graph_id}_temp_graph',
         'UNWIND $nodes AS n RETURN id(n) AS id',
-        'MATCH (n1)-[:RELATED]-(n2)
+        'MATCH (n1)-[r]-(n2)
         WHERE n1 IN $nodes AND n2 IN $nodes
         AND (n1:Concept OR n1:Chunk) AND (n2:Concept OR n2:Chunk)
+        AND (
+            (n1:Concept AND n2:Concept) OR
+            (n1:Concept AND n2:Chunk) OR
+            (n2:Concept AND n1:Chunk)
+        )
         RETURN id(n1) AS source, id(n2) AS target',
         {{parameters: {{nodes: nodes}}}}
         )
@@ -416,7 +422,7 @@ class NodeUpdateService:
 
         try:
             result = tx.run(query)
-            communities = [(record["node"].id, record["communityId"]) for record in result]
+            communities = [(record["node"].id, record["communityId"]) for record in result if record is not None and record["node"] is not None and record["communityId"] is not None]
 
             if not communities:
                 logging.info(f"No communities detected for {id_type}: {target_id}")

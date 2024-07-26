@@ -5,7 +5,7 @@ from supabase import Client
 from flask import current_app
 from flask_app.services.HelperService import HelperService
 
-from flask_app.constants import NOTE_TABLE_NAME, QUIZ_QUESTION_TABLE_NAME, QUIZ_TABLE_NAME, TOPIC_SUMMARY_TABLE_NAME
+from flask_app.constants import COURSEID, NOTE_TABLE_NAME, NOTEID, QUIZ_QUESTION_TABLE_NAME, QUIZ_TABLE_NAME, TOPIC_SUMMARY_TABLE_NAME, USERID
 
 supabase: Client = current_app.config['SUPABASE_CLIENT']
 
@@ -26,8 +26,8 @@ class SupabaseService:
                 return []
 
             out = supabase.table(NOTE_TABLE_NAME).insert({
-                'courseId': courseId,
-                'userId': userId,
+                COURSEID: courseId,
+                USERID: userId,
                 'form': form,
                 'contentStatus': status,
                 'rawContent': content,
@@ -88,9 +88,9 @@ class SupabaseService:
             return None
 
         quiz = supabase.table(QUIZ_TABLE_NAME).insert({
-            'noteId': noteId,
-            'courseId': courseId,
-            'userId': userId,
+            NOTEID: noteId,
+            COURSEID: courseId,
+            USERID: userId,
             'difficulty': difficulty,
             'num_questions': numQuestions,
         }).execute().data

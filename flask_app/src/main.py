@@ -13,6 +13,7 @@ from flask_app.src.shared.common_fn import get_chunk_and_graphDocument, update_g
 from flask_app.services.SupabaseService import SupabaseService
 from flask_app.src.process_file import clean_file
 from flask_app.services.NodeUpdateService import NodeUpdateService
+from flask_app.constants import COURSEID, NOTEID
 from flask import current_app
 
 def processing_source(
@@ -73,13 +74,13 @@ def processing_source(
 
   NodeUpdateService.merge_similar_nodes()
 
-  NodeUpdateService.update_communities_for_param(id_type='noteId', target_id=noteId)
-  NodeUpdateService.update_page_rank(param='noteId', id=noteId)
+  NodeUpdateService.update_communities_for_param(id_type=NOTEID, target_id=noteId)
+  NodeUpdateService.update_page_rank(param=NOTEID, id=noteId)
 
   SupabaseService.update_note(noteId=noteId, key='graphStatus', value='complete')
 
-  NodeUpdateService.update_communities_for_param(id_type='courseId', target_id=courseId)
-  NodeUpdateService.update_page_rank(param='courseId', id=courseId)
+  NodeUpdateService.update_communities_for_param(id_type=COURSEID, target_id=courseId)
+  NodeUpdateService.update_page_rank(param=COURSEID, id=courseId)
 
   
   logging.info('Updated the nodeCount and relCount properties in Document node')

@@ -3,6 +3,7 @@ import os
 from langchain_community.graphs import Neo4jGraph
 from flask_app.src.entities.source_node import sourceNode
 import json
+from flask_app.constants import NOTEID
 
 class graphDBdataAccess:
 
@@ -58,7 +59,7 @@ class graphDBdataAccess:
         try:
             attributes = {attr: getattr(obj_source_node, attr) for attr in vars(obj_source_node) if getattr(obj_source_node, attr) is not None}
 
-            if 'noteId' not in attributes or not attributes['noteId']:
+            if 'noteId' not in attributes or not attributes[NOTEID]:
                 raise ValueError("noteId must be provided and cannot be empty.")
 
             params = {"props": attributes}

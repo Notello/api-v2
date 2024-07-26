@@ -6,6 +6,7 @@ from flask_app.services.ContextAwareThread import ContextAwareThread
 from flask_app.services.NoteService import NoteForm, NoteService
 from flask_app.services.GraphCreationService import GraphCreationService
 from flask_app.services.HelperService import HelperService
+from flask_app.constants import COURSEID, NOTEID, USERID
 
 
 api = Namespace('upload')
@@ -14,10 +15,10 @@ intake_youtube_parser = api.parser()
 intake_youtube_parser.add_argument('youtubeUrl', location='form',
                         type=str, required=False,
                         help='Youtube url')
-intake_youtube_parser.add_argument('userId', location='form',
+intake_youtube_parser.add_argument(USERID, location='form',
                         type=str, required=True,
                         help='Supabase id of the user')
-intake_youtube_parser.add_argument('courseId', location='form',
+intake_youtube_parser.add_argument(COURSEID, location='form',
                         type=str, required=True,
                         help='Id of the course to add the note to')
 
@@ -30,8 +31,8 @@ class YoutubeIntake(Resource):
 
             args = intake_youtube_parser.parse_args()
             youtubeUrl = args.get('youtubeUrl', None)
-            userId = args.get('userId', None)
-            courseId = args.get('courseId', None)
+            userId = args.get(USERID, None)
+            courseId = args.get(COURSEID, None)
 
             logging.info(f"Youtube url: {youtubeUrl}")
 
@@ -55,7 +56,7 @@ class YoutubeIntake(Resource):
 
             logging.info(f"Source Node created successfully for source type: youtube and source: {youtubeUrl}")
 
-            return {'noteId': noteId}, 200
+            return {NOTEID: noteId}, 200
         except Exception as e:
             message = f" Unable to create source node for source type: youtube, Exception: {e}"
             logging.exception(message)
@@ -68,10 +69,10 @@ create_audio_note_parser.add_argument('file', location='files',
 create_audio_note_parser.add_argument('keywords', location='form', 
                         type=str, required=False,
                         help='Space-separated keywords to enhance transcription accuracy')
-create_audio_note_parser.add_argument('userId', location='form', 
+create_audio_note_parser.add_argument(USERID, location='form', 
                         type=str, required=True,
                         help='Supabase ID of the user')
-create_audio_note_parser.add_argument('courseId', location='form', 
+create_audio_note_parser.add_argument(COURSEID, location='form', 
                         type=str, required=True,
                         help='Course ID associated with the note')
 
@@ -81,8 +82,8 @@ class AudioIntake(Resource):
     def post(self):
         try:
             args = create_audio_note_parser.parse_args()
-            userId = args.get('userId', None)
-            courseId = args.get('courseId', None)
+            userId = args.get(USERID, None)
+            courseId = args.get(COURSEID, None)
             audio_file = args.get('file', None)
             keywords = args.get('keywords', None)
 
@@ -104,7 +105,7 @@ class AudioIntake(Resource):
             ).start()
             
             logging.info(f"Source Node created successfully for source type: audio and source: {audio_file}")
-            return {'noteId': noteId}, 201
+            return {NOTEID: noteId}, 201
         except Exception as e:
             message = f" Unable to create source node for source type: audio and source: {audio_file}, Exception: {e}"
             logging.exception(message)
@@ -117,10 +118,10 @@ create_text_note_parser.add_argument('rawText', location='form',
 create_text_note_parser.add_argument('noteName', location='form', 
                         type=str, required=True,
                         help='The name of the note')
-create_text_note_parser.add_argument('userId', location='form', 
+create_text_note_parser.add_argument(USERID, location='form', 
                         type=str, required=True,
                         help='Supabase ID of the user')
-create_text_note_parser.add_argument('courseId', location='form', 
+create_text_note_parser.add_argument(COURSEID, location='form', 
                         type=str, required=True,
                         help='Course ID associated with the note')
 
@@ -129,8 +130,8 @@ create_text_note_parser.add_argument('courseId', location='form',
 class TextIntake(Resource):
     def post(self):
         args = create_text_note_parser.parse_args()
-        userId = args.get('userId', None)
-        courseId = args.get('courseId', None)
+        userId = args.get(USERID, None)
+        courseId = args.get(COURSEID, None)
         rawText = args.get('rawText', None)
         noteName = args.get('noteName', None)
 
@@ -153,16 +154,16 @@ class TextIntake(Resource):
         ).start()
 
         logging.info(f"Source Node created successfully for source type: text and source: {rawText}")
-        return {'noteId': noteId}, 201
+        return {NOTEID: noteId}, 201
 
 create_text_file_note_parser = api.parser()
 create_text_file_note_parser.add_argument('file', location='files', 
                         type=FileStorage, required=True,
                         help='The file to parse')
-create_text_file_note_parser.add_argument('userId', location='form', 
+create_text_file_note_parser.add_argument(USERID, location='form', 
                         type=str, required=True,
                         help='Supabase ID of the user')
-create_text_file_note_parser.add_argument('courseId', location='form', 
+create_text_file_note_parser.add_argument(COURSEID, location='form', 
                         type=str, required=True,
                         help='Course ID associated with the note')
         
@@ -171,8 +172,8 @@ create_text_file_note_parser.add_argument('courseId', location='form',
 class TextFileIntake(Resource):
     def post(self):
         args = create_text_file_note_parser.parse_args()
-        userId = args.get('userId', None)
-        courseId = args.get('courseId', None)
+        userId = args.get(USERID, None)
+        courseId = args.get(COURSEID, None)
         file: FileStorage = args.get('file', None)
 
         if not HelperService.validate_all_uuid4(courseId, userId):
@@ -204,4 +205,4 @@ class TextFileIntake(Resource):
         ).start()
 
         logging.info(f"Source Node created successfully for source type: pdf and source: {file.filename}")
-        return {'noteId': noteId}, 201
+        return {NOTEID: noteId}, 201

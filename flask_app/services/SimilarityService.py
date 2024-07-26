@@ -1,5 +1,6 @@
 import logging
 from flask_app.src.shared.common_fn import get_graph, load_embedding_model
+from flask_app.constants import COURSEID, NOTEID
 
 from flask import current_app
 
@@ -35,7 +36,7 @@ class SimilarityService:
 
         node = get_graph().query(
             query_to_create_or_update_document,
-            params={"noteId": noteId, "embedding": embeddings_arr}
+            params={NOTEID: noteId, "embedding": embeddings_arr}
         )
 
         return node, embeddings_arr   
@@ -57,15 +58,15 @@ class SimilarityService:
         result = get_graph().query(
             query,
             params={
-                "courseId": courseId,
-                "noteId": noteId,
+                COURSEID: courseId,
+                NOTEID: noteId,
                 "queryEmbedding": embeddings_arr,
                 "threshold": self.similarity_threshold
             }
         )
 
         similar_documents = [
-            {"noteId": record["noteId"], "similarity": record["similarity"]}
+            {NOTEID: record[NOTEID], "similarity": record["similarity"]}
             for record in result
         ]
 
@@ -82,7 +83,7 @@ class SimilarityService:
 
         if len(docs) > 0:
             self.delete_node(node[0])
-            return docs[0]["noteId"]
+            return docs[0][NOTEID]
         else:
             return None
 
@@ -97,7 +98,7 @@ class SimilarityService:
         result = get_graph().query(
             query,
             params={
-                "courseId": course_id,
+                COURSEID: course_id,
                 "url": url
             }
         )
@@ -105,7 +106,7 @@ class SimilarityService:
         print("result", result)
 
         if len(result) > 0:
-            return result[0]["noteId"]
+            return result[0][NOTEID]
         else:
             return None
         

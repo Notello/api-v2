@@ -6,6 +6,7 @@ from flask_app.services.HelperService import HelperService
 from flask_app.services.GraphQueryService import GraphQueryService
 from flask_app.services.SupabaseService import SupabaseService
 from flask_app.services.ContextAwareThread import ContextAwareThread
+from flask_app.constants import COURSEID, NOTEID, USERID
 
 logging.basicConfig(format='%(asctime)s - %(message)s', level='INFO')
 
@@ -13,13 +14,13 @@ api = Namespace('quiz')
 
 create_quiz_parser = api.parser()
 
-create_quiz_parser.add_argument('userId', location='form', 
+create_quiz_parser.add_argument(USERID, location='form', 
                         type=str, required=True,
                         help='Supabase ID of the user')
-create_quiz_parser.add_argument('courseId', location='form', 
+create_quiz_parser.add_argument(COURSEID, location='form', 
                         type=str, required=True,
                         help='Course ID associated with the quiz')
-create_quiz_parser.add_argument('noteId', location='form', 
+create_quiz_parser.add_argument(NOTEID, location='form', 
                         type=str, required=False,
                         help='Note ID associated with the quiz, if not provided a topic list is required')
 create_quiz_parser.add_argument('specifierParam', location='form',
@@ -38,9 +39,9 @@ create_quiz_parser.add_argument('topics', location='form', action='split')
 class GenerateQuiz(Resource):
     def post(self):
         args = create_quiz_parser.parse_args()
-        userId = args.get('userId', None)
-        courseId = args.get('courseId', None)
-        noteId = args.get('noteId', None)
+        userId = args.get(USERID, None)
+        courseId = args.get(COURSEID, None)
+        noteId = args.get(NOTEID, None)
         specifierParam = args.get('specifierParam', None)
         difficulty = args.get('difficulty', 3)
         numQuestions = args.get('numQuestions', 5)
@@ -52,7 +53,7 @@ class GenerateQuiz(Resource):
         if (
             not HelperService.validate_all_uuid4(userId, courseId) \
             or (specifierParam is not None and specifierParam not in QuizService.validSpecifiers)
-            or (not HelperService.validate_uuid4(noteId) and specifierParam == 'noteId')
+            or (not HelperService.validate_uuid4(noteId) and specifierParam == NOTEID)
             or not isinstance(topics, list)
         ):
             return {'message': 'Must have userId, courseId, optionally noteId and a valid specifierParam'}, 400
