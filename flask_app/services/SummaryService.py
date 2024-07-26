@@ -234,13 +234,17 @@ class SummaryService():
         if topic_graph is None:
             return None
         
+        print(topic_graph)
+        
         summaryId = SupabaseService.add_summary(topicId=topicId)[0]['id']
+
+        graph = topic_graph[0]['result']
         
         summary = SummaryService.get_individual_summary(
-            main_concept=topic_graph['start_concept']['id'],
-            main_concept_uuid=topic_graph['start_concept']['uuid'],
-            related_concepts=topic_graph['related_concepts'],
-            chunks=topic_graph['related_chunks']
+            main_concept=graph['start_concept']['id'],
+            main_concept_uuid=graph['start_concept']['uuid'],
+            related_concepts=graph['related_concepts'],
+            chunks=graph['related_chunks']
         )
 
         logging.info(f"Generated summary for topic {topicId}")
@@ -260,7 +264,7 @@ class SummaryService():
         summary_final = {
             'summaryId': summaryId,
             'content': summary_final,
-            'concept': topic_graph['start_concept']['id'],
+            'concept': graph['start_concept']['id'],
             USERID: userId,
             COURSEID: courseId,
             'topicId': topicId,
