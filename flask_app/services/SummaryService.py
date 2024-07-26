@@ -148,6 +148,7 @@ class SummaryService():
         id = noteId if specifierParam == 'noteId' else courseId
 
         importance_graph = GraphQueryService.get_importance_graph_by_param(param=specifierParam, id=id)
+        topics = GraphQueryService.get_topics_for_param(param=specifierParam, id=id)
 
         if importance_graph is None:
             logging.error(f"No importance graph found for {specifierParam}: {id}")
@@ -173,10 +174,10 @@ class SummaryService():
 
                     SupabaseService.update_note(noteId, 'summaryStatus', str(uuid4()))
 
-                    # modified_content = SummaryService.inject_topic_links(summary['content'])
+                    modified_content = SummaryService.inject_topic_links(summary['content'], topics=topics)
 
                     summary = {
-                        'content': summary['content'],
+                        'content': modified_content,
                         'concept': summary['concept'],
                         'userId': userId,
                         'courseId': courseId,
@@ -231,6 +232,18 @@ class SummaryService():
 
         SupabaseService.update_summary(summaryId, 'status', 'complete')
 
-    # @staticmethod
-    # def inject_topic_links(content: str) -> str:
-    #     topics = 
+    @staticmethod
+    def inject_topic_links(
+        content: str,
+        topics: List[Dict[str, str]]
+    ) -> str:
+        
+        logging.info(f"Injecting topic links into content: {content}")
+        logging.info(f"Topics: {topics}")
+        
+        for topic in topics:
+            content = content.replace(f"[{topic['conceptId']}]", f"[{topic['conceptId']}](/topic/{topic['conceptUuid']})")
+
+        logging.info(f"Injected topic links into content: {content}")
+
+        return content

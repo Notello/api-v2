@@ -506,3 +506,21 @@ class GraphQueryService():
             'summaries': [res.get('s') for res in result if res.get('s') is not None],
             'concept': result[0].get('conceptId') if len(result) > 0 else None
         }
+    
+    @staticmethod
+    def get_topics_for_param(param: str, id: str) -> List[str] | None:
+        graphAccess = graphDBdataAccess(get_graph())
+        
+        QUERY = f"""
+        MATCH (n:Concept)
+        WHERE $id IN n.{param}
+        RETURN n.id AS conceptId, n.uuid[0] AS conceptUuid
+        """
+
+        parameters = {
+            'id': id
+        }
+
+        result = graphAccess.execute_query(QUERY, parameters)
+
+        return result
