@@ -50,8 +50,8 @@ class YoutubeIntake(Resource):
                 return {'message': 'Note creation failed'}, 400
 
             ContextAwareThread(
-                target=GraphCreationService.create_graph_from_youtube,
-                args=(youtubeUrl, noteId, courseId, userId)
+                target=NoteService.youtube_video_to_graph,
+                args=(noteId, courseId, userId, youtubeUrl)
             ).start()
 
             logging.info(f"Source Node created successfully for source type: youtube and source: {youtubeUrl}")

@@ -44,6 +44,7 @@ class RunpodService:
 
         except TimeoutError:
             logging.error(f'Runpod job timed out')
+            return None
 
         except Exception as e:
             logging.exception(f'Exception Stack trace: {e}')
@@ -55,6 +56,7 @@ class RunpodService:
         Going to do more with this later,
         for now just return the text
         '''
+        logging.info(f'Parsing output: {output}')
         out = ''
         for line in output["data"]:
             out += line["text"] + ' '

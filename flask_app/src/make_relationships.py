@@ -111,28 +111,25 @@ def create_relation_between_chunks(
             firstChunk = True
         else:
             firstChunk = False  
-        metadata = {"position": realI + 1,"length": len(chunk.page_content)}
-        chunk_document = Document(
-            page_content=chunk.page_content, metadata=metadata
-        )
         
         chunk_data = {
             "id": current_chunk_id,
-            "pg_content": chunk_document.page_content,
+            "pg_content": chunk.page_content,
             "position": realI + 1,
-            "length": chunk_document.metadata["length"],
+            "length": len(chunk.page_content),
             NOTEID: noteId,
             COURSEID: courseId,
             USERID: userId,
             "previous_id" : previous_chunk_id,
             "document_name": document_name,
-            "offset": offset
         }
 
+        if chunk.metadata["start"] is not None:
+            chunk_data["offset"] = chunk.metadata["start"]
+        else:
+            chunk_data["offset"] = offset
+
         offset += len(chunk.page_content)
-        
-        if 'page_number' in chunk.metadata:
-            chunk_data['page_number'] = chunk.metadata['page_number']
             
         batch_data.append(chunk_data)
         

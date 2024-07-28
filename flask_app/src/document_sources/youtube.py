@@ -7,9 +7,12 @@ from urllib.parse import urlparse,parse_qs
 def get_youtube_transcript(youtube_id):
     try:
         try:
-            transcript_dict = YouTubeTranscriptApi.get_transcript(youtube_id, languages=('en',))
+            transcript_dict = YouTubeTranscriptApi.get_transcript(youtube_id, languages=['en','en-US'])
         except Exception:
             transcript_dict = YouTubeTranscriptApi.get_transcript(youtube_id, languages=('en-US',))
+
+        print("##########################################################################################################################################")
+        print(transcript_dict)
         
         transcript = ''
         for td in transcript_dict:
@@ -39,6 +42,7 @@ def get_documents_from_youtube(url):
                                                       translation = "en",
                                                       add_video_info=True)
       pages = youtube_loader.load()
+      print(pages)
       file_name = YouTube(url).title
       return file_name, pages
     except Exception as e:

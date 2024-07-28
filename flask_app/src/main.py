@@ -1,45 +1,35 @@
-from concurrent.futures import ThreadPoolExecutor
-import concurrent.futures
 import logging
 from datetime import datetime
 import logging
 
-from flask_app.src.create_chunks import CreateChunksofDocument
 from flask_app.src.entities.source_node import sourceNode
 from flask_app.src.graphDB_dataAccess import graphDBdataAccess
 from flask_app.src.make_relationships import create_relation_between_chunks, merge_relationship_between_chunk_and_entities, update_embedding_create_vector_index
 from flask_app.src.openAI_llm import get_graph_from_OpenAI
 from flask_app.src.shared.common_fn import get_chunk_and_graphDocument, update_graph_documents
 from flask_app.services.SupabaseService import SupabaseService
-from flask_app.src.process_file import clean_file
 from flask_app.services.NodeUpdateService import NodeUpdateService
 from flask_app.constants import COURSEID, NOTEID
-from flask import current_app
+from flask_app.constants import GPT_4O_MINI
 
 def processing_source(
       graphDb_data_Access: graphDBdataAccess, 
       fileName: str, 
-      pages, 
+      chunks, 
       userId,
       courseId,
       noteId
       ):
   start_time = datetime.now()
-    
-  clean_file(pages)
-    
+        
   logging.info("Break down file into chunks")
-
-  create_chunks_obj = CreateChunksofDocument(pages, fileName)
-  chunks = create_chunks_obj.split_file_into_chunks()
 
   obj_source_node = sourceNode(
     status = "Processing",
     fileName = fileName,
     noteId = noteId,
-    total_pages = len(pages),
     total_chunks = len(chunks),
-    model = current_app.config['MODEL'],
+    model = GPT_4O_MINI,
   )
   graphDb_data_Access.update_source_node(obj_source_node)
 

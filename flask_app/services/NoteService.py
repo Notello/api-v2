@@ -52,6 +52,20 @@ class NoteService:
         except Exception as e:
             logging.exception(f'Exception Stack trace: {e}')
             return None
+        
+    @staticmethod
+    def youtube_video_to_graph(
+        noteId: str,
+        courseId: str,
+        userId: str,
+        youtubeUrl: str,
+    ):
+        GraphCreationService.create_graph_from_youtube(
+            sourceUrl=youtubeUrl,
+            noteId=noteId,
+            courseId=courseId,
+            userId=userId
+            )
 
 
     @staticmethod

@@ -1,11 +1,10 @@
 import logging
 from flask_app.src.shared.common_fn import get_graph, load_embedding_model
 from flask_app.constants import COURSEID, NOTEID
-
-from flask import current_app
+from flask_app.services.SupabaseService import SupabaseService
 
 class SimilarityService:
-    def __init__(self, similarity_threshold, word_edit_distance):
+    def __init__(self, similarity_threshold = 0.9, word_edit_distance = 5):
         self.similarity_threshold = similarity_threshold
         self.word_edit_distance = word_edit_distance
 
@@ -87,7 +86,8 @@ class SimilarityService:
         else:
             return None
 
-    def same_youtube_node_exists(self, course_id, url) -> str | None:
+    @staticmethod
+    def same_youtube_node_exists(course_id, url) -> str | None:
         query = """
         MATCH (d:Document)
         WHERE d.courseId = $courseId AND d.url = $url
@@ -109,6 +109,39 @@ class SimilarityService:
             return result[0][NOTEID]
         else:
             return None
+        
+    @staticmethod
+    def check_youtube_similarity(
+        courseId: str,
+        noteId: str,
+        sourceUrl: str
+    ):
+        try:
+            similar = SimilarityService.same_youtube_node_exists(course_id=courseId, url=sourceUrl)
+        except Exception as e:
+            logging.exception(f'Exception in same_youtube_node_exists: {e}')
+            SupabaseService.update_note(noteId=noteId, key='contentStatus', value='error')
+            raise e
+
+        if similar:
+            logging.info(f"File: {sourceUrl} is similar to {similar}")
+            SupabaseService.update_note(
+                noteId=noteId,
+                key='matchingNoteId',
+                value=similar
+            )
+            SupabaseService.update_note(
+                noteId=noteId, 
+                key='graphStatus', 
+                value='complete'
+                )
+            SupabaseService.update_note(
+                noteId=noteId, 
+                key='contentStatus',
+                value='complete'
+                )
+            
+        return similar
         
     def delete_node(self, node):
         get_graph().query("""

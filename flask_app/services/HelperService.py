@@ -3,24 +3,16 @@ import re
 from uuid import UUID
 from datetime import datetime
 from neo4j.time import DateTime
+from pytube import YouTube
 
 from flask_app.src.document_sources.youtube import get_youtube_transcript
 
 
+
 class HelperService:
     @staticmethod
-    def check_url_source(ytUrl: str):
-        match = re.search(r'(?:v=)([0-9A-Za-z_-]{11})\s*', ytUrl)
-        logging.info(f"match value{match}")
-
-        transcript = get_youtube_transcript(match.group(1))
-
-        if transcript==None or len(transcript)==0:
-            message = f"Youtube transcript is not available for : {ytUrl}"
-            logging.exception(message)
-            raise Exception(message)
-
-        return transcript
+    def get_youtube_title(youtube_url: str):
+        return YouTube(youtube_url).title
     
     @staticmethod
     def validate_uuid4(uuid_string) -> bool:
