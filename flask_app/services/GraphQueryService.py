@@ -28,7 +28,7 @@ class GraphQueryService():
             ("n.position", "position"), ("n.fileName", "fileName"), 
             ("n.id", "conceptId"),
             (f"n.{com_string}", "communityId"), (f"n.{page_rank_string}", "pageRank"),
-            ("n.uuid[0]", "nodeUuid"),
+            ("n.uuid[0]", "nodeUuid"), ('n.offset', 'offset'),
 
 
             ("rel.type", "relType"), 
@@ -38,6 +38,7 @@ class GraphQueryService():
 
             ("r.id", "relatedNodeConceptId"),
             (f"r.{com_string}", "relatedNodeCommunityId"), (f"r.{page_rank_string}", "relatedNodePageRank"),
+            ('r.uuid[0]', 'relatedNodeUuid'), ('r.offset', 'relatedNodeOffset'),
             ]
     
     
@@ -51,8 +52,10 @@ class GraphQueryService():
         try:
             graphDb_data_Access = graphDBdataAccess(get_graph())
 
-            final_params = return_params = return_params if return_params is not None else \
+            final_params = return_params if return_params is not None else \
                 GraphQueryService.get_default_graph_params(communityType=key, communityId=value)
+            
+            print(final_params)
 
             return_clause = ", ".join(f"{param[0]} AS {param[1]}" for param in final_params)
 
@@ -82,7 +85,7 @@ class GraphQueryService():
                 related_node_data = {}
                 rel_type = None
 
-                for param in return_params:
+                for param in final_params:
                     attr_name = param[1]
                     attr_value = record.get(attr_name)
                     
@@ -102,6 +105,7 @@ class GraphQueryService():
                             node_info['fileName'] = node_data.get('fileName')
                         elif node_type == 'Chunk':
                             node_info['position'] = node_data.get('position')
+                            node_info['offset'] = node_data.get('offset')
                         elif node_type == 'Concept':
                             node_info['conceptId'] = node_data.get('conceptId')
                             node_info['pageRank'] = node_data.get('pageRank')
@@ -117,13 +121,9 @@ class GraphQueryService():
                     if related_node_type:
                         related_node_info = nodes[related_node_type.lower() + 's'].get(related_node_data['Id'], {})
                         related_node_info['id'] = related_node_data['Id']
-                        if related_node_type == 'Document':
-                            related_node_info['fileName'] = related_node_data.get('FileName')
-                        elif related_node_type == 'Chunk':
-                            related_node_info['position'] = related_node_data.get('Position')
-                        elif related_node_type == 'Concept':
-                            related_node_info['conceptId'] = related_node_data.get('ConceptId')
-                            related_node_info['pageRank'] = related_node_data.get('PageRank')
+                        if related_node_type == 'Chunk':
+                            related_node_info['position'] = related_node_data.get('relatedNodePosition')
+                            related_node_info['offset'] = related_node_data.get('relatedNodeOffset')
                         
                         if 'relatedNodeCommunityId' in related_node_data and 'communityId' not in related_node_info:
                             related_node_info['communityId'] = related_node_data['relatedNodeCommunityId']

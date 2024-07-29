@@ -15,12 +15,6 @@ from flask_app.constants import NOTEID
 
 class NodeUpdateService:
     @staticmethod
-    @retry(
-        stop=stop_after_attempt(5),
-        wait=wait_exponential(multiplier=1, min=4, max=10),
-        retry=retry_if_exception_type((ClientError, TransientError, TransactionError)),
-        reraise=False
-    )
     @transactional
     def merge_similar_nodes(tx, distance: int = 3, embedding_cutoff: float = 0.95) -> None:
         query = """
@@ -193,7 +187,7 @@ class NodeUpdateService:
         nodes_to_update = []
         futures = []
 
-        with ThreadPoolExecutor(max_workers=10) as executor:
+        with ThreadPoolExecutor(max_workers=200) as executor:
             for record in result:
                 name = record['id']
                 futures.append(

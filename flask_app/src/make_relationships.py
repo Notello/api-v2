@@ -48,7 +48,7 @@ def update_embedding_create_vector_index(chunkId_chunkDoc_list, noteId):
     futures = []
     logging.info(f"update embedding and vector index for chunks")
 
-    with ThreadPoolExecutor(max_workers=50) as executor:
+    with ThreadPoolExecutor(max_workers=150) as executor:
         for row in chunkId_chunkDoc_list:
             futures.append(
                 executor.submit(

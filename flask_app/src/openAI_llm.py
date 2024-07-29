@@ -23,7 +23,7 @@ def get_graph_from_OpenAI(chunkId_chunkDoc_list):
         allowed_nodes=['Concept'], 
         )
     
-    with ThreadPoolExecutor(max_workers=100) as executor:
+    with ThreadPoolExecutor(max_workers=200) as executor:
         for chunk in combined_chunk_document_list:
             futures.append(
                 executor.submit(
