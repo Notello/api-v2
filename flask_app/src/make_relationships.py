@@ -95,8 +95,7 @@ def create_relation_between_chunks(
         userId, 
         chunks: List[Document],
         startI,
-        document_name,
-        offset
+        document_name
         )->list:
     logging.info("creating FIRST_CHUNK and NEXT_CHUNK relationships between chunks")
     current_chunk_id = ""
@@ -122,14 +121,8 @@ def create_relation_between_chunks(
             USERID: userId,
             "previous_id" : previous_chunk_id,
             "document_name": document_name,
+            "offset": chunk.metadata.get("start"),
         }
-
-        if chunk.metadata["start"] is not None:
-            chunk_data["offset"] = chunk.metadata["start"]
-        else:
-            chunk_data["offset"] = offset
-
-        offset += len(chunk.page_content)
             
         batch_data.append(chunk_data)
         

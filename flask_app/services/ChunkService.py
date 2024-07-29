@@ -61,5 +61,44 @@ class ChunkService:
     @staticmethod
     def get_text_chunks(
         text: str,
-    ):
-        pass
+        max_tokens=500,
+        overlap=100,
+    ) -> List[Document]:
+        chunks = []
+        current_chunk = {"text": "", "start": 0, "tokens": 0}
+        words = text.split()
+        
+        for i, word in enumerate(words):
+            tokens = ChunkService.count_tokens(word)
+            
+            if current_chunk["tokens"] + tokens > max_tokens:
+                # Finish current chunk
+                chunks.append(Document(
+                    page_content=current_chunk["text"].strip(),
+                    metadata={
+                        "start": current_chunk["start"],
+                    }
+                ))
+                
+                # Start new chunk with overlap
+                overlap_words = words[max(0, i - overlap):i]
+                overlap_text = " ".join(overlap_words)
+                current_chunk = {
+                    "text": overlap_text + " " + word,
+                    "start": max(0, current_chunk["start"] + len(current_chunk["text"]) - len(overlap_text)),
+                    "tokens": ChunkService.count_tokens(overlap_text) + tokens
+                }
+            else:
+                # Add to current chunk
+                current_chunk["text"] += " " + word
+                current_chunk["tokens"] += tokens
+        
+        if current_chunk["text"]:
+            chunks.append(Document(
+                page_content=current_chunk["text"].strip(),
+                metadata={
+                    "start": current_chunk["start"],
+                }
+            ))
+        
+        return chunks

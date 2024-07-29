@@ -173,9 +173,11 @@ class SummaryService():
         
         futures = []
 
+        print(importance_graph)
+
         with ThreadPoolExecutor(max_workers=10) as executor:
             for graph in importance_graph:
-                if graph is not None:
+                if graph is not None and 'conceptId' in graph and 'relatedConcepts' in graph and 'topChunks' in graph:
                     futures.append(
                         executor.submit(
                             SummaryService.get_individual_summary,

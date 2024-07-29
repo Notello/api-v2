@@ -3,6 +3,7 @@ import sys
 import logging
 from typing import Dict, List
 import json
+from langchain.docstore.document import Document
 
 from flask_app.services.SupabaseService import SupabaseService
 from flask_app.src.graphDB_dataAccess import graphDBdataAccess
@@ -17,59 +18,27 @@ from flask_app.services.HelperService import HelperService
 from flask_app.src.shared.common_fn import get_graph
 from flask_app.constants import COURSEID, NOTEID, USERID, GPT_4O_MINI
 
-from flask_app.src.create_chunks import CreateChunksofDocument
-
 class GraphCreationService:
     @staticmethod
-    def create_graph_from_youtube(
-        sourceUrl: str,
+    def create_graph_from_timestamps(
+        timestamps: List[Dict[str, str]],
+        import_type: str,
+        document_name: str,
         noteId: str,
         courseId: str,
         userId: str
     ) -> None:
         try:
-
-            similar = SimilarityService.check_youtube_similarity(
-                courseId=courseId,
-                noteId=noteId,
-                sourceUrl=sourceUrl
-            )
-
-            if similar:
-                return
-            
-            timestamps = TimestampService.get_youtube_timestamps(youtube_url=sourceUrl)
-
-            SupabaseService.update_note(noteId=noteId, key='sourceUrl', value=sourceUrl)
-            SupabaseService.update_note(noteId=noteId, key='contentStatus', value='complete')
-
             chunks = ChunkService.get_timestamp_chunks(transcript=timestamps)
 
-            obj_source_node = sourceNode(
-                file_type='text',
-                file_source='youtube',
-                model=GPT_4O_MINI,
-                courseId=courseId,
-                userId=userId,
-                url=sourceUrl,
-                created_at=datetime.now(),
+            GraphCreationService.create_graph(
                 noteId=noteId,
-            )
-            
-            graphDb_data_Access: graphDBdataAccess = graphDBdataAccess(get_graph())
-
-            fileName = HelperService.get_youtube_title(youtube_url=sourceUrl)
-
-            graphDb_data_Access.create_source_node(obj_source_node)
-
-            processing_source(
-                graphDb_data_Access=graphDb_data_Access,
-                fileName=fileName,
-                chunks=chunks,
-                userId=userId,
                 courseId=courseId,
-                noteId=noteId
-                )
+                userId=userId,
+                fileName=document_name,
+                import_type=import_type,
+                chunks=chunks
+            )
             
         except Exception as e:
             logging.exception(f'Exception in create_source_node_graph_url_youtube: {e}')
@@ -85,24 +54,17 @@ class GraphCreationService:
     ) -> None:
             
         try:
-            successCount=0
-            failedCount=0
-            
-            pages = get_text_chunks_langchain(rawText)
+            chunks = ChunkService.get_text_chunks(rawText)
 
             similarityService = SimilarityService(
                 similarity_threshold=0.9, 
                 word_edit_distance=5
             )
 
-            """
-            IF FOUND SIMILAR DOC, GET NOTEID FOR IT AND UPDATE ALL NODES WITH THAT NOTEID TO INCLUDE THIS NOTEID
-            """
-
             similar = similarityService.has_similar_documents(
                 courseId=courseId,
                 noteId=noteId,
-                documents=pages
+                documents=chunks
             )
 
             if similar:
@@ -118,37 +80,51 @@ class GraphCreationService:
                     value='complete'
                     )
                 return
-
-            obj_source_node = sourceNode(
-                file_type='text',
-                file_source='text',
-                model=GPT_4O_MINI,
-                courseId=courseId,
-                userId=userId,            
-                created_at=datetime.now(),
+    
+            GraphCreationService.create_graph(
                 noteId=noteId,
-                file_size=sys.getsizeof(rawText)
+                courseId=courseId,
+                userId=userId,
+                fileName=fileName,
+                import_type='text',
+                chunks=chunks
             )
 
-            graphDb_data_Access: graphDBdataAccess = graphDBdataAccess(get_graph())
-
-            obj_source_node.noteId = noteId
-
-            graphDb_data_Access.create_source_node(obj_source_node)
-
-            processing_source(
-                graphDb_data_Access=graphDb_data_Access,
-                fileName=fileName,
-                pages=pages,
-                userId=userId,
-                courseId=courseId,
-                noteId=noteId
-                )
-            
-            logging.info(f'File {fileName} has been processed successfully, success_count: {successCount}, failed_count: {failedCount}')
+            logging.info(f'File {fileName} has been processed successfully')
         except Exception as e:
             logging.exception(f'Exception: {e}')
             SupabaseService.update_note(noteId=noteId, key='graphStatus', value='error')
+
+    @staticmethod
+    def create_graph(
+        noteId: str,
+        courseId: str,
+        userId: str,
+        fileName: str,
+        import_type: str,
+        chunks: List[Document],
+    ):
+        obj_source_node = sourceNode(
+            file_source=import_type,
+            model=GPT_4O_MINI,
+            courseId=courseId,
+            userId=userId,
+            created_at=datetime.now(),
+            noteId=noteId,
+        )
+        
+        graphDb_data_Access: graphDBdataAccess = graphDBdataAccess(get_graph())
+
+        graphDb_data_Access.create_source_node(obj_source_node)
+
+        processing_source(
+            graphDb_data_Access=graphDb_data_Access,
+            fileName=fileName,
+            chunks=chunks,
+            userId=userId,
+            courseId=courseId,
+            noteId=noteId
+            )
 
     @staticmethod
     def insert_quiz_question(questions: List[QuizQuestion]) -> None:

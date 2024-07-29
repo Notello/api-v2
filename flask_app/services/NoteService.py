@@ -2,10 +2,12 @@ from enum import Enum
 from io import BytesIO
 from werkzeug.datastructures import FileStorage
 import logging
-from .SupabaseService import SupabaseService
-from .RunpodService import RunpodService
-from .GraphCreationService import GraphCreationService
-from .SummaryService import SummaryService
+from flask_app.services.SupabaseService import SupabaseService
+from flask_app.services.RunpodService import RunpodService
+from flask_app.services.GraphCreationService import GraphCreationService
+from flask_app.services.SimilarityService import SimilarityService
+from flask_app.services.TimestampService import TimestampService
+from flask_app.services.HelperService import HelperService
 from flask_app.src.document_sources.pdf_loader import extract_text
 
 class NoteForm(Enum):
@@ -60,8 +62,26 @@ class NoteService:
         userId: str,
         youtubeUrl: str,
     ):
-        GraphCreationService.create_graph_from_youtube(
-            sourceUrl=youtubeUrl,
+        similar = SimilarityService.check_youtube_similarity(
+            courseId=courseId,
+            noteId=noteId,
+            sourceUrl=youtubeUrl
+            )
+
+        if similar:
+            return
+            
+        timestamps = TimestampService.get_youtube_timestamps(youtube_url=youtubeUrl)
+
+        title = HelperService.get_youtube_title(youtube_url=youtubeUrl)
+
+        SupabaseService.update_note(noteId=noteId, key='sourceUrl', value=youtubeUrl)
+        SupabaseService.update_note(noteId=noteId, key='contentStatus', value='complete')
+
+        GraphCreationService.create_graph_from_timestamps(
+            timestamps=timestamps,
+            import_type='youtube',
+            document_name=title,
             noteId=noteId,
             courseId=courseId,
             userId=userId
@@ -94,17 +114,18 @@ class NoteService:
                 keywords=keywords
                 )
 
-            if output is None:
+            if output is None or 'data' not in output:
                 logging.exception(f"Failed to transcribe file for note {noteId}")
                 return
             
-            GraphCreationService.create_graph_from_raw_text(
-                rawText=output,
-                noteId=noteId, 
-                courseId=courseId, 
-                userId=userId,
-                fileName=audio_file.filename
-                )
+            GraphCreationService.create_graph_from_timestamps(
+                timestamps=output['data'],
+                import_type='audio',
+                document_name=audio_file.filename,
+                noteId=noteId,
+                courseId=courseId,
+                userId=userId
+            )
             
             logging.info(f"File uploaded successfully for note {noteId}")
 

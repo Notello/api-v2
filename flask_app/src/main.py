@@ -43,7 +43,6 @@ def processing_source(
     courseId=courseId,
     userId=userId,
     startI=0,
-    offset=0,
     document_name=fileName
   )
 
@@ -82,7 +81,6 @@ def process_chunks(
     courseId,
     userId,
     startI,
-    offset,
     document_name
 ):
   
@@ -96,7 +94,6 @@ def process_chunks(
      chunks=chunks,
      startI=startI,
      document_name=document_name,
-     offset=offset
   )
 
   logging.info(f"Created chunks for {len(chunkId_chunkDoc_list)} chunks between in create_relation_between_chunks")

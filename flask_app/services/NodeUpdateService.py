@@ -19,7 +19,7 @@ class NodeUpdateService:
         stop=stop_after_attempt(5),
         wait=wait_exponential(multiplier=1, min=4, max=10),
         retry=retry_if_exception_type((ClientError, TransientError, TransactionError)),
-        reraise=True
+        reraise=False
     )
     @transactional
     def merge_similar_nodes(tx, distance: int = 3, embedding_cutoff: float = 0.95) -> None:
@@ -64,8 +64,6 @@ class NodeUpdateService:
 
         logging.info(f"query: {query}, distance: {distance}, embedding_cutoff: {embedding_cutoff}")
         result = tx.run(query, {'distance': distance, 'embedding_cutoff': embedding_cutoff})
-
-        print(f"Potential merges: {result}")
 
         two_options = []
         llm_options = []
@@ -164,10 +162,12 @@ class NodeUpdateService:
                 
                 try:
                     result = tx.run(merge_query, merge_params)
+                    result.consume()  # Ensure the query is executed
                     logging.info(f"Merged nodes: {sorted_entities} into {final_label}")
                     
                 except Exception as e:
                     logging.error(f"Error merging nodes {sorted_entities}: {str(e)}")
+                    # Continue with the next merge instead of raising the exception
 
         logging.info("Node merging process completed.")
 

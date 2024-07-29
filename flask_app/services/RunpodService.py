@@ -40,7 +40,7 @@ class RunpodService:
                 outputFormatted = RunpodService.parse_whisper_output(output)
                 SupabaseService.update_note(fileName, 'contentStatus', 'complete')
                 SupabaseService.update_note(fileName, 'rawContent', outputFormatted)
-                return outputFormatted
+                return output
 
         except TimeoutError:
             logging.error(f'Runpod job timed out')
