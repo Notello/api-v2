@@ -23,4 +23,4 @@ LLAMA_405_MODEL = "llama-3.1-405b-reasoning"
 LLAMA_70B_MODEL = "llama-3.1-70b-versatile"
 DEFAULT_COMMUNITIES = 3
 
-K8S_VER = '1.17'
+K8S_VER = '1.18'
