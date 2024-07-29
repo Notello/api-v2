@@ -73,3 +73,8 @@ class GenerateNoteSummary(Resource):
 class GetSummaryFor(Resource):
     def get(self, param, id):
         return GraphQueryService.get_summary_for_param(param=param, id=id)
+    
+@api.route('/get-summary-for-topic/<string:topicId>')
+class GetSummaryForTopic(Resource):
+    def get(self, topicId):
+        return GraphQueryService.get_topic_summary(uuid=topicId)

@@ -496,7 +496,8 @@ class GraphQueryService():
         QUERY = f"""
         MATCH (n:Concept)
         WHERE $id IN n.{param}
-        OPTIONAL MATCH (n)-[r:HAS_SUMMARY]->(s:Summary)
+        OPTIONAL MATCH (n)-[r:HAS_SUMMARY]->(s:Summary) 
+        WHERE $id = s.{param}
         RETURN n.id AS conceptId, s
         """
 
@@ -510,6 +511,25 @@ class GraphQueryService():
             'summaries': [res.get('s') for res in result if res.get('s') is not None],
             'concept': result[0].get('conceptId') if len(result) > 0 else None
         }
+
+    @staticmethod
+    def get_topic_summary(uuid: str) -> str | None:
+        graphAccess = graphDBdataAccess(get_graph())
+
+        QUERY = f"""
+        Match (n:Concept)
+        WHERE '{uuid}' IN n.uuid
+        OPTIONAL MATCH (n)-[r:HAS_SUMMARY]->(s:Summary) 
+        RETURN n.id AS conceptId, s
+        """
+
+        result = graphAccess.execute_query(QUERY)
+
+        return {
+            'summaries': [res.get('s') for res in result if res.get('s') is not None],
+            'concept': result[0].get('conceptId') if len(result) > 0 else None
+        }
+
     
     @staticmethod
     def get_topics_for_param(param: str, id: str) -> List[str] | None:
