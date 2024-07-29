@@ -374,7 +374,9 @@ class GraphQueryService():
             COLLECT({{
                 id: chunk.id,
                 text: chunk.text, 
-                document_name: chunk.document_name
+                document_name: chunk.document_name,
+                offset: chunk.offset,
+                noteId: chunk.noteId
                 }})[0..3] AS topChunks,
             meanScore, stdDevScore, q3Score, avgConnections, avgPageRank, thresholdMultiplier, prString
 
@@ -463,7 +465,9 @@ class GraphQueryService():
                 COLLECT(DISTINCT {{
                     document_name: chunk.document_name,
                     text: chunk.text,
-                    id: chunk.id
+                    id: chunk.id,
+                    offset: chunk.offset,
+                    noteId: chunk.noteId
                 }})[..{num_chunks}] AS related_chunks
 
             // Return the results

@@ -106,7 +106,13 @@ def generate_summary(
         logging.info(f"Generating summary for Main Concept: {main_concept}")
         related_concepts_str = ", ".join([f"Concept Name: {concept['id']}, Concept UUID: {concept['uuid']}" for concept in related_concepts])
         chunks_str = "\n".join([f"Chunk Name: {chunk['document_name']}, Chunk UUID: {chunk['id']}, Chunk Text: {chunk['text']}" for chunk in chunks])
-        chunks_map = {chunk['id']: chunk['document_name'] for chunk in chunks}
+        chunks_map = {chunk['id']: 
+            {
+            'document_name': chunk['document_name'],
+            'offset': chunk['offset'],
+            'noteId': chunk['noteId']
+            } 
+            for chunk in chunks}
 
         logging.info(f"Chunks: {chunks_str}")
 
@@ -292,20 +298,23 @@ class SummaryService():
         # This ensures longer matches are replaced first
         sorted_topics = sorted(topics, key=lambda x: len(x['conceptId']), reverse=True)
         
-        def normalize_text(text):
+        def normalize_text(text: str):
             return re.sub(r'[-_/\s]', '', text.lower())
 
         # Step 1: Replace chunk references
-        def replace_chunk_reference(match):
+        def replace_chunk_reference(match: re.Match):
             link_text, link_url = match.groups()
             if link_url in chunks_map:
-                return f"[{chunks_map[link_url]}]({link_url})"
+                document_name = chunks_map[link_url]['document_name']
+                noteId = chunks_map[link_url]['noteId']
+                offset = chunks_map[link_url]['offset']
+                return f"[{document_name}](/course/{courseId}/note/{noteId}?offset={offset})"
             return match.group(0)
 
         content = re.sub(r'\[([^\]]+)\]\(([^\)]+)\)', replace_chunk_reference, content)
 
         # Step 2: Replace concept names
-        def replace_concept(match):
+        def replace_concept(match: re.Match):
             word = match.group(0)
             normalized_word = normalize_text(word)
             for topic in sorted_topics:
@@ -323,7 +332,7 @@ class SummaryService():
         content = ''.join(parts)
 
         # Step 3: Process remaining concept links injected by the LLM
-        def process_remaining_concepts(match):
+        def process_remaining_concepts(match: re.Match):
             concept_name, uuid = match.groups()
             if uuid not in chunks_map:  # Ensure it's not a chunk reference
                 return f"[{concept_name}](/course/{courseId}/topic/{uuid})"
