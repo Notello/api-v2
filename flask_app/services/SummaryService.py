@@ -260,7 +260,7 @@ class SummaryService():
             summary['content'], 
             topics=topics, 
             chunks_map=summary['chunks_map'],
-            courseId=courseId
+            courseId=courseId,
             )
         
         summary_final = {
