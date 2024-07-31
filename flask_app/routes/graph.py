@@ -32,7 +32,9 @@ class GetGraphFor(Resource):
             message = f" Unable to get notes for {param} {id}, Exception: {e}"
             logging.exception(message)
             return {'message': message}, 400
-    
+
+
+    # Dumbass make a new object 
     def get_topic_graph(self, topic_uuid):
         try:
             logging.info(f"Get topic graph for {topic_uuid}")

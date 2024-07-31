@@ -1,0 +1,4 @@
+additionalArguments:
+  # allow dashboard and insecure connectiont to it
+  - "--api.insecure=true"
+  - "--api.dashboard=true"

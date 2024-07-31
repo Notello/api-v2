@@ -61,7 +61,10 @@ def processing_source(
 
   NodeUpdateService.update_note_embeddings(noteId=noteId)
 
-  NodeUpdateService.merge_similar_nodes()
+  try:
+    NodeUpdateService.merge_similar_nodes()
+  except Exception as e:
+    logging.error(f"Error in merge_similar_nodes: {str(e)}")
 
   NodeUpdateService.update_communities_for_param(id_type=NOTEID, target_id=noteId)
   NodeUpdateService.update_page_rank(param=NOTEID, id=noteId)

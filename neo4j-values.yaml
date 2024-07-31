@@ -1,0 +1,26 @@
+neo4j:
+  name: notello-neo4j-standalone
+  resources:
+    cpu: "0.5"
+    memory: "2Gi"
+
+  core:
+    standalone:
+      service:
+        type: ClusterIP
+
+env:
+  NEO4J_PLUGINS: '["graph-data-science", "apoc"]'
+
+config:
+  dbms.security.procedures.unrestricted: "gds.*,apoc.*"
+  dbms.security.procedures.allowlist: "gds.*,apoc.*"
+
+volumes:
+  data:
+    mode: "dynamic"
+    dynamic:
+      resources:
+        requests:
+          storage: 5Gi
+      storageClassName: do-block-storage

@@ -19,7 +19,7 @@ from neo4j.exceptions import ClientError, TransientError
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from flask_app.services.Neo4jTransactionManager import transactional
 
-from flask_app.constants import COURSEID, LLAMA_405_MODEL, LLAMA_70B_MODEL, MIXTRAL_MODEL, LLAMA_8_MODEL, GPT_35_TURBO_MODEL, GPT_4O_MODEL, GPT_4O_MINI, LLAMA_8_TOOL_MODEL, NOTEID, USERID
+from flask_app.constants import COURSEID, GROQ_MODELS, LLAMA_405_MODEL, LLAMA_70B_MODEL, MIXTRAL_MODEL, LLAMA_8_MODEL, GPT_35_TURBO_MODEL, GPT_4O_MODEL, GPT_4O_MINI, LLAMA_8_TOOL_MODEL, NOTEID, OPENAI_MODELS, USERID
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -64,6 +64,7 @@ def get_chunk_and_graphDocument(graph_document_list, chunkId_chunkDoc_list):
   return lst_chunk_chunkId_document  
                  
 def create_graph_database_connection(uri, userName, password, database):
+  logging.info(f"Creating graph database connection: {uri}, {userName}, {password}, {database}")
   graph = Neo4jGraph(url=uri, database=database, username=userName, password=password, refresh_schema=False, sanitize=True)
   return graph
 
@@ -168,13 +169,13 @@ def close_db_connection(graph, api_name):
       
 def get_llm(model_version:str):
 
-  if model_version == GPT_35_TURBO_MODEL or model_version == GPT_4O_MODEL or model_version == GPT_4O_MINI:
+  if model_version in OPENAI_MODELS:
     llm = ChatOpenAI(api_key=os.environ.get('OPENAI_KEY'), 
                       model=model_version, 
                       temperature=.1)
     logging.info(f"Model created : Model Version: {model_version}")
     return llm
-  elif model_version == MIXTRAL_MODEL or model_version == LLAMA_8_MODEL or model_version == LLAMA_8_TOOL_MODEL or model_version == LLAMA_405_MODEL or model_version == LLAMA_70B_MODEL:
+  elif model_version in GROQ_MODELS:
     llm = ChatGroq(api_key=os.environ.get('GROQ_KEY'), 
                     model=model_version, 
                     temperature=.1)
@@ -199,12 +200,18 @@ def compare_similar_words(options, bad_ends=['s', 'ed', 'ing', 'er']):
   return words_to_combine
 
 def get_graph():
-  return create_graph_database_connection(
-      uri=os.getenv('NEO4J_URI'),
-      userName=os.getenv('NEO4J_USERNAME'),
-      password=os.getenv('NEO4J_PASSWORD'),
-      database=os.getenv('NEO4J_DATABASE')
-  )
+    logging.info(f"Creating graph database connection")
+    logging.info(f"ENV_TYPE: {os.getenv('ENV_TYPE')}")
+    logging.info(f"NEO4J_URI: {os.getenv('NEO4J_URI')}")
+    logging.info(f"NEO4J_USERNAME: {os.getenv('NEO4J_USERNAME')}")
+    logging.info(f"NEO4J_PASSWORD: {os.getenv('NEO4J_PASSWORD')}")
+    logging.info(f"NEO4J_DATABASE: {os.getenv('NEO4J_DATABASE')}")
+    return create_graph_database_connection(
+        uri=os.getenv('NEO4J_URI'),
+        userName=os.getenv('NEO4J_USERNAME'),
+        password=os.getenv('NEO4J_PASSWORD'),
+        database=os.getenv('NEO4J_DATABASE')
+    )
 
 def embed_name(name: str, embeddings: OpenAIEmbeddings) -> Tuple[str, List[float]]:
   return name, embeddings.embed_query(text=name)

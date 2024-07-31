@@ -5,7 +5,7 @@ from langchain_experimental.graph_transformers import LLMGraphTransformer
 from flask_app.src.CustomGraphBuilder import LLMGraphTransformer as CustomGraphTransformer
 
 from flask_app.src.shared.common_fn import get_combined_chunks, get_llm
-from flask_app.constants import GPT_35_TURBO_MODEL, GPT_4O_MINI
+from flask_app.constants import GPT_35_TURBO_MODEL, GPT_4O_MINI, LLAMA_8B_INSTANT
 
 logging.basicConfig(format='%(asctime)s - %(message)s',level='INFO')
 

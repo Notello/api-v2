@@ -87,7 +87,6 @@ class NoteService:
             userId=userId
             )
 
-
     @staticmethod
     def audio_file_to_graph(
         noteId: str,

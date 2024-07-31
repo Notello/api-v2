@@ -89,14 +89,14 @@ class NodeUpdateService:
             if not seen:
                 llm_options.append(option)
 
-        if llm_options:       
-            with ThreadPoolExecutor(max_workers=10) as executor:
-                future = executor.submit(entity_resolution, llm_options)
-                for merged_group in tqdm([future], total=1, desc="Processing with LLM"):
-                    merged = merged_group.result()
-                    if merged:
-                        combined_words.extend(merged)
-                        logging.info(f"LLM merged: {merged}")
+        # if llm_options:       
+        #     with ThreadPoolExecutor(max_workers=10) as executor:
+        #         future = executor.submit(entity_resolution, llm_options)
+        #         for merged_group in tqdm([future], total=1, desc="Processing with LLM"):
+        #             merged = merged_group.result()
+        #             if merged:
+        #                 combined_words.extend(merged)
+        #                 logging.info(f"LLM merged: {merged}")
         
         logging.info(f"Combined words: {combined_words}")
 
@@ -365,7 +365,7 @@ class NodeUpdateService:
         # First, check if there are any nodes that match the criteria
         check_query = f"""
         MATCH (n)
-        WHERE (n:Concept OR n:Chunk)
+        WHERE (n:Concept)
         AND "{target_id}" IN n.{id_type}
         RETURN count(n) AS nodeCount
         """
@@ -380,7 +380,7 @@ class NodeUpdateService:
         # If nodes exist, proceed with the community detection
         query = f"""
         MATCH (n)
-        WHERE (n:Concept OR n:Chunk)
+        WHERE (n:Concept)
         AND "{target_id}" IN n.{id_type}
         WITH collect(n) AS nodes
 
