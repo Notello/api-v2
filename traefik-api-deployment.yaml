@@ -22,8 +22,6 @@ spec:
         env:
         - name: FLASK_ENV
           value: "production"
-        - name: K8s_VER
-          value: "1.23"
         - name: ENV_TYPE
           value: "prod"
         - name: NEO4J_URI
