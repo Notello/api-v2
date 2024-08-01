@@ -143,6 +143,7 @@ class GraphQueryService():
         except Exception as e:
             logging.error(f"Error executing query: {e}")
             return None, None
+        
 
     @staticmethod
     def get_communities_for_param(param: str, 
@@ -488,6 +489,135 @@ class GraphQueryService():
 
         return result
     
+    @staticmethod
+    def get_display_topic_graph(uuid: str, courseId: str) -> Tuple[Dict[str, List[Dict]], List[Dict[str, Any]]] | None:
+        try:
+            graphAccess = graphDBdataAccess(get_graph())
+
+            com_string = GraphQueryService.get_com_string(communityType='courseId', communityId=courseId)
+            page_rank_string = GraphQueryService.get_page_rank_string(param='courseId', id=courseId)
+
+            print(com_string, page_rank_string)
+
+            QUERY = f"""
+            MATCH (c:Concept)
+            WHERE $uuid IN c.uuid
+            OPTIONAL MATCH (c)-[r1]-(chunk:Chunk)
+            OPTIONAL MATCH (c)-[r2]-(doc:Document)
+            OPTIONAL MATCH (c)-[r3]-(relatedConcept:Concept)
+            WHERE relatedConcept <> c
+            OPTIONAL MATCH (relatedConcept)-[r4]-(otherRelatedConcept:Concept)
+            WHERE otherRelatedConcept <> c AND otherRelatedConcept <> relatedConcept
+            RETURN 
+                c.id AS conceptId, ID(c) AS conceptNodeId, c.{com_string} AS conceptCommunityId, 
+                c.uuid[0] AS conceptUuid, c.{page_rank_string} AS conceptPageRank,
+                
+                chunk.id AS chunkId, ID(chunk) AS chunkNodeId, chunk.position AS chunkPosition, 
+                chunk.{com_string} AS chunkCommunityId, chunk.offset AS chunkOffset,
+                
+                doc.id AS docId, ID(doc) AS docNodeId, doc.fileName AS docFileName, 
+                doc.{com_string} AS docCommunityId,
+                
+                relatedConcept.id AS relatedConceptId, ID(relatedConcept) AS relatedConceptNodeId, 
+                relatedConcept.{com_string} AS relatedConceptCommunityId, 
+                relatedConcept.uuid[0] AS relatedConceptUuid, 
+                relatedConcept.{page_rank_string} AS relatedConceptPageRank,
+                
+                otherRelatedConcept.id AS otherRelatedConceptId, 
+                ID(otherRelatedConcept) AS otherRelatedConceptNodeId,
+                
+                TYPE(r1) AS chunkRelType, TYPE(r2) AS docRelType, TYPE(r3) AS conceptRelType,
+                TYPE(r4) AS interConceptRelType
+            """
+
+            parameters = {"uuid": uuid}
+            result = graphAccess.execute_query(QUERY, parameters)
+
+            nodes = {
+                'documents': {},
+                'chunks': {},
+                'concepts': {}
+            }
+            relationships = []
+
+            for record in result:
+                # Process concept node
+                if record['conceptNodeId'] and record['conceptNodeId'] not in nodes['concepts']:
+                    nodes['concepts'][record['conceptNodeId']] = {
+                        'node_type': 'Concept',
+                        'id': record['conceptNodeId'],
+                        'conceptId': record['conceptId'],
+                        'communityId': record['conceptCommunityId'],
+                        'nodeUuid': record['conceptUuid'],
+                        'pageRank': record['conceptPageRank'],
+                    }
+
+                # Process chunk node
+                if record['chunkNodeId'] and record['chunkNodeId'] not in nodes['chunks']:
+                    nodes['chunks'][record['chunkNodeId']] = {
+                        'node_type': 'Chunk',
+                        'id': record['chunkNodeId'],
+                        'position': record['chunkPosition'],
+                        'communityId': record['chunkCommunityId'],
+                        'offset': record['chunkOffset'],
+                    }
+
+                # Process document node
+                if record['docNodeId'] and record['docNodeId'] not in nodes['documents']:
+                    nodes['documents'][record['docNodeId']] = {
+                        'node_type': 'Document',
+                        'id': record['docNodeId'],
+                        'fileName': record['docFileName'],
+                        'communityId': record['docCommunityId'],
+                    }
+
+                # Process related concept node
+                if record['relatedConceptNodeId'] and record['relatedConceptNodeId'] not in nodes['concepts']:
+                    nodes['concepts'][record['relatedConceptNodeId']] = {
+                        'node_type': 'Concept',
+                        'id': record['relatedConceptNodeId'],
+                        'conceptId': record['relatedConceptId'],
+                        'communityId': record['relatedConceptCommunityId'],
+                        'nodeUuid': record['relatedConceptUuid'],
+                        'pageRank': record['relatedConceptPageRank'],
+                    }
+
+                # Process relationships
+                if record['chunkNodeId']:
+                    relationships.append({
+                        'start_node_id': record['conceptNodeId'],
+                        'end_node_id': record['chunkNodeId'],
+                        'relationship_type': record['chunkRelType']
+                    })
+                if record['docNodeId']:
+                    relationships.append({
+                        'start_node_id': record['conceptNodeId'],
+                        'end_node_id': record['docNodeId'],
+                        'relationship_type': record['docRelType']
+                    })
+                if record['relatedConceptNodeId']:
+                    relationships.append({
+                        'start_node_id': record['conceptNodeId'],
+                        'end_node_id': record['relatedConceptNodeId'],
+                        'relationship_type': record['conceptRelType']
+                    })
+                if record['otherRelatedConceptNodeId'] and record['otherRelatedConceptNodeId'] in nodes['concepts']:
+                    relationships.append({
+                        'start_node_id': record['relatedConceptNodeId'],
+                        'end_node_id': record['otherRelatedConceptNodeId'],
+                        'relationship_type': record['interConceptRelType']
+                    })
+
+            # Convert dictionaries to lists
+            for node_type in nodes:
+                nodes[node_type] = list(nodes[node_type].values())
+
+            return nodes, relationships
+
+        except Exception as e:
+            logging.error(f"Error executing query: {e}")
+            return None
+
     @staticmethod
     def get_summary_for_param(param: str, id: str) -> str | None:
         graphAccess = graphDBdataAccess(get_graph())

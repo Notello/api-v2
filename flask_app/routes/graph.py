@@ -1,10 +1,10 @@
 import logging
 from flask_restx import Namespace, Resource
-from flask import request
 
 
 from flask_app.services.GraphQueryService import GraphQueryService
 from flask_app.services.HelperService import HelperService
+from flask_app.constants import COURSEID
 
 api = Namespace('graph')
 
@@ -32,21 +32,32 @@ class GetGraphFor(Resource):
             message = f" Unable to get notes for {param} {id}, Exception: {e}"
             logging.exception(message)
             return {'message': message}, 400
+        
+topic_graph_parser = api.parser()
 
-
-    # Dumbass make a new object 
-    def get_topic_graph(self, topic_uuid):
+topic_graph_parser.add_argument(COURSEID, location='form', 
+                        type=str, required=True,
+                        help='Course ID associated with the quiz')
+@api.expect(topic_graph_parser)
+@api.route('/get-topic-graph-for-topic/<string:topicId>')
+class GetGraphFor(Resource):
+    def post(self, topicId):
         try:
-            logging.info(f"Get topic graph for {topic_uuid}")
+            args = topic_graph_parser.parse_args()
+            courseId = args.get(COURSEID, None)
+            logging.info(f"Get topic graph for {topicId}")
             
-            if not HelperService.validate_uuid4(topic_uuid):
-                return {f'message': 'Invalid topic uuid'}, 400
+            if not HelperService.validate_all_uuid4(topicId, courseId):
+                return {f'message': 'Invalid topic or course uuid'}, 400
             
-            nodes, chunks = GraphQueryService.get_topic_graph_for_topic_uuid(topic_uuid=topic_uuid, num_chunks=100)
-
-            return nodes, chunks
+            nodes, relationships = GraphQueryService.get_display_topic_graph(uuid=topicId, courseId=courseId)
+            
+            return {
+                'nodes': nodes,
+                'relationships': relationships
+                }, 200
         
         except Exception as e:
-            message = f" Unable to get topic graph for {topic_uuid}, Exception: {e}"
+            message = f" Unable to get topic graph for {topicId}, Exception: {e}"
             logging.exception(message)
             return {'message': message}, 400
