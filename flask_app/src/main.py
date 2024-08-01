@@ -1,6 +1,9 @@
+from concurrent.futures import ThreadPoolExecutor
+import concurrent.futures
 import logging
 from datetime import datetime
 import logging
+from uuid import uuid4
 
 from flask_app.src.entities.source_node import sourceNode
 from flask_app.src.graphDB_dataAccess import graphDBdataAccess
@@ -37,16 +40,34 @@ def processing_source(
   
   logging.info('Update the status as Processing')
 
-  process_chunks(
-    chunks=chunks, 
-    noteId=noteId,
-    courseId=courseId,
-    userId=userId,
-    startI=0,
-    document_name=fileName
-  )
+  futures = []
 
-  SupabaseService.update_note(noteId, 'graphStatus', '1')
+  with ThreadPoolExecutor(max_workers=200) as executor:
+    for chunk in chunks:
+        futures.append(
+            executor.submit(
+                process_chunks,
+                chunks=[chunk],
+                noteId=noteId,
+                courseId=courseId,
+                userId=userId,
+                startI=0,
+                document_name=fileName
+            ))
+    
+    for i, future in enumerate(concurrent.futures.as_completed(futures)):
+        SupabaseService.update_note(noteId, 'graphStatus', str(uuid4()))
+
+  # process_chunks(
+  #   chunks=chunks, 
+  #   noteId=noteId,
+  #   courseId=courseId,
+  #   userId=userId,
+  #   startI=0,
+  #   document_name=fileName
+  # )
+
+  # SupabaseService.update_note(noteId, 'graphStatus', '1')
 
   end_time = datetime.now()
   processed_time = end_time - start_time

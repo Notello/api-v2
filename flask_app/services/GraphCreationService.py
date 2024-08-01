@@ -193,7 +193,8 @@ class GraphCreationService:
             noteId: s.noteId,
             content: s.content,
             concept: s.concept,
-            topicId: s.topicId
+            topicId: s.topicId,
+            document_name: s.document_name
         })
 
         WITH summary, s
@@ -206,12 +207,13 @@ class GraphCreationService:
 
         params = {'summaries': [
             {
-                USERID: s[USERID],
-                COURSEID: s[COURSEID],
-                NOTEID: s[NOTEID],
-                'content': s['content'],
-                'concept': s['concept'],
-                'topicId': s['topicId'],
+                USERID: s.get(USERID),
+                COURSEID: s.get(COURSEID),
+                NOTEID: s.get(NOTEID),
+                'content': s.get('content'),
+                'concept': s.get('concept'),
+                'topicId': s.get('topicId'),
+                'document_name': s.get('document_name'),
             } for s in summaries
         ]}
 

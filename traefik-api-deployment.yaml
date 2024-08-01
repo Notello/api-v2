@@ -1,3 +1,4 @@
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -15,12 +16,14 @@ spec:
     spec:
       containers:
       - name: flask-restx-api
-        image: registry.digitalocean.com/notello/api-dev
+        image: registry.digitalocean.com/notello/api-dev:v1.23
         ports:
         - containerPort: 8080
         env:
         - name: FLASK_ENV
           value: "production"
+        - name: K8s_VER
+          value: "1.23"
         - name: ENV_TYPE
           value: "prod"
         - name: NEO4J_URI
@@ -66,3 +69,32 @@ spec:
               key: runpod
       imagePullSecrets:
       - name: registry-notello
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: flask-restx-api-service
+  namespace: neo4j
+spec:
+  selector:
+    app: flask-restx-api
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+  type: ClusterIP
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: flask-restx-api-ingress
+  namespace: neo4j
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`api.notello.dev`)
+      kind: Rule
+      services:
+        - name: flask-restx-api-service
+          port: 80

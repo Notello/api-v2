@@ -177,9 +177,12 @@ class SummaryService():
             logging.error(f"No importance graph found for {specifierParam}: {id}")
             return None
         
+        document_name = None if 'topChunks' not in importance_graph[0] or len(importance_graph[0]['topChunks']) == 0 else importance_graph[0]['topChunks'][0]['document_name']
+        
         futures = []
 
-        print(importance_graph)
+        if len(importance_graph) > 10:
+            importance_graph = importance_graph[:10]
 
         with ThreadPoolExecutor(max_workers=10) as executor:
             for graph in importance_graph:
@@ -212,7 +215,8 @@ class SummaryService():
                         USERID: userId,
                         COURSEID: courseId,
                         NOTEID: noteId if noteId is not None else 'None',
-                        'topicId': summary['concept_uuid']
+                        'topicId': summary['concept_uuid'],
+                        'document_name': document_name
                     }
 
                     GraphCreationService.insert_summaries([summary])
@@ -241,9 +245,7 @@ class SummaryService():
 
         if topic_graph is None:
             return None
-        
-        print(topic_graph)
-        
+                
         summaryId = SupabaseService.add_summary(topicId=topicId)[0]['id']
 
         graph = topic_graph[0]['result']
@@ -290,10 +292,8 @@ class SummaryService():
         chunks_map: Dict[str, str],
         courseId: str
     ) -> str:
-        logging.info(f"Content before topic injection: {content}")
-        logging.info(f"Topics: {topics}")
-        logging.info(f"Chunks Map: {chunks_map}")
-        
+
+        logging.info("starting injection for topic")        
         # Sort topics by length of conceptId in descending order
         # This ensures longer matches are replaced first
         sorted_topics = sorted(topics, key=lambda x: len(x['conceptId']), reverse=True)
@@ -339,7 +339,5 @@ class SummaryService():
             return match.group(0)
 
         content = re.sub(r'\[([^\]]+)\]\(([a-f0-9-]+)\)', process_remaining_concepts, content)
-
-        logging.info(f"Injected topic links into content: {content}")
 
         return content

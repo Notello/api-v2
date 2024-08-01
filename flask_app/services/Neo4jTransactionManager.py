@@ -5,7 +5,6 @@ from neo4j import GraphDatabase
 from neo4j.exceptions import ServiceUnavailable, SessionExpired, TransientError
 import logging
 from functools import wraps
-from flask import current_app
 
 class Neo4jTransactionManager:
     def __init__(self, uri=os.getenv('NEO4J_URI'), user=os.getenv('NEO4J_USERNAME'), password=os.getenv('NEO4J_PASSWORD')):

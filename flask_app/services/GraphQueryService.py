@@ -1,10 +1,8 @@
 import json
 import logging
 import random
-from pprint import pprint
 from typing import Any, Dict, List, Tuple
 from flask_app.src.graphDB_dataAccess import graphDBdataAccess
-from flask import current_app
 from flask_app.src.shared.common_fn import get_graph
 
 class GraphQueryService():
@@ -396,6 +394,7 @@ class GraphQueryService():
             avgPageRank,
             thresholdMultiplier  // Include this to see the applied threshold
         ORDER BY importanceScore DESC
+        LIMIT 10
         """
 
         parameters = {

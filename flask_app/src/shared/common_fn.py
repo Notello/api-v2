@@ -5,7 +5,6 @@ import re
 import os
 import uuid
 
-from flask import current_app
 from ..document_sources.youtube import create_youtube_url
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain.docstore.document import Document
@@ -64,7 +63,6 @@ def get_chunk_and_graphDocument(graph_document_list, chunkId_chunkDoc_list):
   return lst_chunk_chunkId_document  
                  
 def create_graph_database_connection(uri, userName, password, database):
-  logging.info(f"Creating graph database connection: {uri}, {userName}, {password}, {database}")
   graph = Neo4jGraph(url=uri, database=database, username=userName, password=password, refresh_schema=False, sanitize=True)
   return graph
 
@@ -200,12 +198,6 @@ def compare_similar_words(options, bad_ends=['s', 'ed', 'ing', 'er']):
   return words_to_combine
 
 def get_graph():
-    logging.info(f"Creating graph database connection")
-    logging.info(f"ENV_TYPE: {os.getenv('ENV_TYPE')}")
-    logging.info(f"NEO4J_URI: {os.getenv('NEO4J_URI')}")
-    logging.info(f"NEO4J_USERNAME: {os.getenv('NEO4J_USERNAME')}")
-    logging.info(f"NEO4J_PASSWORD: {os.getenv('NEO4J_PASSWORD')}")
-    logging.info(f"NEO4J_DATABASE: {os.getenv('NEO4J_DATABASE')}")
     return create_graph_database_connection(
         uri=os.getenv('NEO4J_URI'),
         userName=os.getenv('NEO4J_USERNAME'),

@@ -1,13 +1,13 @@
 from io import BytesIO
 import logging
+import os
 from typing import List
-from supabase import Client
-from flask import current_app
+from supabase import Client, create_client
 from flask_app.services.HelperService import HelperService
 
 from flask_app.constants import COURSEID, NOTE_TABLE_NAME, NOTEID, QUIZ_QUESTION_TABLE_NAME, QUIZ_TABLE_NAME, TOPIC_SUMMARY_TABLE_NAME, USERID
 
-supabase: Client = current_app.config['SUPABASE_CLIENT']
+supabase: Client = create_client(os.getenv('SUPABASE_URL'), os.getenv('SUPABASE_SERVICE_KEY'))
 
 class SupabaseService:
 

@@ -1,4 +1,5 @@
-from flask import current_app
+import runpod
+import os
 from runpod import Endpoint
 import logging
 from .SupabaseService import SupabaseService
@@ -9,7 +10,7 @@ class RunpodService:
     def transcribe(fileName: str, keywords: str) -> str | None:
         logging.info(f'Transcribing file: {fileName}')
 
-        endpoint: Endpoint = current_app.config['RUNPOD_ENDPOINT']
+        endpoint: Endpoint = runpod.Endpoint(os.getenv("RUNPOD_WHISPER_ENDPOINT_ID"))
 
         try:
             run_request = endpoint.run(

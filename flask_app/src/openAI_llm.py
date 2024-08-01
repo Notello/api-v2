@@ -9,7 +9,6 @@ from flask_app.constants import GPT_35_TURBO_MODEL, GPT_4O_MINI, LLAMA_8B_INSTAN
 
 logging.basicConfig(format='%(asctime)s - %(message)s',level='INFO')
 
-from flask import current_app
 
 def get_graph_from_OpenAI(chunkId_chunkDoc_list):
     futures=[]
