@@ -29,7 +29,10 @@ class GenerateTopicSummary(Resource):
         userId = args.get(USERID, None)
         courseId = args.get(COURSEID, None)
 
-        if (not HelperService.validate_all_uuid4(userId, courseId, topicId)):
+        if (not HelperService.validate_all_uuid4(userId, courseId, topicId)
+            or not SupabaseService.param_id_exists('courseId', courseId)
+            or not SupabaseService.param_id_exists('userId', userId)
+        ):
             return {'message': 'Must have userId, courseId, and topicId'}, 400
         
         SummaryService.generate_topic_summary(

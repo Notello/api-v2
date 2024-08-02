@@ -55,6 +55,9 @@ class GenerateQuiz(Resource):
             or (specifierParam is not None and specifierParam not in QuizService.validSpecifiers)
             or (not HelperService.validate_uuid4(noteId) and specifierParam == NOTEID)
             or not isinstance(topics, list)
+            or not SupabaseService.param_id_exists('courseId', courseId)
+            or not SupabaseService.param_id_exists('userId', userId)
+            or (noteId is not None and not SupabaseService.param_id_exists('noteId', noteId))
         ):
             return {'message': 'Must have userId, courseId, optionally noteId and a valid specifierParam'}, 400
                 

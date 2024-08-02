@@ -90,3 +90,14 @@ class HelperService:
             return data.iso_format()
         else:
             return data
+        
+    @staticmethod
+    def get_video_duration(youtube_url):
+        try:
+            yt = YouTube(youtube_url)
+            duration_iso = yt.length
+            duration_seconds = int(duration_iso)
+            return duration_seconds
+        except Exception as e:
+            logging.exception(f"Error fetching video duration: {e}")
+            raise ValueError("Unable to fetch video duration")

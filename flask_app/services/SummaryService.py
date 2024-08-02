@@ -292,6 +292,9 @@ class SummaryService():
         chunks_map: Dict[str, str],
         courseId: str
     ) -> str:
+        
+        print("Topics: ", topics)
+        print("Pre content: ", content)
 
         logging.info("starting injection for topic")        
         # Sort topics by length of conceptId in descending order

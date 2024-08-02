@@ -526,8 +526,8 @@ class GraphQueryService():
                 otherRelatedConcept.id AS otherRelatedConceptId, 
                 ID(otherRelatedConcept) AS otherRelatedConceptNodeId,
                 
-                TYPE(r1) AS chunkRelType, TYPE(r2) AS docRelType, TYPE(r3) AS conceptRelType,
-                TYPE(r4) AS interConceptRelType
+                r1.type AS chunkRelType, r2.type AS docRelType, r3.type AS conceptRelType,
+                r4.type AS interConceptRelType
             """
 
             parameters = {"uuid": uuid}

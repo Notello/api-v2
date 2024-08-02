@@ -4,6 +4,8 @@ load_dotenv()
 
 NOTE_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_note"
 QUIZ_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_quiz"
+COURSE_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_course"
+PROFILE_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_profile"
 QUIZ_QUESTION_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_quiz_question"
 TOPIC_SUMMARY_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_topic_summary"
 
@@ -12,6 +14,7 @@ UUID = "uuid"
 COURSEID = "courseId"
 USERID = "userId"
 NOTEID = "noteId"
+SUPAID = "supaId"
 
 GPT_35_TURBO_MODEL = "gpt-3.5-turbo-0125"
 GPT_4O_MODEL = "gpt-4o"
@@ -39,4 +42,4 @@ OPENAI_MODELS = [
 ]
 DEFAULT_COMMUNITIES = 3
 
-K8S_VER = '2.01'
+K8S_VER = '2.03'

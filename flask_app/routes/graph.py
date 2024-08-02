@@ -4,6 +4,7 @@ from flask_restx import Namespace, Resource
 
 from flask_app.services.GraphQueryService import GraphQueryService
 from flask_app.services.HelperService import HelperService
+from flask_app.services.SupabaseService import SupabaseService
 from flask_app.constants import COURSEID
 
 api = Namespace('graph')
@@ -14,7 +15,8 @@ class GetGraphFor(Resource):
         try:
             logging.info(f"Get graph for {param}, {id}")
 
-            if not HelperService.validate_all_uuid4(id):
+            if not HelperService.validate_all_uuid4(id) or \
+                not SupabaseService.param_id_exists(param, id):
                 return {f'message': 'Invalid {param} id'}, 400
             
             nodes, relationships = GraphQueryService.get_graph_for_param(key=param, value=id)
@@ -47,7 +49,8 @@ class GetGraphFor(Resource):
             courseId = args.get(COURSEID, None)
             logging.info(f"Get topic graph for {topicId}")
             
-            if not HelperService.validate_all_uuid4(topicId, courseId):
+            if not HelperService.validate_all_uuid4(topicId, courseId) \
+                or not SupabaseService.param_id_exists('courseId', courseId):
                 return {f'message': 'Invalid topic or course uuid'}, 400
             
             nodes, relationships = GraphQueryService.get_display_topic_graph(uuid=topicId, courseId=courseId)
@@ -68,7 +71,8 @@ class GetTopicListForParam(Resource):
         try:
             logging.info(f"Get topic list for {param}, {id}")
 
-            if not HelperService.validate_all_uuid4(id):
+            if not HelperService.validate_all_uuid4(id) or \
+                not SupabaseService.param_id_exists(param, id):
                 return {f'message': 'Invalid {param} id'}, 400
 
             topics = GraphQueryService.get_topics_for_param(param=param, id=id)

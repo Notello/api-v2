@@ -171,4 +171,6 @@ class NoteService:
             logging.info(f"File uploaded successfully for note {noteId}")
 
         except Exception as e:
+            SupabaseService.update_note(noteId=noteId, key='contentStatus', value='error')
+            SupabaseService.update_note(noteId=noteId, key='graphStatus', value='error')
             logging.exception(f'Exception Stack trace: {e}')

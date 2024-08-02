@@ -5,7 +5,7 @@ from typing import List
 from supabase import Client, create_client
 from flask_app.services.HelperService import HelperService
 
-from flask_app.constants import COURSEID, NOTE_TABLE_NAME, NOTEID, QUIZ_QUESTION_TABLE_NAME, QUIZ_TABLE_NAME, TOPIC_SUMMARY_TABLE_NAME, USERID
+from flask_app.constants import COURSEID, ID, NOTE_TABLE_NAME, NOTEID, PROFILE_TABLE_NAME, QUIZ_TABLE_NAME, SUPAID, TOPIC_SUMMARY_TABLE_NAME, USERID, COURSE_TABLE_NAME
 
 supabase: Client = create_client(os.getenv('SUPABASE_URL'), os.getenv('SUPABASE_SERVICE_KEY'))
 
@@ -145,3 +145,22 @@ class SupabaseService:
         return supabase.table(TOPIC_SUMMARY_TABLE_NAME).update({
             str(key): str(value)
             }).eq('id', str(summaryId)).execute().data
+    
+    @staticmethod
+    def param_id_exists(param: str, id: str) -> bool:
+        if not HelperService.validate_all_uuid4(id) :
+            logging.error(f'Invalid {param} id: {id}')
+            return False
+        
+        out = False
+        
+        if param == 'courseId':
+            out = supabase.table(COURSE_TABLE_NAME).select('*').eq(ID, id).execute().data != []
+        elif param == 'userId':
+            out = supabase.table(PROFILE_TABLE_NAME).select('*').eq(SUPAID, id).execute().data != []
+        elif param == 'noteId':
+            out = supabase.table(NOTE_TABLE_NAME).select('*').eq(ID, id).execute().data != []
+        
+
+        logging.info(f'Param {param}, id {id} exists: {out}')
+        return out
