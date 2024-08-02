@@ -667,7 +667,7 @@ class GraphQueryService():
         QUERY = f"""
         MATCH (n:Concept)
         WHERE $id IN n.{param}
-        RETURN n.id AS conceptId, n.uuid[0] AS conceptUuid
+        RETURN n.id AS conceptId, n.uuid[0] AS conceptUuid, n.noteId AS noteId
         """
 
         parameters = {

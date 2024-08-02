@@ -31,7 +31,8 @@ class NoteService:
         userId: str,
         form: NoteForm,
         sourceUrl: str = '',
-        rawText: str = ''
+        rawText: str = '',
+        title: str = ''
     ):
         try:          
             note = SupabaseService.add_note(
@@ -41,6 +42,7 @@ class NoteService:
                 content=rawText,
                 sourceUrl=sourceUrl,
                 status=NoteService.form_to_status[form],
+                title=title
             )
 
             if len(note) == 0:
@@ -61,6 +63,7 @@ class NoteService:
         courseId: str,
         userId: str,
         youtubeUrl: str,
+        title: str,
     ):
         similar = SimilarityService.check_youtube_similarity(
             courseId=courseId,
@@ -72,8 +75,6 @@ class NoteService:
             return
             
         timestamps = TimestampService.get_youtube_timestamps(youtube_url=youtubeUrl)
-
-        title = HelperService.get_youtube_title(youtube_url=youtubeUrl)
 
         SupabaseService.update_note(noteId=noteId, key='sourceUrl', value=youtubeUrl)
         SupabaseService.update_note(noteId=noteId, key='contentStatus', value='complete')

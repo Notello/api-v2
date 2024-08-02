@@ -61,3 +61,22 @@ class GetGraphFor(Resource):
             message = f" Unable to get topic graph for {topicId}, Exception: {e}"
             logging.exception(message)
             return {'message': message}, 400
+        
+@api.route('/get-topic-list-for-param/<string:param>/<string:id>')
+class GetTopicListForParam(Resource):
+    def get(self, param, id):
+        try:
+            logging.info(f"Get topic list for {param}, {id}")
+
+            if not HelperService.validate_all_uuid4(id):
+                return {f'message': 'Invalid {param} id'}, 400
+
+            topics = GraphQueryService.get_topics_for_param(param=param, id=id)
+
+            if topics is None:
+                return {'message': 'Error getting graph'}, 400
+        
+            return {'topics': topics}, 200
+        except Exception as e:
+            message = f" Unable to get notes for {param} {id}, Exception: {e}"
+            logging.exception(message)

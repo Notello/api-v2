@@ -18,7 +18,8 @@ class SupabaseService:
         form: str, 
         status: str,
         content: str = '',
-        sourceUrl: str = ''
+        sourceUrl: str = '',
+        title: str = ''
     ) -> list:
         try:
             if not HelperService.validate_all_uuid4(courseId, userId):
@@ -32,6 +33,7 @@ class SupabaseService:
                 'contentStatus': status,
                 'rawContent': content,
                 'sourceUrl': sourceUrl,
+                'title': title,
             }).execute().data
 
             logging.info(f'Note added successfully for courseId: {courseId}, userId: {userId}, form: {form}, data: {out}')

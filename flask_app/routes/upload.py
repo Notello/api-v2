@@ -1,3 +1,4 @@
+from datetime import datetime
 import logging
 from flask_restx import Namespace, Resource
 from werkzeug.datastructures import FileStorage
@@ -39,11 +40,14 @@ class YoutubeIntake(Resource):
             if not HelperService.validate_all_uuid4(courseId, userId):
                 return {'message': 'Invalid courseId or userId'}, 400
             
+            title = HelperService.get_youtube_title(youtube_url=youtubeUrl)
+            
             noteId = NoteService.create_note(
                 courseId=courseId, 
                 userId=userId, 
                 form=NoteForm.YOUTUBE,
                 sourceUrl=youtubeUrl, 
+                title=title
                 )
         
             if not HelperService.validate_all_uuid4(noteId):
@@ -51,7 +55,7 @@ class YoutubeIntake(Resource):
 
             ContextAwareThread(
                 target=NoteService.youtube_video_to_graph,
-                args=(noteId, courseId, userId, youtubeUrl)
+                args=(noteId, courseId, userId, youtubeUrl, title)
             ).start()
 
             logging.info(f"Source Node created successfully for source type: youtube and source: {youtubeUrl}")
@@ -94,6 +98,7 @@ class AudioIntake(Resource):
                 courseId=courseId,
                 userId=userId,
                 form=NoteForm.AUDIO,
+                title=f"Audio File: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
             )
 
             if not HelperService.validate_all_uuid4(noteId):
@@ -142,7 +147,8 @@ class TextIntake(Resource):
             courseId=courseId,
             userId=userId,
             form=NoteForm.TEXT,
-            rawText=rawText
+            rawText=rawText,
+            title=noteName
         )
 
         if not HelperService.validate_all_uuid4(noteId):
@@ -192,6 +198,7 @@ class TextFileIntake(Resource):
             courseId=courseId,
             userId=userId,
             form=NoteForm.TEXT_FILE,
+            title=file.filename
         )
 
         if not HelperService.validate_all_uuid4(noteId):
