@@ -4,7 +4,6 @@ from flask_restx import Namespace, Resource
 from werkzeug.datastructures import FileStorage
 from mutagen.mp3 import MP3
 from mutagen.wave import WAVE
-from pytube import YouTube
 
 from flask_app.services.ContextAwareThread import ContextAwareThread
 from flask_app.services.NoteService import NoteForm, NoteService
@@ -49,22 +48,23 @@ class YoutubeIntake(Resource):
                 or not SupabaseService.param_id_exists(param='userId', id=userId):
                 return {'message': 'Invalid courseId or userId'}, 400
             
+            title = None
             # Check video duration
             try:
                 duration = HelperService.get_video_duration(youtube_url=youtubeUrl)
+                title = HelperService.get_youtube_title(youtube_url=youtubeUrl)
                 if duration > self.MAX_DURATION:
                     return {'message': 'YouTube video exceeds the maximum duration of 2 hours'}, 400
             except ValueError as e:
-                return {'message': str(e)}, 400
+                pass
             
-            title = HelperService.get_youtube_title(youtube_url=youtubeUrl)
             
             noteId = NoteService.create_note(
                 courseId=courseId, 
                 userId=userId, 
                 form=NoteForm.YOUTUBE,
                 sourceUrl=youtubeUrl, 
-                title=title
+                title=title if title is not None else "Youtube Video"
                 )
         
             if not HelperService.validate_all_uuid4(noteId):

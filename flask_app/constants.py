@@ -42,4 +42,18 @@ OPENAI_MODELS = [
 ]
 DEFAULT_COMMUNITIES = 3
 
-K8S_VER = '2.03'
+K8S_VER = '2.05'
+
+proxy_info = {
+    'host': 'brd.superproxy.io',
+    'port': 22225,
+    'user': 'brd-customer-hl_5b531365-zone-residential_proxy1',
+    'pass': 'bi8gq26at1fz'
+}
+
+proxy_url = f"http://{proxy_info['user']}:{proxy_info['pass']}@{proxy_info['host']}:{proxy_info['port']}"
+
+proxy = {
+    'http': proxy_url,
+    'https': proxy_url
+}
