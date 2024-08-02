@@ -93,7 +93,6 @@ class SupabaseService:
             NOTEID: noteId,
             COURSEID: courseId,
             USERID: userId,
-            'difficulty': difficulty,
             'num_questions': numQuestions,
         }).execute().data
 
