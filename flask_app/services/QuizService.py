@@ -9,8 +9,6 @@ from langchain_core.pydantic_v1 import BaseModel, Field
 from langchain_core.prompts import ChatPromptTemplate
 from retry import retry
 
-from pprint import pprint
-
 from flask_app.services.GraphQueryService import GraphQueryService
 from flask_app.services.SupabaseService import SupabaseService
 from flask_app.services.GraphCreationService import GraphCreationService
@@ -22,7 +20,7 @@ logger = logging.getLogger(__name__)
 class Answer(BaseModel):
     answer: str = Field(description="The answer text")
     correct: bool = Field(description="A boolean value indicating whether the answer is correct")
-    explanation: str = Field(description="A brief explanation of why the answer is correct or incorrect")
+    explanation: str = Field(description="A concise, informative explanation of why the answer is correct or incorrect")
 
 class QuizQuestion(BaseModel):
     question: str = Field(description="The question text")
@@ -55,7 +53,7 @@ def setup_llm(
     1. Create questions that explore the relationship between the given concepts.
     2. Use the provided text chunks to inform the questions and answers.
     3. Provide four possible answers for each question, with exactly one marked as correct.
-    4. Include clear and concise explanations for each answer option.
+    4. Include clear, concise, and informative explanations for each answer option.
     5. Assign the given difficulty level to each question, where 1 is easiest and 5 is most difficult.
     6. Use natural language in the questions and answers. Avoid mentioning "entities" or "relationships" explicitly.
     7. Ensure that the questions and answers are understandable to someone unfamiliar with the internal structure of the knowledge base.
@@ -64,6 +62,9 @@ def setup_llm(
     - Do NOT mention or reference chunk IDs in the question text, answer options, or explanations.
     - Only include chunk IDs in the designated 'chunkIds' list for each question.
     - Frame the questions and answers in a way that's natural and easy for a general audience to understand.
+    - For explanations, provide meaningful insights that go beyond simply restating the correctness of the answer.
+    - Explanations should be one paragraph or less, offering a real understanding of why an answer is correct or incorrect.
+    - Compare and contrast the correct answer with the incorrect ones in the explanations when relevant.
 
     Remember to create questions that are both challenging and answerable based on the provided information.
     """
@@ -89,6 +90,8 @@ def setup_llm(
     - Do NOT mention or reference chunk IDs in the question text, answer options, or explanations.
     - Only include chunk IDs in the designated 'chunkIds' list for each question.
     - Ensure that the questions and answers are clear and understandable to a general audience.
+    - Provide concise but insightful explanations for each answer, highlighting why it's correct or incorrect.
+    - Explanations should be one paragraph or less and offer meaningful context or comparisons when appropriate.
 
     Please provide the questions in the JSON format specified in the system prompt.
     """
