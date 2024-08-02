@@ -76,7 +76,7 @@ class GetTopicListForParam(Resource):
             if topics is None:
                 return {'message': 'Error getting graph'}, 400
         
-            return {'topics': topics}, 200
+            return topics, 200
         except Exception as e:
             message = f" Unable to get notes for {param} {id}, Exception: {e}"
             logging.exception(message)
