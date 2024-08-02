@@ -4,7 +4,6 @@ from uuid import UUID
 from datetime import datetime
 from neo4j.time import DateTime
 from pytube import YouTube
-import requests
 
 from flask_app.src.document_sources.youtube import get_youtube_transcript
 from flask_app.constants import proxy
@@ -14,15 +13,8 @@ from flask_app.constants import proxy
 class HelperService:
     @staticmethod
     def get_youtube_title(youtube_url: str):
-        YouTube.proxies = proxy
-
-        # Create a session with the proxy
-        session = requests.Session()
-        session.proxies = YouTube.proxies
-
-        yt = YouTube(youtube_url, proxies=session.proxies)
         
-        return yt.title
+        return YouTube(youtube_url, proxies=proxy).title
     
     @staticmethod
     def validate_uuid4(uuid_string) -> bool:
@@ -104,15 +96,7 @@ class HelperService:
     @staticmethod
     def get_video_duration(youtube_url):
         try:
-            YouTube.proxies = proxy
-
-            # Create a session with the proxy
-            session = requests.Session()
-            session.proxies = YouTube.proxies
-
-            yt = YouTube(youtube_url, proxies=session.proxies)
-
-            return yt.length
+            return YouTube(youtube_url, proxies=proxy).length
         except Exception as e:
             logging.exception(f"Error fetching video duration: {e}")
             raise ValueError("Unable to fetch video duration")

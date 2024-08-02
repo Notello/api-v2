@@ -42,13 +42,13 @@ OPENAI_MODELS = [
 ]
 DEFAULT_COMMUNITIES = 3
 
-K8S_VER = '2.05'
+K8S_VER = '2.07'
 
 proxy_info = {
-    'host': 'brd.superproxy.io',
-    'port': 22225,
-    'user': 'brd-customer-hl_5b531365-zone-residential_proxy1',
-    'pass': 'bi8gq26at1fz'
+    'host': 'gate.smartproxy.com',
+    'port': 10001,
+    'user': 'spcikaf7mg',
+    'pass': 'yudB6=zIeGSg19glb7'
 }
 
 proxy_url = f"http://{proxy_info['user']}:{proxy_info['pass']}@{proxy_info['host']}:{proxy_info['port']}"
@@ -57,3 +57,18 @@ proxy = {
     'http': proxy_url,
     'https': proxy_url
 }
+
+# proxy_base = {
+#     'host': 'gate.smartproxy.com',
+#     'user': 'spcikaf7mg',
+#     'pass': 'yudB6=zIeGSg19glb7'
+# }
+
+# def get_proxies():
+#     proxies = []
+#     for port in range(10001, 10011):
+#         proxy_url = f"http://{proxy_base['user']}:{proxy_base['pass']}@{proxy_base['host']}:{port}"
+#         proxies.append({
+#             'http': proxy_url,
+#             'https': proxy_url
+#         })
