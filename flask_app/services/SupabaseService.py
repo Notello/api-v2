@@ -164,3 +164,48 @@ class SupabaseService:
 
         logging.info(f'Param {param}, id {id} exists: {out}')
         return out
+    
+    @staticmethod
+    def delete_note(noteId: str):
+        if not HelperService.validate_all_uuid4(noteId):
+            logging.error(f'Invalid noteId: {noteId}')
+            return None
+
+        return supabase.table(NOTE_TABLE_NAME).delete().eq('id', str(noteId)).execute().data
+    
+    @staticmethod
+    def delete_course(courseId: str):
+        if not HelperService.validate_all_uuid4(courseId):
+            logging.error(f'Invalid courseId: {courseId}')
+            return None
+
+        return supabase.table(COURSE_TABLE_NAME).delete().eq('id', str(courseId)).execute().data
+    
+    @staticmethod
+    def delete_user(userId: str):
+        if not HelperService.validate_all_uuid4(userId):
+            logging.error(f'Invalid userId: {userId}')
+            return None
+        
+        supabase.auth.admin.delete_user(userId)
+    
+    @staticmethod
+    def get_noteIds_for_course(courseId: str) -> List[str]:
+        if not HelperService.validate_all_uuid4(courseId):
+            logging.error(f'Invalid courseId: {courseId}')
+            return []
+
+        return supabase.table(NOTE_TABLE_NAME).select('*').eq('courseId', str(courseId)).execute().data
+
+    @staticmethod
+    def get_notes_for_user(userId: str) -> List[str]:
+        if not HelperService.validate_all_uuid4(userId):
+            logging.error(f'Invalid userId: {userId}')
+            return []
+
+        return supabase.table(NOTE_TABLE_NAME).select('*').eq('userId', str(userId)).execute().data
+    
+    @staticmethod
+    def get_user(email: str, password: str) -> dict:
+        credentials={"email": email, "password": password}
+        return supabase.auth.sign_in_with_password(credentials)
