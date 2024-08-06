@@ -1,11 +1,12 @@
+from datetime import datetime, timedelta, UTC
 from io import BytesIO
 import logging
 import os
-from typing import List
+from typing import Dict, List
 from supabase import Client, create_client
 from flask_app.services.HelperService import HelperService
 
-from flask_app.constants import COURSEID, ID, NOTE_TABLE_NAME, NOTEID, PROFILE_TABLE_NAME, QUIZ_TABLE_NAME, SUPAID, TOPIC_SUMMARY_TABLE_NAME, USERID, COURSE_TABLE_NAME
+from flask_app.constants import COURSEID, ID, NOTE_TABLE_NAME, NOTEID, PROFILE_TABLE_NAME, QUIZ_TABLE_NAME, RATE_LIMIT_TABLE_NAME, RATE_LIMIT_VALUES_TABLE_NAME, SUPAID, TOPIC_SUMMARY_TABLE_NAME, USERID, COURSE_TABLE_NAME
 
 supabase: Client = create_client(os.getenv('SUPABASE_URL'), os.getenv('SUPABASE_SERVICE_KEY'))
 
@@ -68,14 +69,18 @@ class SupabaseService:
     
     @staticmethod
     def update_note(noteId: str, key: str, value: str):
-        if not HelperService.validate_all_uuid4(noteId):
-            logging.error(f'Invalid noteId: {noteId}')
-            return None
+        try:
+            if not HelperService.validate_all_uuid4(noteId):
+                logging.error(f'Invalid noteId: {noteId}')
+                return None
 
-        logging.info(f'Updating note {noteId} with key {key} and value {value}')
-        return supabase.table(NOTE_TABLE_NAME).update({
-            str(key): str(value)
-            }).eq('id', str(noteId)).execute().data
+            logging.info(f'Updating note {noteId} with key {key} and value {value}')
+            return supabase.table(NOTE_TABLE_NAME).update({
+                str(key): str(value)
+                }).eq('id', str(noteId)).execute().data
+        except Exception as e:
+            logging.exception(f'Exception in update_note: {e}')
+            return None
     
     @staticmethod
     def create_quiz(
@@ -209,3 +214,58 @@ class SupabaseService:
     def get_user(email: str, password: str) -> dict:
         credentials={"email": email, "password": password}
         return supabase.auth.sign_in_with_password(credentials)
+    
+    @staticmethod
+    def get_user_type(userId: str) -> str:
+        if not HelperService.validate_all_uuid4(userId):
+            logging.error(f'Invalid userId: {userId}')
+            return ''
+
+        user = supabase.table(PROFILE_TABLE_NAME).select('*').eq(SUPAID, str(userId)).execute().data
+
+        if not user:
+            return ''
+
+        return user[0]['accountType']
+    
+    @staticmethod
+    def get_rate_limit(userId: str, type: str):
+        if not HelperService.validate_all_uuid4(userId):
+            logging.error(f'Invalid userId: {userId}')
+            return {}
+
+        now = datetime.now(UTC)
+
+        # Fetch data for the last 30 days
+        result = supabase.table(RATE_LIMIT_TABLE_NAME)\
+            .select('created_at, count')\
+            .eq('type', str(type))\
+            .eq('userId', str(userId))\
+            .gte('created_at', now - timedelta(days=30))\
+            .execute()
+
+        return result.data
+
+    @staticmethod
+    def get_rate_limit_values(type: str, userType: str) -> dict:
+        return supabase.table(RATE_LIMIT_VALUES_TABLE_NAME).select('*').eq('type', str(type)).eq('userType', str(userType)).execute().data
+    
+    @staticmethod
+    def add_rate_limit(userId: str, type: str, count: int):
+        if not HelperService.validate_all_uuid4(userId):
+            logging.error(f'Invalid userId: {userId}')
+            return None
+        
+        return supabase.table(RATE_LIMIT_TABLE_NAME).insert({
+            'userId': str(userId),
+            'type': str(type),
+            'count': count
+        }).execute().data
+
+    @staticmethod
+    def delete_rate_limit(rateLimitId: str):
+        if not HelperService.validate_all_uuid4(rateLimitId):
+            logging.error(f'Invalid rateLimitId: {rateLimitId}')
+            return None
+        
+        return supabase.table(RATE_LIMIT_TABLE_NAME).delete().eq('id', str(rateLimitId)).execute().data

@@ -12,6 +12,7 @@ from retry import retry
 from flask_app.services.GraphQueryService import GraphQueryService
 from flask_app.services.SupabaseService import SupabaseService
 from flask_app.services.GraphCreationService import GraphCreationService
+from flask_app.services.RatelimitService import RatelimitService
 from flask_app.src.shared.common_fn import get_llm
 from flask_app.constants import COURSEID, GPT_4O_MINI, NOTEID, USERID
 
@@ -114,6 +115,7 @@ def generate_quiz_questions(
     num_questions: int
 ) -> Optional[List[Dict]]:
     try:
+        logging.info(f"Generating quiz questions for source: {source}, target: {target}, relationship type: {relationship_type}, chunks: {len(chunks)}, difficulty: {difficulty}, num_questions: {num_questions}")
         chunks_str = "\n".join([f"Chunk ID: {chunk['id']}, Text: {chunk['text']}" for chunk in chunks])
 
         extraction_chain = setup_llm(
@@ -145,7 +147,8 @@ class QuizService():
                       noteId=None,
                       difficulty=None,
                       numQuestions=None,
-                      specifierParam=None
+                      specifierParam=None,
+                      rateLimitId=None
                       ):
         
         try:
@@ -200,6 +203,7 @@ class QuizService():
         except Exception as e:
             logging.exception(f"Error generating quiz: {str(e)}")
             SupabaseService.update_quiz(quizId=quizId, key='status', value='error')
+            RatelimitService.remove_rate_limit(rateLimitId)
             return None
     
     @staticmethod

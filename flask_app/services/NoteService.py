@@ -2,12 +2,15 @@ from enum import Enum
 from io import BytesIO
 from werkzeug.datastructures import FileStorage
 import logging
+
 from flask_app.services.SupabaseService import SupabaseService
 from flask_app.services.RunpodService import RunpodService
 from flask_app.services.GraphCreationService import GraphCreationService
 from flask_app.services.SimilarityService import SimilarityService
 from flask_app.services.TimestampService import TimestampService
 from flask_app.services.HelperService import HelperService
+from flask_app.services.RatelimitService import RatelimitService
+
 from flask_app.src.document_sources.pdf_loader import extract_text
 
 class NoteForm(Enum):
@@ -64,29 +67,37 @@ class NoteService:
         userId: str,
         youtubeUrl: str,
         title: str,
+        rateLimitId: str
     ):
-        similar = SimilarityService.check_youtube_similarity(
-            courseId=courseId,
-            noteId=noteId,
-            sourceUrl=youtubeUrl
-            )
+        try:
+            similar = SimilarityService.check_youtube_similarity(
+                courseId=courseId,
+                noteId=noteId,
+                sourceUrl=youtubeUrl
+                )
 
-        if similar:
-            return
-            
-        timestamps = TimestampService.get_youtube_timestamps(youtube_url=youtubeUrl)
+            if similar:
+                logging.info(f"Youtube video similar to existing note: {youtubeUrl}")
+                RatelimitService.remove_rate_limit(rateLimitId)
+                return
+                
+            timestamps = TimestampService.get_youtube_timestamps(youtube_url=youtubeUrl)
 
-        SupabaseService.update_note(noteId=noteId, key='sourceUrl', value=youtubeUrl)
-        SupabaseService.update_note(noteId=noteId, key='contentStatus', value='complete')
+            SupabaseService.update_note(noteId=noteId, key='sourceUrl', value=youtubeUrl)
+            SupabaseService.update_note(noteId=noteId, key='contentStatus', value='complete')
 
-        GraphCreationService.create_graph_from_timestamps(
-            timestamps=timestamps,
-            import_type='youtube',
-            document_name=title,
-            noteId=noteId,
-            courseId=courseId,
-            userId=userId
-            )
+            GraphCreationService.create_graph_from_timestamps(
+                timestamps=timestamps,
+                import_type='youtube',
+                document_name=title,
+                noteId=noteId,
+                courseId=courseId,
+                userId=userId,
+                rateLimitId=rateLimitId
+                )
+        except Exception as e:
+            logging.exception(f'Exception Stack trace: {e}')
+            RatelimitService.remove_rate_limit(rateLimitId)
 
     @staticmethod
     def audio_file_to_graph(
@@ -94,7 +105,8 @@ class NoteService:
         courseId: str,
         userId: str,
         audio_file: FileStorage,
-        keywords: str
+        keywords: str,
+        rateLimitId: str
         ):
         try:
             file_content = audio_file.read()
@@ -106,6 +118,7 @@ class NoteService:
                 )
 
             if fileId is None:
+                RatelimitService.remove_rate_limit(rateLimitId)
                 logging.exception(f"Failed to upload file for note {noteId}")
                 return
 
@@ -115,6 +128,7 @@ class NoteService:
                 )
 
             if output is None or 'data' not in output:
+                RatelimitService.remove_rate_limit(rateLimitId)
                 logging.exception(f"Failed to transcribe file for note {noteId}")
                 return
             
@@ -124,12 +138,15 @@ class NoteService:
                 document_name=audio_file.filename,
                 noteId=noteId,
                 courseId=courseId,
-                userId=userId
+                userId=userId,
+                rateLimitId=rateLimitId
             )
             
             logging.info(f"File uploaded successfully for note {noteId}")
 
         except Exception as e:
+            RatelimitService.remove_rate_limit(rateLimitId)
+            SupabaseService.update_note(noteId=noteId, key='graphStatus', value='error')
             logging.exception(f'Exception Stack trace: {e}')
 
 
@@ -140,12 +157,14 @@ class NoteService:
         userId: str,
         file_name: str,
         file_content: BytesIO,
-        file_type: str
+        file_type: str,
+        rateLimitId: str
         ):
         try:
             output = extract_text(file_content, file_name, file_type)
 
             if output is None:
+                RatelimitService.remove_rate_limit(rateLimitId)
                 logging.exception(f"Failed to transcribe file for note {noteId}")
                 return
 
@@ -157,6 +176,7 @@ class NoteService:
                 )
 
             if fileId is None:
+                RatelimitService.remove_rate_limit(rateLimitId)
                 logging.exception(f"Failed to upload file for note {noteId}")
                 return
                         
@@ -165,12 +185,14 @@ class NoteService:
                 noteId=noteId, 
                 courseId=courseId, 
                 userId=userId,
-                fileName=file_name
+                fileName=file_name,
+                rateLimitId=rateLimitId
                 )
             
             logging.info(f"File uploaded successfully for note {noteId}")
 
         except Exception as e:
+            RatelimitService.remove_rate_limit(rateLimitId)
             SupabaseService.update_note(noteId=noteId, key='contentStatus', value='error')
             SupabaseService.update_note(noteId=noteId, key='graphStatus', value='error')
             logging.exception(f'Exception Stack trace: {e}')

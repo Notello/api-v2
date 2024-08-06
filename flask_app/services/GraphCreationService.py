@@ -8,13 +8,14 @@ from langchain.docstore.document import Document
 from flask_app.services.SupabaseService import SupabaseService
 from flask_app.src.graphDB_dataAccess import graphDBdataAccess
 from flask_app.src.entities.source_node import sourceNode
-from flask_app.src.main import processing_source
-from flask_app.src.document_sources.text_loader import get_text_chunks_langchain
 from flask_app.services.TimestampService import TimestampService
 from flask_app.services.ChunkService import ChunkService
 from flask_app.services.SimilarityService import SimilarityService
 from flask_app.models.Quiz import QuizQuestion
 from flask_app.services.HelperService import HelperService
+from flask_app.services.RatelimitService import RatelimitService
+
+from flask_app.src.main import processing_source
 from flask_app.src.shared.common_fn import get_graph
 from flask_app.constants import COURSEID, NOTEID, USERID, GPT_4O_MINI
 
@@ -26,7 +27,8 @@ class GraphCreationService:
         document_name: str,
         noteId: str,
         courseId: str,
-        userId: str
+        userId: str,
+        rateLimitId: str
     ) -> None:
         try:
             chunks = ChunkService.get_timestamp_chunks(transcript=timestamps)
@@ -42,6 +44,7 @@ class GraphCreationService:
             
         except Exception as e:
             logging.exception(f'Exception in create_source_node_graph_url_youtube: {e}')
+            RatelimitService.remove_rate_limit(rateLimitId)
             SupabaseService.update_note(noteId=noteId, key='graphStatus', value='error')
 
     @staticmethod
@@ -50,7 +53,8 @@ class GraphCreationService:
         courseId: str,
         userId: str,
         rawText: str,
-        fileName: str
+        fileName: str,
+        rateLimitId: str
     ) -> None:
             
         try:
@@ -79,6 +83,7 @@ class GraphCreationService:
                     key='graphStatus', 
                     value='complete'
                     )
+                RatelimitService.remove_rate_limit(rateLimitId)
                 return
     
             GraphCreationService.create_graph(
@@ -93,6 +98,7 @@ class GraphCreationService:
             logging.info(f'File {fileName} has been processed successfully')
         except Exception as e:
             logging.exception(f'Exception: {e}')
+            RatelimitService.remove_rate_limit(rateLimitId)
             SupabaseService.update_note(noteId=noteId, key='graphStatus', value='error')
 
     @staticmethod

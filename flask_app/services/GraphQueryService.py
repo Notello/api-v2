@@ -311,63 +311,24 @@ class GraphQueryService():
         pagerank_string = GraphQueryService.get_page_rank_string(param=param, id=id)
 
         QUERY = f"""
-        // Calculate graph size and importance scores for all nodes
+        // Calculate importance scores for all nodes
         MATCH (c:Concept)
         WHERE $id IN c.{param} AND c[$pagerank_string] IS NOT NULL
-        WITH count(c) AS graphSize, collect(c) AS allNodes, $pagerank_string AS prString
-
-        UNWIND allNodes AS c
-        WITH graphSize, c, prString, COUNT {{ (c)-[:RELATED]-() }} AS connectionCount
-        WITH graphSize, c, prString, connectionCount, c[prString] * log(1 + connectionCount) AS importanceScore
-
-        // Calculate statistics
-        WITH graphSize, prString,
-            collect({{
-                node: c, 
-                score: importanceScore, 
-                connections: connectionCount, 
-                pageRank: c[prString]
-                }}) AS nodeScores,
-            avg(importanceScore) AS meanScore,
-            stDev(importanceScore) AS stdDevScore,
-            avg(connectionCount) AS avgConnections,
-            avg(c[prString]) AS avgPageRank
-
-        // Calculate 75th percentile (Q3)
-        WITH graphSize, nodeScores, meanScore, stdDevScore, avgConnections, avgPageRank, prString,
-            [score IN nodeScores | score.score] AS scores
-        WITH graphSize, nodeScores, meanScore, stdDevScore, avgConnections, avgPageRank, prString,
-            scores ORDER BY scores
-        WITH graphSize, nodeScores, meanScore, stdDevScore, avgConnections, avgPageRank, prString,
-            scores[toInteger(0.75 * size(scores))] AS q3Score
-
-        // Determine adaptive threshold based on graph size
-        WITH *, CASE 
-            WHEN graphSize < 100 THEN 0.5  // Less strict for small graphs
-            WHEN graphSize < 500 THEN 1.0  // Moderately strict for medium graphs
-            ELSE 1.5  // More strict for large graphs
-        END AS thresholdMultiplier
-
-        // Filter nodes using adaptive criteria
-        UNWIND nodeScores AS nodeScore
-        WITH nodeScore.node AS c, nodeScore.score AS importanceScore, 
-            nodeScore.connections AS connectionCount, nodeScore.pageRank AS pageRank,
-            meanScore, stdDevScore, q3Score, avgConnections, avgPageRank, thresholdMultiplier, prString
-        WHERE importanceScore > meanScore + thresholdMultiplier * stdDevScore  // Adaptive threshold
-        AND importanceScore > q3Score  // Must be in top 25%
-        AND (connectionCount > avgConnections OR pageRank > avgPageRank)  // Must be above average in at least one metric
+        WITH c, $pagerank_string AS prString
+        WITH c, prString, COUNT {{ (c)-[:RELATED]-() }} AS connectionCount
+        WITH c, prString, connectionCount, c[prString] * log(1 + connectionCount) AS importanceScore
+        ORDER BY importanceScore DESC
+        LIMIT 10
 
         // Find immediate neighbors of important nodes
         MATCH (c)-[:RELATED]-(neighbor:Concept)
         WHERE $id IN neighbor.{param}
 
         // Find related chunks
-        WITH c, pageRank, connectionCount, importanceScore, collect(neighbor) AS neighbors,
-            meanScore, stdDevScore, q3Score, avgConnections, avgPageRank, thresholdMultiplier, prString
+        WITH c, c[prString] AS pageRank, connectionCount, importanceScore, collect(neighbor) AS neighbors
         MATCH (chunk:Chunk)-[:REFERENCES]->(relatedConcept:Concept)
         WHERE relatedConcept = c OR relatedConcept IN neighbors
-        WITH c, pageRank, connectionCount, importanceScore, neighbors, chunk, count(DISTINCT relatedConcept) AS relevanceScore,
-            meanScore, stdDevScore, q3Score, avgConnections, avgPageRank, thresholdMultiplier, prString
+        WITH c, pageRank, connectionCount, importanceScore, neighbors, chunk, count(DISTINCT relatedConcept) AS relevanceScore
         ORDER BY relevanceScore DESC
         WITH c, pageRank, connectionCount, importanceScore, neighbors,
             COLLECT({{
@@ -376,8 +337,7 @@ class GraphQueryService():
                 document_name: chunk.document_name,
                 offset: chunk.offset,
                 noteId: chunk.noteId
-                }})[0..3] AS topChunks,
-            meanScore, stdDevScore, q3Score, avgConnections, avgPageRank, thresholdMultiplier, prString
+            }})[0..3] AS topChunks
 
         // Return the results
         RETURN DISTINCT
@@ -386,23 +346,15 @@ class GraphQueryService():
             pageRank AS conceptPageRank,
             connectionCount,
             importanceScore,
-            [neighbor IN neighbors | {{id: neighbor.id, uuid: neighbor.uuid[0], pageRank: neighbor[prString]}}] AS relatedConcepts,
-            topChunks,
-            meanScore,
-            stdDevScore,
-            q3Score,
-            avgConnections,
-            avgPageRank,
-            thresholdMultiplier  // Include this to see the applied threshold
+            [neighbor IN neighbors | {{id: neighbor.id, uuid: neighbor.uuid[0], pageRank: neighbor[$pagerank_string]}}] AS relatedConcepts,
+            topChunks
         ORDER BY importanceScore DESC
-        LIMIT 10
         """
 
         parameters = {
             "id": id,
             "pagerank_string": pagerank_string
         }
-
 
         try:
             result = graphAccess.execute_query(QUERY, parameters)   

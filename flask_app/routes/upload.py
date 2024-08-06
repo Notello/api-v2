@@ -10,7 +10,14 @@ from flask_app.services.NoteService import NoteForm, NoteService
 from flask_app.services.GraphCreationService import GraphCreationService
 from flask_app.services.HelperService import HelperService
 from flask_app.services.SupabaseService import SupabaseService
-from flask_app.constants import COURSEID, NOTEID, USERID
+from flask_app.services.AuthService import AuthService
+from flask_app.services.RatelimitService import RatelimitService
+
+
+from flask_app.constants import COURSEID, NOTE, NOTEID, USERID
+from flask_app.routes.middleware import token_required
+
+from flask import g
 
 
 
@@ -32,6 +39,8 @@ intake_youtube_parser.add_argument(COURSEID, location='form',
 class YoutubeIntake(Resource):
     MAX_DURATION = 2 * 60 * 60  # 2 hours in seconds
 
+    @api.doc(security="jsonWebToken")
+    @token_required
     def post(self):
         try:
             logging.info('In youtube intake post')
@@ -40,25 +49,30 @@ class YoutubeIntake(Resource):
             youtubeUrl = args.get('youtubeUrl', None)
             userId = args.get(USERID, None)
             courseId = args.get(COURSEID, None)
+            reqUserId = g.user_id
 
             logging.info(f"Youtube url: {youtubeUrl}")
 
-            if not HelperService.validate_all_uuid4(courseId, userId) \
+            if not HelperService.validate_all_uuid4(courseId, userId, reqUserId) \
             or not SupabaseService.param_id_exists(param='courseId', id=courseId) \
                 or not SupabaseService.param_id_exists(param='userId', id=userId):
+                logging.error(f"Invalid userId: {userId}, courseId: {courseId}")
                 return {'message': 'Invalid courseId or userId'}, 400
             
-            title = None
-            # Check video duration
-            try:
-                duration = HelperService.get_video_duration(youtube_url=youtubeUrl)
-                title = HelperService.get_youtube_title(youtube_url=youtubeUrl)
-                if duration > self.MAX_DURATION:
-                    return {'message': 'YouTube video exceeds the maximum duration of 2 hours'}, 400
-            except ValueError as e:
-                pass
+            if not AuthService.is_authed_for_userId(reqUserId=reqUserId, user_id_to_auth=userId):
+                logging.error(f"User {userId} is not authorized to create a summary for user {reqUserId}")
+                return {'message': 'You do not have permission to create a summary for this user'}, 400
             
+            if RatelimitService.is_rate_limited(userId, NOTE):
+                logging.error(f"User {reqUserId} has exceeded their note upload rate limit")
+                return {'message': 'You have exceeded your note upload rate limit'}, 400
             
+            duration = HelperService.get_video_duration(youtube_url=youtubeUrl)
+            title = HelperService.get_youtube_title(youtube_url=youtubeUrl)
+            if duration > self.MAX_DURATION:
+                logging.error(f"YouTube video exceeds the maximum duration of 2 hours: {youtubeUrl}")
+                return {'message': 'YouTube video exceeds the maximum duration of 2 hours'}, 400
+
             noteId = NoteService.create_note(
                 courseId=courseId, 
                 userId=userId, 
@@ -68,11 +82,14 @@ class YoutubeIntake(Resource):
                 )
         
             if not HelperService.validate_all_uuid4(noteId):
+                RatelimitService.remove_rate_limit(rateLimitId)
                 return {'message': 'Note creation failed'}, 400
+
+            rateLimitId = RatelimitService.add_rate_limit(userId, NOTE, 1)
 
             ContextAwareThread(
                 target=NoteService.youtube_video_to_graph,
-                args=(noteId, courseId, userId, youtubeUrl, title)
+                args=(noteId, courseId, userId, youtubeUrl, title, rateLimitId)
             ).start()
 
             logging.info(f"Source Node created successfully for source type: youtube and source: {youtubeUrl}")
@@ -116,8 +133,11 @@ class AudioIntake(Resource):
                 return audio.info.length
             except:
                 # Add more audio formats here as needed
+                logging.error(f"Unsupported audio format: {file.filename}")
                 raise ValueError("Unsupported audio format")
 
+    @api.doc(security="jsonWebToken")
+    @token_required
     def post(self):
         try:
             args = create_audio_note_parser.parse_args()
@@ -125,12 +145,21 @@ class AudioIntake(Resource):
             courseId = args.get(COURSEID, None)
             audio_file = args.get('file', None)
             keywords = args.get('keywords', None)
+            reqUserId = g.user_id
 
-            if not HelperService.validate_all_uuid4(courseId, userId) \
+            if not HelperService.validate_all_uuid4(courseId, userId, reqUserId) \
             or not SupabaseService.param_id_exists(param='courseId', id=courseId) \
                 or not SupabaseService.param_id_exists(param='userId', id=userId):
                 return {'message': 'Invalid courseId or userId'}, 400
-
+            
+            if not AuthService.is_authed_for_userId(reqUserId=reqUserId, user_id_to_auth=userId):
+                logging.error(f"User {userId} is not authorized to create a note for user {reqUserId}")
+                return {'message': 'You do not have permission to create a note for this user'}, 400
+            
+            if RatelimitService.is_rate_limited(userId, NOTE):
+                logging.error(f"User {reqUserId} has exceeded their note upload rate limit")
+                return {'message': 'You have exceeded your note upload rate limit'}, 400
+            
             # Check audio duration
             try:
                 duration = self.get_audio_length(audio_file)
@@ -148,10 +177,12 @@ class AudioIntake(Resource):
 
             if not HelperService.validate_all_uuid4(noteId):
                 return {'message': 'Note creation failed'}, 400
+            
+            rateLimitId = RatelimitService.add_rate_limit(userId, NOTE, 1)
 
             ContextAwareThread(
                     target=NoteService.audio_file_to_graph,
-                    args=(noteId, courseId, userId, audio_file, keywords)
+                    args=(noteId, courseId, userId, audio_file, keywords, rateLimitId)
             ).start()
             
             logging.info(f"Source Node created successfully for source type: audio and source: {audio_file}")
@@ -180,40 +211,58 @@ create_text_note_parser.add_argument(COURSEID, location='form',
 class TextIntake(Resource):
     MAX_TEXT_LENGTH = 5 * 1024 * 1024  # Approximately 5MB worth of text
 
+    @api.doc(security="jsonWebToken")
+    @token_required
     def post(self):
-        args = create_text_note_parser.parse_args()
-        userId = args.get(USERID, None)
-        courseId = args.get(COURSEID, None)
-        rawText = args.get('rawText', None)
-        noteName = args.get('noteName', None)
+        try:
+            args = create_text_note_parser.parse_args()
+            userId = args.get(USERID, None)
+            courseId = args.get(COURSEID, None)
+            rawText = args.get('rawText', None)
+            noteName = args.get('noteName', None)
+            reqUserId = g.user_id
 
-        if not HelperService.validate_all_uuid4(courseId, userId) \
-            or not SupabaseService.param_id_exists(param='courseId', id=courseId) \
-                or not SupabaseService.param_id_exists(param='userId', id=userId):
-            return {'message': 'Invalid courseId or userId'}, 400
+            if not HelperService.validate_all_uuid4(courseId, userId, reqUserId) \
+                or not SupabaseService.param_id_exists(param='courseId', id=courseId) \
+                    or not SupabaseService.param_id_exists(param='userId', id=userId):
+                return {'message': 'Invalid courseId or userId'}, 400
+            
+            if not AuthService.is_authed_for_userId(reqUserId=reqUserId, user_id_to_auth=userId):
+                logging.error(f"User {userId} is not authorized to create a note for user {reqUserId}")
+                return {'message': 'You do not have permission to create a note for this user'}, 400
+            
+            if RatelimitService.is_rate_limited(userId, NOTE):
+                logging.error(f"User {userId} is rate limited for note creation")
+                return {'message': 'You have exceeded your note creation rate limit'}, 400
+            
+            # Check text length
+            if len(rawText.encode('utf-8')) > self.MAX_TEXT_LENGTH:
+                RatelimitService.remove_rate_limit(rateLimitId)
+                return {'message': 'Text size exceeds the maximum limit of approximately 5MB'}, 400
 
-        # Check text length
-        if len(rawText.encode('utf-8')) > self.MAX_TEXT_LENGTH:
-            return {'message': 'Text size exceeds the maximum limit of approximately 5MB'}, 400
+            noteId = NoteService.create_note(
+                courseId=courseId,
+                userId=userId,
+                form=NoteForm.TEXT,
+                rawText=rawText,
+                title=noteName
+            )
 
-        noteId = NoteService.create_note(
-            courseId=courseId,
-            userId=userId,
-            form=NoteForm.TEXT,
-            rawText=rawText,
-            title=noteName
-        )
+            if not HelperService.validate_all_uuid4(noteId):
+                return {'message': 'Note creation failed'}, 400
+            
+            rateLimitId = RatelimitService.add_rate_limit(userId, NOTE, 1)
 
-        if not HelperService.validate_all_uuid4(noteId):
-            return {'message': 'Note creation failed'}, 400
+            ContextAwareThread(
+                    target=GraphCreationService.create_graph_from_raw_text,
+                    args=(noteId, courseId, userId, rawText, noteName, rateLimitId)
+            ).start()
 
-        ContextAwareThread(
-                target=GraphCreationService.create_graph_from_raw_text,
-                args=(noteId, courseId, userId, rawText, noteName)
-        ).start()
-
-        logging.info(f"Source Node created successfully for source type: text and source: {rawText}")
-        return {NOTEID: noteId}, 201
+            logging.info(f"Source Node created successfully for source type: text and source: {rawText}")
+            return {NOTEID: noteId}, 201
+        except Exception as e:
+            SupabaseService.update_note(noteId=noteId, key='graphStatus', value='error')
+            logging.exception(f'Exception Stack trace: {e}')
 
 create_text_file_note_parser = api.parser()
 create_text_file_note_parser.add_argument('file', location='files', 
@@ -231,50 +280,67 @@ create_text_file_note_parser.add_argument(COURSEID, location='form',
 class TextFileIntake(Resource):
     MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB in bytes
 
+    @api.doc(security="jsonWebToken")
+    @token_required
     def post(self):
-        args = create_text_file_note_parser.parse_args()
-        userId = args.get(USERID, None)
-        courseId = args.get(COURSEID, None)
-        file: FileStorage = args.get('file', None)
+        try:
+            args = create_text_file_note_parser.parse_args()
+            userId = args.get(USERID, None)
+            courseId = args.get(COURSEID, None)
+            file: FileStorage = args.get('file', None)
+            reqUserId = g.user_id
 
-        if not HelperService.validate_all_uuid4(courseId, userId) \
-            or not SupabaseService.param_id_exists(param='courseId', id=courseId) \
-                or not SupabaseService.param_id_exists(param='userId', id=userId):
-            return {'message': 'Invalid courseId or userId'}, 400
-        
-        # Check file size
-        file.seek(0, 2)  # Move to the end of the file
-        file_size = file.tell()  # Get the size of the file
-        file.seek(0)  # Reset file pointer to the beginning
+            if not HelperService.validate_all_uuid4(courseId, userId, reqUserId) \
+                or not SupabaseService.param_id_exists(param='courseId', id=courseId) \
+                    or not SupabaseService.param_id_exists(param='userId', id=userId):
+                return {'message': 'Invalid courseId or userId'}, 400
+            
+            if not AuthService.is_authed_for_userId(reqUserId=reqUserId, user_id_to_auth=userId):
+                logging.error(f"User {userId} is not authorized to create a note for user {reqUserId}")
+                return {'message': 'You do not have permission to create a note for this user'}, 400
+            
+            if RatelimitService.is_rate_limited(userId, NOTE):
+                logging.error(f"User {userId} is rate limited for note creation")
+                return {'message': 'You have exceeded your note creation rate limit'}, 400
+                        
+            # Check file size
+            file.seek(0, 2)  # Move to the end of the file
+            file_size = file.tell()  # Get the size of the file
+            file.seek(0)  # Reset file pointer to the beginning
 
-        if file_size > self.MAX_FILE_SIZE:
-            return {'message': 'File size exceeds the maximum limit of 5MB'}, 400
+            if file_size > self.MAX_FILE_SIZE:
+                return {'message': 'File size exceeds the maximum limit of 5MB'}, 400
 
-        file_type = HelperService.guess_mime_type(file.filename)
+            file_type = HelperService.guess_mime_type(file.filename)
 
-        logging.info(f"File content: {file.filename}")
-        logging.info(f"File type: {file_type}")
+            logging.info(f"File content: {file.filename}")
+            logging.info(f"File type: {file_type}")
 
-        if file_type is None:
-            logging.exception(f"Failed to transcribe file for note {noteId}")
-            return {'message': 'Invalid file type'}, 400
+            if file_type is None:
+                logging.exception(f"Failed to transcribe file for note {noteId}")
+                return {'message': 'Invalid file type'}, 400
 
-        noteId = NoteService.create_note(
-            courseId=courseId,
-            userId=userId,
-            form=NoteForm.TEXT_FILE,
-            title=file.filename
-        )
+            noteId = NoteService.create_note(
+                courseId=courseId,
+                userId=userId,
+                form=NoteForm.TEXT_FILE,
+                title=file.filename
+            )
 
-        if not HelperService.validate_all_uuid4(noteId):
-            return {'message': 'Note creation failed'}, 400
-        
-        file_content = file.read()
+            if not HelperService.validate_all_uuid4(noteId):
+                return {'message': 'Note creation failed'}, 400
+            
+            file_content = file.read()
 
-        ContextAwareThread(
-                target=NoteService.pdf_file_to_graph,
-                args=(noteId, courseId, userId, file.filename, file_content, file_type)
-        ).start()
+            rateLimitId = RatelimitService.add_rate_limit(userId, NOTE, 1)
 
-        logging.info(f"Source Node created successfully for source type: pdf and source: {file.filename}")
-        return {NOTEID: noteId}, 201
+            ContextAwareThread(
+                    target=NoteService.pdf_file_to_graph,
+                    args=(noteId, courseId, userId, file.filename, file_content, file_type, rateLimitId)
+            ).start()
+
+            logging.info(f"Source Node created successfully for source type: pdf and source: {file.filename}")
+            return {NOTEID: noteId}, 201
+        except Exception as e:
+            SupabaseService.update_note(noteId=noteId, key='graphStatus', value='error')
+            logging.exception(f'Exception Stack trace: {e}')

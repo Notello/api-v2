@@ -5,9 +5,12 @@ load_dotenv()
 NOTE_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_note"
 QUIZ_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_quiz"
 COURSE_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_course"
+USER_CLASS_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_userclass"
 PROFILE_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_profile"
 QUIZ_QUESTION_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_quiz_question"
 TOPIC_SUMMARY_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_topic_summary"
+RATE_LIMIT_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_rate_limit"
+RATE_LIMIT_VALUES_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_rate_limit_values"
 
 ID = "id"
 UUID = "uuid"
@@ -15,6 +18,16 @@ COURSEID = "courseId"
 USERID = "userId"
 NOTEID = "noteId"
 SUPAID = "supaId"
+
+QUIZ = "quiz"
+NOTE = "note"
+FLASHCARD = "flashcard"
+CHAT = "chat"
+TOPIC_SUMMARY = "topic_summary"
+NOTE_SUMMARY = "note_summary"
+
+FREE = "free"
+PREMIUM = "premium"
 
 GPT_35_TURBO_MODEL = "gpt-3.5-turbo-0125"
 GPT_4O_MODEL = "gpt-4o"
@@ -57,18 +70,3 @@ proxy = {
     'http': proxy_url,
     'https': proxy_url
 }
-
-# proxy_base = {
-#     'host': 'gate.smartproxy.com',
-#     'user': 'spcikaf7mg',
-#     'pass': 'yudB6=zIeGSg19glb7'
-# }
-
-# def get_proxies():
-#     proxies = []
-#     for port in range(10001, 10011):
-#         proxy_url = f"http://{proxy_base['user']}:{proxy_base['pass']}@{proxy_base['host']}:{port}"
-#         proxies.append({
-#             'http': proxy_url,
-#             'https': proxy_url
-#         })

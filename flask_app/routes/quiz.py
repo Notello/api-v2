@@ -1,12 +1,16 @@
 import logging
 from flask_restx import Namespace, Resource
+from flask import g
 
 from flask_app.services.QuizService import QuizService
 from flask_app.services.HelperService import HelperService
 from flask_app.services.GraphQueryService import GraphQueryService
 from flask_app.services.SupabaseService import SupabaseService
 from flask_app.services.ContextAwareThread import ContextAwareThread
-from flask_app.constants import COURSEID, NOTEID, USERID
+from flask_app.services.RatelimitService import RatelimitService
+from flask_app.services.AuthService import AuthService
+from flask_app.routes.middleware import token_required
+from flask_app.constants import COURSEID, NOTEID, QUIZ, USERID
 
 logging.basicConfig(format='%(asctime)s - %(message)s', level='INFO')
 
@@ -37,58 +41,89 @@ create_quiz_parser.add_argument('topics', location='form', action='split')
 @api.expect(create_quiz_parser)
 @api.route('/generate-quiz')
 class GenerateQuiz(Resource):
+    @api.doc(security="jsonWebToken")
+    @token_required
     def post(self):
-        args = create_quiz_parser.parse_args()
-        userId = args.get(USERID, None)
-        courseId = args.get(COURSEID, None)
-        noteId = args.get(NOTEID, None)
-        specifierParam = args.get('specifierParam', None)
-        difficulty = args.get('difficulty', 3)
-        numQuestions = args.get('numQuestions', 5)
-        topics = args.get('topics', None)
+        try:
+            args = create_quiz_parser.parse_args()
+            userId = args.get(USERID, None)
+            courseId = args.get(COURSEID, None)
+            noteId = args.get(NOTEID, None)
+            specifierParam = args.get('specifierParam', None)
+            difficulty = args.get('difficulty', 3)
+            numQuestions = args.get('numQuestions', 5)
+            topics = args.get('topics', None)
+            reqUserId = g.user_id
 
-        if topics is None:
-            topics = []
+            logging.info(f"Generate quiz for userId: {userId}, courseId: {courseId}, noteId: {noteId}, specifierParam: {specifierParam}, difficulty: {difficulty}, numQuestions: {numQuestions}, topics: {topics}")
 
-        if (
-            not HelperService.validate_all_uuid4(userId, courseId) \
-            or (specifierParam is not None and specifierParam not in QuizService.validSpecifiers)
-            or (not HelperService.validate_uuid4(noteId) and specifierParam == NOTEID)
-            or not isinstance(topics, list)
-            or not SupabaseService.param_id_exists('courseId', courseId)
-            or not SupabaseService.param_id_exists('userId', userId)
-            or (noteId is not None and not SupabaseService.param_id_exists('noteId', noteId))
-        ):
-            return {'message': 'Must have userId, courseId, optionally noteId and a valid specifierParam'}, 400
-                
-        quizId = SupabaseService.create_quiz(
-            noteId=noteId,
-            courseId=courseId,
-            userId=userId,
-            difficulty=difficulty,
-            numQuestions=numQuestions
-        )
+            if topics is None:
+                topics = []
 
-        if quizId is None:
-            return {'message': 'Quiz creation failed'}, 400
+            if (
+                not HelperService.validate_all_uuid4(userId, courseId) \
+                or (specifierParam is not None and specifierParam not in QuizService.validSpecifiers)
+                or (not HelperService.validate_uuid4(noteId) and specifierParam == NOTEID)
+                or not isinstance(topics, list)
+                or not SupabaseService.param_id_exists(COURSEID, courseId)
+                or not SupabaseService.param_id_exists(USERID, userId)
+                or (noteId is not None and not SupabaseService.param_id_exists('noteId', noteId))
+            ):
+                logging.error(f"Invalid userId: {userId}, courseId: {courseId}, noteId: {noteId}, specifierParam: {specifierParam}")
+                return {'message': 'Must have userId, courseId, optionally noteId and a valid specifierParam'}, 400
+            
+            if not AuthService.is_authed_for_userId(reqUserId=reqUserId, user_id_to_auth=userId):
+                logging.error(f"User {userId} is not authorized to create a quiz for user {reqUserId}")
+                return {'message': 'You do not have permission to create a quiz for this user'}, 400
 
-        ContextAwareThread(
-                target=QuizService.generate_quiz,
-                args=(topics, 
-                      courseId, 
-                      userId, 
-                      quizId, 
-                      noteId,
-                      difficulty,
-                      numQuestions,
-                      specifierParam
-                      )
-        ).start()
+            if RatelimitService.is_rate_limited(userId, QUIZ):
+                logging.error(f"User {reqUserId} has exceeded their quiz rate limit")
+                return {'message': 'You have exceeded your quiz rate limit'}, 400
+            
+            rateLimitId = RatelimitService.add_rate_limit(userId, QUIZ, numQuestions)
+                    
+            quizId = SupabaseService.create_quiz(
+                noteId=noteId,
+                courseId=courseId,
+                userId=userId,
+                difficulty=difficulty,
+                numQuestions=numQuestions
+            )
 
-        return {'quizId': quizId}, 201
+            if quizId is None:
+                logging.error(f"Quiz creation failed for userId: {userId}, courseId: {courseId}, noteId: {noteId}, specifierParam: {specifierParam}, difficulty: {difficulty}, numQuestions: {numQuestions}, topics: {topics}")
+                return {'message': 'Quiz creation failed'}, 400
+
+            ContextAwareThread(
+                    target=QuizService.generate_quiz,
+                    args=(topics, 
+                        courseId, 
+                        userId, 
+                        quizId, 
+                        noteId,
+                        difficulty,
+                        numQuestions,
+                        specifierParam,
+                        rateLimitId
+                        )
+            ).start()
+
+            return {'quizId': quizId}, 201
+        except Exception as e:
+            logging.exception(f"Error generating quiz: {str(e)}")
+            return {'message': str(e)}, 500
     
 @api.route('/get-questions-for/<string:quizId>')
 class GetQuestionsFor(Resource):
+    @api.doc(security="jsonWebToken")
+    @token_required
     def post(self, quizId):
-        questions = GraphQueryService.get_quiz_questions_by_id(quizId=quizId)
-        return {'questions': questions}, 200
+        try:
+            logging.info(f"Get questions for quizId: {quizId}")
+            questions = GraphQueryService.get_quiz_questions_by_id(quizId=quizId)
+            
+            logging.info(f"Got {len(questions)} questions for quizId: {quizId}")
+            return {'questions': questions}, 200
+        except Exception as e:
+            logging.exception(f"Error getting questions for quiz {quizId}: {str(e)}")
+            return {'message': str(e)}, 500

@@ -16,6 +16,7 @@ from flask_app.src.shared.common_fn import get_llm
 from flask_app.constants import COURSEID, GPT_35_TURBO_MODEL, GPT_4O_MODEL, GPT_4O_MINI, LLAMA_405_MODEL, LLAMA_70B_MODEL, NOTEID, USERID
 from flask_app.services.SupabaseService import SupabaseService
 from flask_app.services.GraphCreationService import GraphCreationService
+from flask_app.services.RatelimitService import RatelimitService
 
 class Summary(BaseModel):
     summary: str = Field(
@@ -158,7 +159,7 @@ class SummaryService():
         courseId: str,
         specifierParam: str,
         noteId: str = None,
-        topics: List[str] = []
+        rateLimitId: str = None
         ):
 
         if (
@@ -232,58 +233,65 @@ class SummaryService():
         userId: str,
         courseId: str,
         topicId: str,
+        rateLimitId: str
     ):
-        logging.info(f"Generating topic summary for topic: {topicId}")
+        try:
+            logging.info(f"Generating topic summary for topic: {topicId}")
 
-        topic_graph = GraphQueryService.get_topic_graph_for_topic_uuid(topic_uuid=topicId)
+            topic_graph = GraphQueryService.get_topic_graph_for_topic_uuid(topic_uuid=topicId)
 
-        if topic_graph is None or len(topic_graph) == 0:
-            logging.error(f"No topic graph found for {topicId}, topic_graph: {topic_graph}")
-            return None
+            if topic_graph is None or len(topic_graph) == 0:
+                logging.error(f"No topic graph found for {topicId}, topic_graph: {topic_graph}")
+                return None
 
-        topics = GraphQueryService.get_topics_for_param(param=COURSEID, id=courseId)
+            topics = GraphQueryService.get_topics_for_param(param=COURSEID, id=courseId)
 
-        if topic_graph is None:
-            return None
-                
-        summaryId = SupabaseService.add_summary(topicId=topicId)[0]['id']
+            if topic_graph is None:
+                return None
+                    
+            summaryId = SupabaseService.add_summary(topicId=topicId)[0]['id']
 
-        graph = topic_graph[0]['result']
-        
-        summary = SummaryService.get_individual_summary(
-            main_concept=graph['start_concept']['id'],
-            main_concept_uuid=graph['start_concept']['uuid'],
-            related_concepts=graph['related_concepts'],
-            chunks=graph['related_chunks']
-        )
-
-        logging.info(f"Generated summary for topic {topicId}")
-
-        if summary is None:
-            return None
-        
-        logging.info(f"All topics: {topics}")
-        
-        summary_final = SummaryService.inject_topic_links(
-            summary['content'], 
-            topics=topics, 
-            chunks_map=summary['chunks_map'],
-            courseId=courseId,
+            graph = topic_graph[0]['result']
+            
+            summary = SummaryService.get_individual_summary(
+                main_concept=graph['start_concept']['id'],
+                main_concept_uuid=graph['start_concept']['uuid'],
+                related_concepts=graph['related_concepts'],
+                chunks=graph['related_chunks']
             )
-        
-        summary_final = {
-            'summaryId': summaryId,
-            'content': summary_final,
-            'concept': graph['start_concept']['id'],
-            USERID: userId,
-            COURSEID: courseId,
-            'topicId': topicId,
-            NOTEID: 'None'
-        }
 
-        GraphCreationService.insert_summaries([summary_final])
+            logging.info(f"Generated summary for topic {topicId}")
 
-        SupabaseService.update_summary(summaryId, 'status', 'complete')
+            if summary is None:
+                return None
+            
+            logging.info(f"All topics: {topics}")
+            
+            summary_final = SummaryService.inject_topic_links(
+                summary['content'], 
+                topics=topics, 
+                chunks_map=summary['chunks_map'],
+                courseId=courseId,
+                )
+            
+            summary_final = {
+                'summaryId': summaryId,
+                'content': summary_final,
+                'concept': graph['start_concept']['id'],
+                USERID: userId,
+                COURSEID: courseId,
+                'topicId': topicId,
+                NOTEID: 'None'
+            }
+
+            GraphCreationService.insert_summaries([summary_final])
+
+            SupabaseService.update_summary(summaryId, 'status', 'complete')
+        except Exception as e:
+            logging.error(f"Error generating topic summary: {str(e)}")
+            SupabaseService.update_summary(summaryId, 'status', 'error')
+            RatelimitService.remove_rate_limit(rateLimitId)
+            return None
 
     @staticmethod
     def inject_topic_links(

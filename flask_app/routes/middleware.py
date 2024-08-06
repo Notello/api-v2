@@ -1,5 +1,6 @@
+import logging
 import os
-from flask import request
+from flask import request, g
 from supabase import create_client, Client
 from functools import wraps
 from flask_restx import abort
@@ -14,11 +15,14 @@ def token_required(f):
             token = request.headers['Authorization'].split()[1]
         
         if not token:
+            logging.error("Token is missing")
             abort(401, 'Token is missing')
         
         try:
-            user = supabase.auth.get_user(token)
+            response = supabase.auth.get_user(token)
+            g.user_id = response.user.id
         except Exception as e:
+            logging.exception(f"Error getting user from token: {str(e)}")
             abort(401, 'Token is invalid')
         
         return f(*args, **kwargs)
