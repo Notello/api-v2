@@ -16,17 +16,16 @@ class GraphQueryService():
 
     @staticmethod
     def get_node_query(node_type: str, key: str, value: str, com_string: str, page_rank_string: str) -> str:
-        base_attributes = "ID(n) AS id, LABELS(n)[0] AS labels, n.id AS conceptId, n.uuid[0] AS nodeUuid"
+        base_attributes = "ID(n) AS id, LABELS(n)[0] AS labels"
         type_specific_attributes = {
-            "Document": "n.fileName AS fileName",
-            "Chunk": "n.position AS position, n.offset AS offset",
-            "Concept": f"n.{page_rank_string} AS pageRank"
+            "Document": "n.fileName AS fileName, n.noteId as noteId",
+            "Chunk": "n.offset AS offset, n.noteId as noteId",
+            "Concept": f"n.{page_rank_string} AS pageRank, n.{com_string} AS communityId, n.id AS nodeId, n.uuid[0] AS nodeUuid"
         }
         return f"""
         MATCH (n:{node_type})
         WHERE n.{key} = $value OR $value IN n.{key}
-        RETURN {base_attributes}, {type_specific_attributes[node_type]},
-               n.{com_string} AS communityId
+        RETURN {base_attributes}, {type_specific_attributes[node_type]}
         """
 
     @staticmethod
