@@ -3,6 +3,7 @@ import logging
 
 from flask_app.services.SupabaseService import SupabaseService
 from flask_app.services.HelperService import HelperService
+from flask_app.services.AuthService import AuthService
 
 class RatelimitService():
 
@@ -40,6 +41,9 @@ class RatelimitService():
 
     @staticmethod
     def is_rate_limited(userId, type):
+        if AuthService.is_super_admin(user_id=userId):
+            return False
+
         try:
             current_usage = SupabaseService.get_rate_limit(userId, type)
 

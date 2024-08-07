@@ -55,6 +55,17 @@ OPENAI_MODELS = [
 ]
 DEFAULT_COMMUNITIES = 3
 
+SUPER_ADMIN_ACCOUNT = "e5e733b0-adc6-43dd-8f24-cd39e2ee924e"
+
+ALGORITHM = "algorithm"
+PAGERANK = "pagerank"
+LOUVAIN = "louvain"
+LEIDEN = "leiden"
+COMMUNITY_DETECTION = "community_detection"
+NODES = "nodes"
+PARAMS = "params"
+
+
 K8S_VER = '2.07'
 
 proxy_info = {

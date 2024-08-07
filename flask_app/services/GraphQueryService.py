@@ -66,6 +66,135 @@ class GraphQueryService():
             logging.error(f"Error executing query: {e}")
             return None, None
         
+    @staticmethod
+    def get_default_graph_params(communityType: str, communityId: str) -> List[Tuple[str, str]]:
+        com_string = GraphQueryService.get_com_string(communityType=communityType, communityId=communityId)
+        page_rank_string = GraphQueryService.get_page_rank_string(param=communityType, id=communityId)
+
+        return [
+        
+            ("ID(n)", "nodeId"), ("LABELS(n)", "nodeLabels"), 
+            ("n.position", "position"), ("n.fileName", "fileName"), 
+            ("n.id", "conceptId"),
+            (f"n.{com_string}", "communityId"), (f"n.{page_rank_string}", "pageRank"),
+            ("n.uuid[0]", "nodeUuid"), ('n.offset', 'offset'),
+
+
+            ("rel.type", "relType"), 
+            
+            ("ID(r)", "relatedNodeId"), ("LABELS(r)", "relatedNodeLabels"), 
+            ("r.position", "relatedNodePosition"), ("r.fileName", "relatedNodeFileName"),
+
+            ("r.id", "relatedNodeConceptId"),
+            (f"r.{com_string}", "relatedNodeCommunityId"), (f"r.{page_rank_string}", "relatedNodePageRank"),
+            ('r.uuid[0]', 'relatedNodeUuid'), ('r.offset', 'relatedNodeOffset'),
+            ]
+    
+    
+    
+    @staticmethod
+    def old_get_graph_for_param(
+        key: str, 
+        value: str, 
+        return_params: List[Tuple[str, str]] = None
+    ) -> Tuple[Dict[str, List[Dict]], List[Dict[str, Any]]]:
+        try:
+            graphDb_data_Access = graphDBdataAccess(get_graph())
+
+            final_params = return_params if return_params is not None else \
+                GraphQueryService.get_default_graph_params(communityType=key, communityId=value)
+            
+            print(final_params)
+
+            return_clause = ", ".join(f"{param[0]} AS {param[1]}" for param in final_params)
+
+            QUERY = f"""
+            MATCH (n)
+            WHERE n.{key} = $value OR $value IN n.{key}
+            OPTIONAL MATCH (n)-[rel]->(r)
+            WHERE r.{key} = $value or $value IN r.{key}
+            RETURN {return_clause}
+            """
+
+            parameters = {
+                "value": value
+            }
+
+            result = graphDb_data_Access.execute_query(QUERY, parameters)
+
+            nodes = {
+                'documents': {},
+                'chunks': {},
+                'concepts': {}
+            }
+            relationships = []
+
+            for record in result:
+                node_data = {}
+                related_node_data = {}
+                rel_type = None
+
+                for param in final_params:
+                    attr_name = param[1]
+                    attr_value = record.get(attr_name)
+                    
+                    if attr_name.startswith("relatedNode"):
+                        related_node_data[attr_name.replace("relatedNode", "")] = attr_value
+                    elif attr_name == "relType":
+                        rel_type = attr_value
+                    else:
+                        node_data[attr_name] = attr_value
+
+                if 'nodeId' in node_data and 'nodeLabels' in node_data:
+                    node_type = next((label for label in ['Document', 'Chunk', 'Concept'] if label in node_data['nodeLabels']), None)
+                    if node_type:
+                        node_info = nodes[node_type.lower() + 's'].get(node_data['nodeId'], {})
+                        node_info['id'] = node_data['nodeId']
+                        if node_type == 'Document':
+                            node_info['fileName'] = node_data.get('fileName')
+                        elif node_type == 'Chunk':
+                            node_info['position'] = node_data.get('position')
+                            node_info['offset'] = node_data.get('offset')
+                        elif node_type == 'Concept':
+                            node_info['conceptId'] = node_data.get('conceptId')
+                            node_info['pageRank'] = node_data.get('pageRank')
+                            node_info['nodeUuid'] = node_data.get('nodeUuid')
+                        
+                        if 'communityId' in node_data and 'communityId' not in node_info:
+                            node_info['communityId'] = node_data['communityId']
+                        
+                        nodes[node_type.lower() + 's'][node_data['nodeId']] = node_info
+
+                if related_node_data.get('Id') is not None and related_node_data.get('Labels') is not None:
+                    related_node_type = next((label for label in ['Document', 'Chunk', 'Concept'] if label in related_node_data['Labels']), None)
+                    if related_node_type:
+                        related_node_info = nodes[related_node_type.lower() + 's'].get(related_node_data['Id'], {})
+                        related_node_info['id'] = related_node_data['Id']
+                        if related_node_type == 'Chunk':
+                            related_node_info['position'] = related_node_data.get('relatedNodePosition')
+                            related_node_info['offset'] = related_node_data.get('relatedNodeOffset')
+                        
+                        if 'relatedNodeCommunityId' in related_node_data and 'communityId' not in related_node_info:
+                            related_node_info['communityId'] = related_node_data['relatedNodeCommunityId']
+                        
+                        nodes[related_node_type.lower() + 's'][related_node_data['Id']] = related_node_info
+
+                if 'nodeId' in node_data and related_node_data.get('Id') is not None and rel_type is not None:
+                    relationships.append({
+                        "start_node_id": node_data['nodeId'], 
+                        "relationship_type": rel_type, 
+                        "end_node_id": related_node_data['Id']
+                    })
+
+            for node_type in nodes:
+                nodes[node_type] = list(nodes[node_type].values())
+
+            return nodes, relationships
+
+        except Exception as e:
+            logging.error(f"Error executing query: {e}")
+            return None, None
+        
 
     @staticmethod
     def get_communities_for_param(param: str, 

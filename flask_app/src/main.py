@@ -42,32 +42,26 @@ def processing_source(
 
   futures = []
 
-  with ThreadPoolExecutor(max_workers=200) as executor:
-    for chunk in chunks:
-        futures.append(
-            executor.submit(
-                process_chunks,
-                chunks=[chunk],
-                noteId=noteId,
-                courseId=courseId,
-                userId=userId,
-                startI=0,
-                document_name=fileName
-            ))
-    
-    for i, future in enumerate(concurrent.futures.as_completed(futures)):
-        SupabaseService.update_note(noteId, 'graphStatus', str(uuid4()))
 
-  # process_chunks(
-  #   chunks=chunks, 
-  #   noteId=noteId,
-  #   courseId=courseId,
-  #   userId=userId,
-  #   startI=0,
-  #   document_name=fileName
-  # )
-
-  # SupabaseService.update_note(noteId, 'graphStatus', '1')
+  try:
+    with ThreadPoolExecutor(max_workers=200) as executor:
+        for i, chunk in enumerate(chunks):
+            futures.append(
+                executor.submit(
+                    process_chunks,
+                    chunk=chunk,
+                    noteId=noteId,
+                    courseId=courseId,
+                    userId=userId,
+                    startI=i,
+                    document_name=fileName
+                ))
+        for i, future in enumerate(concurrent.futures.as_completed(futures)):
+            logging.info(f"Future {i} is done")
+            SupabaseService.update_note(noteId, 'graphStatus', str(uuid4()))
+  except Exception as e:
+    logging.exception(f"Error in processing chunks: {e}")
+    raise e
 
   end_time = datetime.now()
   processed_time = end_time - start_time
@@ -97,59 +91,62 @@ def processing_source(
 
   
   logging.info('Updated the nodeCount and relCount properties in Document node')
-  logging.info(f'file:{fileName} extraction has been completed')
+  logging.info(f'File: {fileName} extraction has been completed')
 
 def process_chunks(
-    chunks, 
+    chunk, 
     noteId,
     courseId,
     userId,
     startI,
     document_name
 ):
-  
-  logging.info(f"Starting process_chunks for {len(chunks)} chunks")
+  try:
+    
+    logging.info(f"Starting process_chunks for chunk {startI}")
 
-  # Creates the first, NEXT_CHUNK relationship between chunks
-  chunkId_chunkDoc_list = create_relation_between_chunks(
-     noteId=noteId,
-     courseId=courseId,
-     userId=userId,
-     chunks=chunks,
-     startI=startI,
-     document_name=document_name,
-  )
+    chunkId_chunkDoc_list = create_relation_between_chunks(
+      noteId=noteId,
+      courseId=courseId,
+      userId=userId,
+      chunk=chunk,
+      startI=startI,
+      document_name=document_name,
+    )
 
-  logging.info(f"Created chunks for {len(chunkId_chunkDoc_list)} chunks between in create_relation_between_chunks")
+    logging.info(f"Created chunks for {len(chunkId_chunkDoc_list)} chunks between in create_relation_between_chunks")
 
-  # Create vector index and update chunk node with embedding
-  update_embedding_create_vector_index(
-    chunkId_chunkDoc_list=chunkId_chunkDoc_list, 
-    noteId=noteId
-  )
+    # Create vector index and update chunk node with embedding
+    update_embedding_create_vector_index(
+      chunkId_chunkDoc_list=chunkId_chunkDoc_list, 
+      noteId=noteId
+    )
 
-  logging.info("Get graph document list from models")
+    logging.info("Get graph document list from models")
 
-  # Generates graph documents from chunks
-  graph_documents = get_graph_from_OpenAI(
-    chunkId_chunkDoc_list,
-  )
+    # Generates graph documents from chunks
+    graph_documents = get_graph_from_OpenAI(
+      chunkId_chunkDoc_list,
+    )
 
-  # Saves graph documents in Neo4j
-  update_graph_documents(
-    graph_document_list=graph_documents,
-    noteId=noteId,
-    courseId=courseId,
-    userId=userId
-  )
+    # Saves graph documents in Neo4j
+    update_graph_documents(
+      graph_document_list=graph_documents,
+      noteId=noteId,
+      courseId=courseId,
+      userId=userId
+    )
 
-  chunks_and_graphDocuments_list = get_chunk_and_graphDocument(
-    graph_document_list=graph_documents, 
-    chunkId_chunkDoc_list=chunkId_chunkDoc_list
-  )
+    chunks_and_graphDocuments_list = get_chunk_and_graphDocument(
+      graph_document_list=graph_documents, 
+      chunkId_chunkDoc_list=chunkId_chunkDoc_list
+    )
 
-  merge_relationship_between_chunk_and_entities(
-    graph_documents_chunk_chunk_Id=chunks_and_graphDocuments_list
-  )
+    merge_relationship_between_chunk_and_entities(
+      graph_documents_chunk_chunk_Id=chunks_and_graphDocuments_list
+    )
 
-  return startI
+    return startI
+  except Exception as e:
+    logging.exception(f"Error in process_chunks: {e}")
+    raise e

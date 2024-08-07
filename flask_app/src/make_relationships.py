@@ -93,53 +93,30 @@ def create_relation_between_chunks(
         noteId, 
         courseId, 
         userId, 
-        chunks: List[Document],
+        chunk: Document,
         startI,
         document_name
-        )->list:
-    logging.info("creating FIRST_CHUNK and NEXT_CHUNK relationships between chunks")
-    current_chunk_id = ""
-    lst_chunks_including_hash = []
-    batch_data = []
-    relationships = []
-    for i, chunk in enumerate(chunks):
-        realI = startI + i
-        previous_chunk_id = current_chunk_id
-        current_chunk_id = str(uuid.uuid4())
-        if realI == 0:
-            firstChunk = True
-        else:
-            firstChunk = False  
-        
-        chunk_data = {
-            "id": current_chunk_id,
-            "pg_content": chunk.page_content,
-            "position": realI + 1,
-            "length": len(chunk.page_content),
-            NOTEID: noteId,
-            COURSEID: courseId,
-            USERID: userId,
-            "previous_id" : previous_chunk_id,
-            "document_name": document_name,
-            "offset": chunk.metadata.get("start"),
-        }
-            
-        batch_data.append(chunk_data)
-        
-        lst_chunks_including_hash.append({'chunk_id': current_chunk_id, 'chunk_doc': chunk})
-        
-        # create relationships between chunks
-        if firstChunk:
-            relationships.append({"type": "FIRST_CHUNK", "chunk_id": current_chunk_id})
-        else:
-            relationships.append({
-                "type": "NEXT_CHUNK",
-                "previous_chunk_id": previous_chunk_id,
-                "current_chunk_id": current_chunk_id
-            })
+        ) -> list:
+    logging.info("creating FIRST_CHUNK relationships between chunks")
+    chunk_list = []
+    current_chunk_id = str(uuid.uuid4())
+    
+    chunk_data = {
+        "id": current_chunk_id,
+        "pg_content": chunk.page_content,
+        "position": startI + 1,
+        "length": len(chunk.page_content),
+        NOTEID: noteId,
+        COURSEID: courseId,
+        USERID: userId,
+        "document_name": document_name,
+        "offset": chunk.metadata.get("start"),
+    }
+    
+    chunk_list.append({'chunk_id': current_chunk_id, 'chunk_doc': chunk})
           
     query_to_create_chunk_and_PART_OF_relation = """
-        UNWIND $batch_data AS data
+        WITH $chunk_data AS data
         MERGE (c:Chunk {id: data.id})
         SET 
         c.text = data.pg_content, 
@@ -161,26 +138,7 @@ def create_relation_between_chunks(
         MATCH (d:Document {noteId: data.noteId})
         MERGE (c)-[r:HAS_DOCUMENT {type: 'PART_OF'}]->(d)
     """
-    get_graph().query(query_to_create_chunk_and_PART_OF_relation, {"batch_data": batch_data})
+    get_graph().query(query_to_create_chunk_and_PART_OF_relation, {"chunk_data": chunk_data})
     
-    query_to_create_FIRST_relation = """ 
-        UNWIND $relationships AS relationship
-        MATCH (d:Document {noteId: $noteId})
-        MATCH (c:Chunk {id: relationship.chunk_id})
-        FOREACH(r IN CASE WHEN relationship.type = 'FIRST_CHUNK' THEN [1] ELSE [] END |
-                MERGE (d)-[:HAS_CHUNK {type: 'FIRST_CHUNK'}]->(c))
-        """
-    get_graph().query(query_to_create_FIRST_relation, {NOTEID: noteId, "relationships": relationships})   
-    
-    query_to_create_NEXT_CHUNK_relation = """ 
-        UNWIND $relationships AS relationship
-        MATCH (c:Chunk {id: relationship.current_chunk_id})
-        WITH c, relationship
-        MATCH (pc:Chunk {id: relationship.previous_chunk_id})
-        FOREACH(r IN CASE WHEN relationship.type = 'NEXT_CHUNK' THEN [1] ELSE [] END |
-                MERGE (c)<-[:HAS_CHUNK {type: 'NEXT_CHUNK'}]-(pc))
-        """
-    get_graph().query(query_to_create_NEXT_CHUNK_relation, {"relationships": relationships})   
-    
-    return lst_chunks_including_hash
+    return chunk_list
 

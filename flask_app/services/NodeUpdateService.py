@@ -365,8 +365,7 @@ class NodeUpdateService:
         # First, check if there are any nodes that match the criteria
         check_query = f"""
         MATCH (n)
-        WHERE (n:Concept)
-        AND "{target_id}" IN n.{id_type}
+        WHERE "{target_id}" IN n.{id_type}
         RETURN count(n) AS nodeCount
         """
 
@@ -380,21 +379,15 @@ class NodeUpdateService:
         # If nodes exist, proceed with the community detection
         query = f"""
         MATCH (n)
-        WHERE (n:Concept)
-        AND "{target_id}" IN n.{id_type}
+        WHERE "{target_id}" IN n.{id_type}
         WITH collect(n) AS nodes
 
         CALL gds.graph.project.cypher(
         '{graph_id}_temp_graph',
         'UNWIND $nodes AS n RETURN id(n) AS id',
-        'MATCH (n1)-[r]-(n2)
-        WHERE n1 IN $nodes AND n2 IN $nodes
-        AND (n1:Concept OR n1:Chunk) AND (n2:Concept OR n2:Chunk)
-        AND (
-            (n1:Concept AND n2:Concept) OR
-            (n1:Concept AND n2:Chunk) OR
-            (n2:Concept AND n1:Chunk)
-        )
+        'UNWIND $nodes AS n1
+        MATCH (n1)-[r]-(n2)
+        WHERE n2 IN $nodes
         RETURN id(n1) AS source, id(n2) AS target',
         {{parameters: {{nodes: nodes}}}}
         )
@@ -426,7 +419,7 @@ class NodeUpdateService:
             update_query = f"""
             UNWIND $communities AS community
             MATCH (n)
-            WHERE id(n) = community[0] AND (n:Concept OR n:Chunk)
+            WHERE id(n) = community[0]
             SET n.{com_string} = community[1]
             """
 

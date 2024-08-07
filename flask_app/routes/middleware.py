@@ -5,11 +5,18 @@ from supabase import create_client, Client
 from functools import wraps
 from flask_restx import abort
 
+from flask_app.constants import SUPER_ADMIN_ACCOUNT
+
 supabase: Client = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_SERVICE_KEY"))
+env_type = os.getenv('ENV_TYPE')
 
 def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
+        if env_type == 'dev':
+            g.user_id = SUPER_ADMIN_ACCOUNT
+            return f(*args, **kwargs)
+
         token = None
         if 'Authorization' in request.headers:
             token = request.headers['Authorization'].split()[1]

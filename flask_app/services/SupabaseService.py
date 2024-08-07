@@ -20,22 +20,39 @@ class SupabaseService:
         status: str,
         content: str = '',
         sourceUrl: str = '',
-        title: str = ''
+        title: str = '',
+        noteId: str = None
     ) -> list:
         try:
             if not HelperService.validate_all_uuid4(courseId, userId):
                 logging.error(f'Invalid courseId: {courseId}, userId: {userId}')
                 return []
 
-            out = supabase.table(NOTE_TABLE_NAME).insert({
-                COURSEID: courseId,
-                USERID: userId,
-                'form': form,
-                'contentStatus': status,
-                'rawContent': content,
-                'sourceUrl': sourceUrl,
-                'title': title,
-            }).execute().data
+            out = None
+
+            logging.info(f"noteId: {noteId}")
+
+            if noteId:
+                out = supabase.table(NOTE_TABLE_NAME).insert({
+                    ID: noteId,
+                    COURSEID: courseId,
+                    USERID: userId,
+                    'form': form,
+                    'contentStatus': status,
+                    'rawContent': content,
+                    'sourceUrl': sourceUrl,
+                    'title': title,
+                }).execute().data
+            else:
+                out = supabase.table(NOTE_TABLE_NAME).insert({
+                    COURSEID: courseId,
+                    USERID: userId,
+                    'form': form,
+                    'contentStatus': status,
+                    'rawContent': content,
+                    'sourceUrl': sourceUrl,
+                    'title': title,
+                }).execute().data
 
             logging.info(f'Note added successfully for courseId: {courseId}, userId: {userId}, form: {form}, data: {out}')
 
@@ -65,6 +82,20 @@ class SupabaseService:
             return json['Id']
         except Exception as e:
             logging.exception(f'Exception in upload_file: {e}')
+            return None
+        
+    @staticmethod
+    def delete_file(fileId: str, bucketName: str):
+        try:
+            if not HelperService.validate_all_uuid4(fileId):
+                logging.error(f'Invalid fileId: {fileId}')
+                return None
+
+            logging.info(f'Deleting file {fileId}')
+
+            return supabase.storage.from_(bucketName).remove(fileId)
+        except Exception as e:
+            logging.exception(f'Exception in delete_file: {e}')
             return None
     
     @staticmethod
@@ -171,12 +202,15 @@ class SupabaseService:
         return out
     
     @staticmethod
-    def delete_note(noteId: str):
+    def delete_note(noteId: str, bucketName: str):
         if not HelperService.validate_all_uuid4(noteId):
             logging.error(f'Invalid noteId: {noteId}')
             return None
 
-        return supabase.table(NOTE_TABLE_NAME).delete().eq('id', str(noteId)).execute().data
+        supabase.table(NOTE_TABLE_NAME).delete().eq('id', str(noteId)).execute().data
+
+        if bucketName:
+            SupabaseService.delete_file(fileId=noteId, bucketName=bucketName)
     
     @staticmethod
     def delete_course(courseId: str):
@@ -269,3 +303,16 @@ class SupabaseService:
             return None
         
         return supabase.table(RATE_LIMIT_TABLE_NAME).delete().eq('id', str(rateLimitId)).execute().data
+    
+    @staticmethod
+    def get_note_type(noteId: str):
+        if not HelperService.validate_all_uuid4(noteId):
+            logging.error(f'Invalid noteId: {noteId}')
+            return None
+
+        out = supabase.table(NOTE_TABLE_NAME).select('*').eq(ID, noteId).execute().data
+
+        if not out:
+            return None
+
+        return out[0]['form']
