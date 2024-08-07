@@ -1,5 +1,6 @@
 import logging
 from flask_restx import Namespace, Resource
+from datetime import datetime
 
 
 from flask_app.services.GraphQueryService import GraphQueryService
@@ -23,7 +24,12 @@ class GetGraphFor(Resource):
                 logging.info(f"Invalid {param} id: {id}")
                 return {f'message': 'Invalid {param} id'}, 400
             
+            start = datetime.now()
+            logging.info(f"starting at {datetime.now()}")
             nodes, relationships = GraphQueryService.get_graph_for_param(key=param, value=id)
+
+            logging.info(f"ending at {datetime.now()}")
+            logging.info(f"query took: {datetime.now() - start}")
 
             if nodes is None or relationships is None:
                 logging.error(f"Error getting graph for {param} {id}")
