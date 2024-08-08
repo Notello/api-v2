@@ -10,8 +10,8 @@ from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain.docstore.document import Document
 from langchain_community.graphs import Neo4jGraph
 from langchain_community.graphs.graph_document import GraphDocument
-from flask_app.src.graphDB_dataAccess import graphDBdataAccess
-from typing import List, Union
+from flask_app.services.HelperService import HelperService
+from typing import List
 from langchain_groq import ChatGroq
 
 from neo4j.exceptions import ClientError, TransientError
@@ -93,8 +93,10 @@ def update_graph_documents(
 
     for graph_document in graph_document_list:
         for node in graph_document.nodes:
+            nodeId = HelperService.clean_node_id(node.id)
+
             node_data = {
-                "id": node.id,
+                "id": nodeId,
                 "uuid": str(uuid.uuid4()),
                 "type": node.type,
                 NOTEID: noteId,

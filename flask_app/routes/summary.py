@@ -120,7 +120,9 @@ class GetSummaryFor(Resource):
     def get(self, param, id):
         try:
             logging.info(f"Get summary for param: {param}, id: {id}")
-            return GraphQueryService.get_summary_for_param(param=param, id=id)
+            summaries = GraphQueryService.get_summary_for_param(param=param, id=id)
+            logging.info(f"Summaries: {summaries}")
+            return summaries
         except Exception as e:
             logging.exception(f"Error getting summary for {param} {id}: {str(e)}")
             return {'message': str(e)}, 500

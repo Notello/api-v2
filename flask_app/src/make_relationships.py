@@ -43,7 +43,6 @@ def merge_relationship_between_chunk_and_entities(tx, graph_documents_chunk_chun
 
 def update_embedding_create_vector_index(chunkId_chunkDoc_list, noteId):
     embeddings, dimension = load_embedding_model()
-    logging.info(f'embedding model:{embeddings} and dimesion:{dimension}')
     data_for_query = []
     futures = []
     logging.info(f"update embedding and vector index for chunks")

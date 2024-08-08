@@ -8,8 +8,6 @@ from pytube import YouTube
 from flask_app.src.document_sources.youtube import get_youtube_transcript
 from flask_app.constants import proxy
 
-
-
 class HelperService:
     @staticmethod
     def get_youtube_title(youtube_url: str):
@@ -100,3 +98,7 @@ class HelperService:
         except Exception as e:
             logging.exception(f"Error fetching video duration: {e}")
             raise ValueError("Unable to fetch video duration")
+        
+    @staticmethod
+    def clean_node_id(node_id):
+        return node_id.replace('-', '').replace(':', '').replace('_', ' ')

@@ -103,8 +103,6 @@ class GraphQueryService():
 
             final_params = return_params if return_params is not None else \
                 GraphQueryService.get_default_graph_params(communityType=key, communityId=value)
-            
-            print(final_params)
 
             return_clause = ", ".join(f"{param[0]} AS {param[1]}" for param in final_params)
 
@@ -624,12 +622,14 @@ class GraphQueryService():
     @staticmethod
     def get_summary_for_param(param: str, id: str) -> str | None:
         graphAccess = graphDBdataAccess(get_graph())
+
+        logging.info(f"Getting summary for param {param} with id {id}")
         
         QUERY = f"""
         MATCH (n:Concept)
         WHERE $id IN n.{param}
         OPTIONAL MATCH (n)-[r:HAS_SUMMARY]->(s:Summary) 
-        WHERE $id = s.{param}
+        WHERE $id in s.{param}
         RETURN n.id AS conceptId, s
         """
 
@@ -638,6 +638,8 @@ class GraphQueryService():
         }
 
         result = graphAccess.execute_query(QUERY, parameters)
+
+        logging.info(f"Result: {result}")
 
         return {
             'summaries': [res.get('s') for res in result if res.get('s') is not None],

@@ -266,8 +266,6 @@ class SummaryService():
             if summary is None:
                 return None
             
-            logging.info(f"All topics: {topics}")
-
             chunks_map = summary['chunks_map']
             noteIds = set([chunk['noteId'] for chunk in chunks_map.values()])
         
@@ -304,10 +302,6 @@ class SummaryService():
         chunks_map: Dict[str, str],
         courseId: str
     ) -> str:
-        
-        print("Topics: ", topics)
-        print("Pre content: ", content)
-
         logging.info("starting injection for topic")        
         # Sort topics by length of conceptId in descending order
         # This ensures longer matches are replaced first
