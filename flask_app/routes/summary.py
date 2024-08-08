@@ -110,7 +110,6 @@ class GenerateNoteSummary(Resource):
             
             logging.info(f"Generated note summary for userId: {userId}, courseId: {courseId}, noteId: {noteId}, specifierParam: {NOTEID}")
         except Exception as e:
-            RatelimitService.remove_rate_limit(rateLimitId)
             logging.exception(f"Error generating note summary: {str(e)}")
             return {'message': str(e)}, 500
     

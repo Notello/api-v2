@@ -115,8 +115,6 @@ def generate_summary(
             } 
             for chunk in chunks}
 
-        logging.info(f"Chunks: {chunks_str}")
-
         extraction_chain = setup_llm(
             main_concept=main_concept, 
             related_concepts_str=related_concepts_str,

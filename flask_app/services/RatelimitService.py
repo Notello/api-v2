@@ -41,7 +41,7 @@ class RatelimitService():
 
     @staticmethod
     def is_rate_limited(userId, type):
-        if AuthService.is_super_admin(user_id=userId):
+        if True or AuthService.is_super_admin(user_id=userId):
             return False
 
         try:

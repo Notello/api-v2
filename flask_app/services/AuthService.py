@@ -12,7 +12,12 @@ class AuthService():
 
     @staticmethod
     def is_super_admin(user_id):
-        return supabase.auth.get_user(user_id).data['is_super_admin']
+        try:
+            user = supabase.auth.admin.get_user_by_id(user_id).user
+            return user.app_metadata.get('role') == 'super-admin'
+        except Exception as e:
+            print(f"Error fetching user data: {e}")
+            return False
 
     @staticmethod
     def can_edit_course(user_id, course_id):

@@ -26,7 +26,7 @@ class GetGraphFor(Resource):
             
             start = datetime.now()
             logging.info(f"starting at {datetime.now()}")
-            nodes, relationships = GraphQueryService.get_graph_for_param(key=param, value=id)
+            nodes, relationships = GraphQueryService.old_get_graph_for_param(key=param, value=id)
 
             logging.info(f"ending at {datetime.now()}")
             logging.info(f"query took: {datetime.now() - start}")

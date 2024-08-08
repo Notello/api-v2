@@ -150,7 +150,7 @@ class ValidationService:
     ):
         if not ValidationService.validate_common_inputs(courseId, userId, reqUserId, ingestType):
             logging.error(f"Invalid userId: {userId}, courseId: {courseId}")
-            return False
+            return False, None
                     
         # Check file size
         file.seek(0, 2)  # Move to the end of the file
@@ -158,7 +158,7 @@ class ValidationService:
         file.seek(0)  # Reset file pointer to the beginning
 
         if file_size > ValidationService.MAX_FILE_SIZE:
-            return False
+            return False, None
 
         file_type = HelperService.guess_mime_type(file.filename)
 
@@ -167,7 +167,7 @@ class ValidationService:
 
         if file_type is None:
             logging.exception(f"Failed to validate file")
-            return False
+            return False, None
         
         print(f"file at end: {type(file)}")
         
