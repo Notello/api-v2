@@ -15,29 +15,12 @@ from flask_app.constants import NOTE
 class ValidationService:
     YOUTUBE_MAX_DURATION = 2 * 60 * 60  # 2 hours in seconds
 
-    MAX_AUDIO_DURATION = 2 * 60 * 60  # 2 hours in seconds
+    MAX_AUDIO_SIZE = 100 * 1024 * 1024   # 100MB in bytes
 
     MAX_TEXT_LENGTH = 5 * 1024 * 1024  # Approximately 5MB worth of text
 
     MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB in bytes
 
-    @staticmethod
-    def _get_audio_length(file):
-        file.seek(0)  # Ensure we're at the start of the file
-        try:
-            # Try MP3 first
-            audio = MP3(file)
-            return audio.info.length
-        except:
-            file.seek(0)  # Reset file pointer
-            try:
-                # Try WAV
-                audio = WAVE(file)
-                return audio.info.length
-            except:
-                # Add more audio formats here as needed
-                logging.error(f"Unsupported audio format: {file.filename}")
-                raise ValueError("Unsupported audio format")
 
     @staticmethod
     def invalid_ids(
@@ -113,8 +96,12 @@ class ValidationService:
         
         # Check audio duration
         try:
-            duration = ValidationService._get_audio_length(audio_file)
-            if duration > ValidationService.MAX_AUDIO_DURATION:
+            audio_file.seek(0, 2)  # Move to the end of the file
+            file_size = audio_file.tell()  # Get the size of the file
+            audio_file.seek(0)  # Reset file pointer to the beginning
+
+            if file_size > ValidationService.MAX_AUDIO_SIZE:
+                logging.error(f"Audio file of size {file_size} exceeds the maximum file size of 5MB: {audio_file.filename}")
                 return False
         except ValueError as e:
             return False

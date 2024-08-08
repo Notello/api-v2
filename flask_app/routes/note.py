@@ -110,7 +110,7 @@ create_audio_note_parser.add_argument('file', location='files',
                         type=FileStorage, required=True,
                         help='Audio file to be transcribed')
 create_audio_note_parser.add_argument('ingestType', location='form', 
-                        type=str, required=True,
+                        type=str, required=False,
                         help='edit or create')
 create_audio_note_parser.add_argument(USERID, location='form', 
                         type=str, required=True,
