@@ -199,12 +199,13 @@ class SummaryService():
                 try:
                     summary = future.result()
 
-                    SupabaseService.update_note(noteId, 'summaryStatus', str(uuid4()))
+                    chunks_map = summary['chunks_map']
+                    noteIds = set([chunk['noteId'] for chunk in chunks_map.values()])
 
                     modified_content = SummaryService.inject_topic_links(
                         summary['content'], 
                         topics=topics, 
-                        chunks_map=summary['chunks_map'],
+                        chunks_map=chunks_map,
                         courseId=courseId
                         )
 
@@ -213,12 +214,14 @@ class SummaryService():
                         'concept': summary['concept'],
                         USERID: userId,
                         COURSEID: courseId,
-                        NOTEID: noteId if noteId is not None else 'None',
+                        NOTEID: list(noteIds),
                         'topicId': summary['concept_uuid'],
                         'document_name': document_name
                     }
 
                     GraphCreationService.insert_summaries([summary])
+
+                    SupabaseService.update_note(noteId, 'summaryStatus', str(uuid4()))
                     logging.info(f"Generated summary")
                 except Exception as e:
                     logging.error(f"Error generating summary: {str(e)}")
@@ -264,11 +267,14 @@ class SummaryService():
                 return None
             
             logging.info(f"All topics: {topics}")
-            
+
+            chunks_map = summary['chunks_map']
+            noteIds = set([chunk['noteId'] for chunk in chunks_map.values()])
+        
             summary_final = SummaryService.inject_topic_links(
                 summary['content'], 
                 topics=topics, 
-                chunks_map=summary['chunks_map'],
+                chunks_map=chunks_map,
                 courseId=courseId,
                 )
             
@@ -279,7 +285,7 @@ class SummaryService():
                 USERID: userId,
                 COURSEID: courseId,
                 'topicId': topicId,
-                NOTEID: 'None'
+                NOTEID: list(noteIds)
             }
 
             GraphCreationService.insert_summaries([summary_final])

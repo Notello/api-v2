@@ -29,7 +29,7 @@ class Note(Resource):
                 logging.error(f"User {userId} is not authorized to delete note {note_id}")
                 api.abort(403, f"You do not have permission to delete this note")
 
-            SupabaseService.delete_note(note_id)
+            NoteService.delete_note(note_id)
             GraphDeletionService.delete_node_for_param('noteId', note_id)
             logging.info(f"Note {note_id} deleted successfully")
             return {'message': 'delete note'}, 200
