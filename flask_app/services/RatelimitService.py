@@ -41,15 +41,15 @@ class RatelimitService():
 
     @staticmethod
     def is_rate_limited(userId, type):
-        if True or AuthService.is_super_admin(user_id=userId):
+        if AuthService.is_super_admin(user_id=userId):
             return False
 
         try:
-            current_usage = SupabaseService.get_rate_limit(userId, type)
+            user_type = SupabaseService.get_user_type(userId=userId)
 
-            usage_dict = RatelimitService.sort_into_time_buckets(current_usage)
+            current_usage = SupabaseService.get_rate_limit(userId=userId, type=type, userType=user_type)
 
-            user_type = SupabaseService.get_user_type(userId)
+            usage_dict = RatelimitService.sort_into_time_buckets(rate_limits=current_usage)
 
             rate_limits = SupabaseService.get_rate_limit_values(type=type, userType=user_type)
 
@@ -78,7 +78,14 @@ class RatelimitService():
             logging.error(f'Invalid userId: {userId}')
             return None
         
-        ratelimit = SupabaseService.add_rate_limit(userId, type, value)
+        user_type = SupabaseService.get_user_type(userId=userId)
+        
+        ratelimit = SupabaseService.add_rate_limit(
+            userId=userId,
+            type=type,
+            count=value,
+            userType=user_type
+        )
 
         if not ratelimit:
             return False

@@ -13,11 +13,6 @@ env_type = os.getenv('ENV_TYPE')
 def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        if env_type == 'dev':
-            logging.info("Running in dev mode")
-            g.user_id = SUPER_ADMIN_ACCOUNT
-            return f(*args, **kwargs)
-
         token = None
         if 'Authorization' in request.headers:
             token = request.headers['Authorization'].split()[1]

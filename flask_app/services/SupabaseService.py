@@ -263,7 +263,7 @@ class SupabaseService:
         return user[0]['accountType']
     
     @staticmethod
-    def get_rate_limit(userId: str, type: str):
+    def get_rate_limit(userId: str, type: str, userType: str):
         if not HelperService.validate_all_uuid4(userId):
             logging.error(f'Invalid userId: {userId}')
             return {}
@@ -275,6 +275,7 @@ class SupabaseService:
             .select('created_at, count')\
             .eq('type', str(type))\
             .eq('userId', str(userId))\
+            .eq('userType', str(userType))\
             .gte('created_at', now - timedelta(days=30))\
             .execute()
 
@@ -285,7 +286,7 @@ class SupabaseService:
         return supabase.table(RATE_LIMIT_VALUES_TABLE_NAME).select('*').eq('type', str(type)).eq('userType', str(userType)).execute().data
     
     @staticmethod
-    def add_rate_limit(userId: str, type: str, count: int):
+    def add_rate_limit(userId: str, type: str, count: int, userType: str):
         if not HelperService.validate_all_uuid4(userId):
             logging.error(f'Invalid userId: {userId}')
             return None
@@ -293,7 +294,8 @@ class SupabaseService:
         return supabase.table(RATE_LIMIT_TABLE_NAME).insert({
             'userId': str(userId),
             'type': str(type),
-            'count': count
+            'count': count,
+            'userType': str(userType)
         }).execute().data
 
     @staticmethod

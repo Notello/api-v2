@@ -50,7 +50,7 @@ class ValidationService:
             return False
         
         if not AuthService.is_authed_for_userId(reqUserId=reqUserId, user_id_to_auth=userId):
-            logging.error(f"User {userId} is not authorized to create a summary for user {reqUserId}")
+            logging.error(f"User {userId} is not authorized for user {reqUserId}")
             return False
         
         if RatelimitService.is_rate_limited(userId, NOTE):
