@@ -93,10 +93,8 @@ def update_graph_documents(
 
     for graph_document in graph_document_list:
         for node in graph_document.nodes:
-            nodeId = HelperService.clean_node_id(node.id)
-
             node_data = {
-                "id": nodeId,
+                "id": node.id,
                 "uuid": str(uuid.uuid4()),
                 "type": node.type,
                 NOTEID: noteId,
@@ -212,3 +210,10 @@ def embed_name(name: str, embeddings: OpenAIEmbeddings) -> Tuple[str, List[float
 
 def embed_chunk(row, embeddings: OpenAIEmbeddings) -> Tuple[str, List[float]]:
   return row['chunk_id'], embeddings.embed_query(text=row['chunk_doc'].page_content)
+
+def clean_nodes(docs: List[GraphDocument]):
+  for doc in docs:
+    nodes = doc.nodes
+    for node in nodes:
+      node.id = HelperService.clean_node_id(node.id)
+  return docs

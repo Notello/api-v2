@@ -182,9 +182,6 @@ class GraphCreationService:
                 'topics': q['topics'],
             } for q in questions
         ]}
-
-        print(params)
-        print(query)
         
         graphAccess.execute_query(query, params)
 
@@ -224,3 +221,25 @@ class GraphCreationService:
         ]}
 
         graphAccess.execute_query(query, params)
+
+    @staticmethod
+    def insert_question_results(userId: str, results: Dict[str, bool]) -> None:
+        graphAccess = graphDBdataAccess(get_graph())
+        
+        query = """
+        MERGE (u:User {id: $userId})
+        WITH u
+        UNWIND $results AS result
+        MERGE (q:Question {id: result.questionId})
+        MERGE (u)-[r:ANSWERED]->(q)
+        SET r.correct = result.correct,
+            r.relationship = CASE WHEN result.correct THEN 'RIGHT' ELSE 'WRONG' END
+        """
+        
+        # Transform the results dictionary into a list of dictionaries
+        results_list = [{"questionId": qId, "correct": correct} for qId, correct in results.items()]
+        
+        params = {
+            "userId": userId,
+            "results": results_list
+        }

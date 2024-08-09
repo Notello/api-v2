@@ -196,6 +196,8 @@ class SupabaseService:
             out = supabase.table(PROFILE_TABLE_NAME).select('*').eq(SUPAID, id).execute().data != []
         elif param == 'noteId':
             out = supabase.table(NOTE_TABLE_NAME).select('*').eq(ID, id).execute().data != []
+        elif param == 'quizId':
+            out = supabase.table(QUIZ_TABLE_NAME).select('*').eq(ID, id).execute().data != []
         
 
         logging.info(f'Param {param}, id {id} exists: {out}')

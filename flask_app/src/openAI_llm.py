@@ -4,7 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 from langchain_experimental.graph_transformers import LLMGraphTransformer
 from flask_app.src.CustomGraphBuilder import LLMGraphTransformer as CustomGraphTransformer
 
-from flask_app.src.shared.common_fn import get_combined_chunks, get_llm
+from flask_app.src.shared.common_fn import clean_nodes, get_combined_chunks, get_llm
 from flask_app.constants import GPT_35_TURBO_MODEL, GPT_4O_MINI, LLAMA_8B_INSTANT
 
 logging.basicConfig(format='%(asctime)s - %(message)s',level='INFO')
@@ -34,6 +34,6 @@ def get_graph_from_OpenAI(chunkId_chunkDoc_list):
             graph_document = future.result()
             graph_document_list.append(graph_document[0])   
     
-    print("ALLL NODES", sum(len(doc.nodes) for doc in graph_document_list))
+    graph_docs_final = clean_nodes(graph_document_list)
 
-    return graph_document_list  
+    return graph_docs_final  

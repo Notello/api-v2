@@ -18,6 +18,7 @@ COURSEID = "courseId"
 USERID = "userId"
 NOTEID = "noteId"
 SUPAID = "supaId"
+QUIZID = "quizId"
 
 QUIZ = "quiz"
 NOTE = "note"
@@ -55,7 +56,7 @@ OPENAI_MODELS = [
 ]
 DEFAULT_COMMUNITIES = 3
 
-SUPER_ADMIN_ACCOUNT = "e5e733b0-adc6-43dd-8f24-cd39e2ee924e"
+SUPER_ADMIN_EMAILS = ["gollanstrength@gmail.com"]
 
 ALGORITHM = "algorithm"
 PAGERANK = "pagerank"

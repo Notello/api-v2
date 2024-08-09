@@ -1,3 +1,4 @@
+import json
 import logging
 from flask_restx import Namespace, Resource
 from flask import g
@@ -9,8 +10,10 @@ from flask_app.services.SupabaseService import SupabaseService
 from flask_app.services.ContextAwareThread import ContextAwareThread
 from flask_app.services.RatelimitService import RatelimitService
 from flask_app.services.AuthService import AuthService
+from flask_app.services.GraphCreationService import GraphCreationService
+
 from flask_app.routes.middleware import token_required
-from flask_app.constants import COURSEID, NOTEID, QUIZ, USERID
+from flask_app.constants import COURSEID, NOTEID, QUIZ, USERID, QUIZID
 
 logging.basicConfig(format='%(asctime)s - %(message)s', level='INFO')
 
@@ -126,4 +129,46 @@ class GetQuestionsFor(Resource):
             return {'questions': questions}, 200
         except Exception as e:
             logging.exception(f"Error getting questions for quiz {quizId}: {str(e)}")
+            return {'message': str(e)}, 500
+
+complete_quiz_parser = api.parser()
+complete_quiz_parser.add_argument(USERID, location='form', 
+                        type=str, required=True,
+                        help='Supabase ID of the user')
+complete_quiz_parser.add_argument('results', location='form', type=dict, required=True,
+                        help='Dictionary of UUID to boolean results')
+
+@api.route('/complete-quiz/<string:quizId>')
+class CompleteQuiz(Resource):
+    @api.doc(security="jsonWebToken")
+    @token_required
+    @api.expect(complete_quiz_parser)
+    def post(self, quizId):
+        try:
+            args = complete_quiz_parser.parse_args()
+            userId = args.get(USERID, None)
+            results = args.get('results', None)
+            reqUserId = g.user_id
+
+            results = json.loads(results)
+
+            logging.info(f"Complete quiz for userId: {userId}, quizId: {quizId}, results: {results}")
+            
+            if not AuthService.is_authed_for_userId(reqUserId, userId):
+                logging.error(f"User {userId} is not authorized to complete quiz {quizId}")
+                return {'message': 'You do not have permission to complete this quiz'}, 400
+            
+            if not SupabaseService.param_id_exists(QUIZID, quizId):
+                logging.error(f"Quiz {quizId} does not exist")
+                return {'message': 'Quiz does not exist'}, 400
+            
+            for uuid, result in results.items():
+                if not isinstance(result, bool) or not HelperService.validate_uuid4(uuid):
+                    return {'message': f'Invalid result for UUID {uuid}. Must be a valid UUID boolean mapping'}, 400
+            
+            GraphCreationService.insert_question_results(userId=userId, results=results)
+
+            return {'message': 'Quiz completed'}, 200
+        except Exception as e:
+            logging.exception(f"Error completing quiz: {str(e)}")
             return {'message': str(e)}, 500

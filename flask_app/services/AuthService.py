@@ -2,7 +2,7 @@ import logging
 import os
 from supabase import Client, create_client
 
-from flask_app.constants import NOTE_TABLE_NAME, USER_CLASS_TABLE_NAME
+from flask_app.constants import NOTE_TABLE_NAME, USER_CLASS_TABLE_NAME, SUPER_ADMIN_EMAILS
 
 
 supabase: Client = create_client(os.getenv('SUPABASE_URL'), os.getenv('SUPABASE_SERVICE_KEY'))
@@ -14,7 +14,9 @@ class AuthService():
     def is_super_admin(user_id):
         try:
             user = supabase.auth.admin.get_user_by_id(user_id).user
-            return user.app_metadata.get('role') == 'super-admin'
+            print(f"user: {user.email}")
+            print(f"SUPER_ADMIN_EMAILS: {SUPER_ADMIN_EMAILS}")
+            return user.email in SUPER_ADMIN_EMAILS
         except Exception as e:
             print(f"Error fetching user data: {e}")
             return False
@@ -41,4 +43,6 @@ class AuthService():
     def can_edit_note(user_id, note_id):
         note = supabase.table(NOTE_TABLE_NAME).select('*').eq('id', note_id).execute().data
 
-        return len(note) != 0 and (AuthService.is_matching_user(user_id, note[0]['userId']) or AuthService.is_super_admin(user_id))
+        print(f"note: {note}")
+
+        return len(note) != 0 and (AuthService.is_authed_for_userId(user_id, note[0]['userId']))

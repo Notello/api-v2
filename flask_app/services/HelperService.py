@@ -101,4 +101,4 @@ class HelperService:
         
     @staticmethod
     def clean_node_id(node_id):
-        return node_id.replace('-', '').replace(':', '').replace('_', ' ')
+        return node_id.replace('-', ' ').replace(':', ' ').replace('_', ' ')
