@@ -65,7 +65,7 @@ spec:
         - name: RUNPOD_WHISPER_ENDPOINT_ID
           value: "amyg6f231rop31"
         - name: RUNPOD_GDS_ENDPOINT_ID
-          value: ""
+          value: "7ln9bgb6daqlr6"
         - name: RUNPOD_API_KEY
           valueFrom:
             secretKeyRef:
