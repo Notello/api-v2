@@ -1,10 +1,11 @@
 import logging
-from flask_app.src.shared.common_fn import get_graph, load_embedding_model
+from flask_app.src.shared.common_fn import load_embedding_model
 from flask_app.constants import COURSEID, NOTEID
 from flask_app.services.SupabaseService import SupabaseService
+from flask_app.src.graphDB_dataAccess import graphDBdataAccess
 
 class SimilarityService:
-    def __init__(self, similarity_threshold = 0.9, word_edit_distance = 5):
+    def __init__(self, similarity_threshold = 0.98, word_edit_distance = 5):
         self.similarity_threshold = similarity_threshold
         self.word_edit_distance = word_edit_distance
 
@@ -16,7 +17,7 @@ class SimilarityService:
 
         logging.info(f"Embedding: Using OpenAI Embeddings , Dimension:{dimension}")
 
-        get_graph().query("""
+        graphDBdataAccess().execute_query("""
             CREATE VECTOR INDEX `doc_embedding` IF NOT EXISTS FOR (d:Document) ON (d.embedding)
             OPTIONS {indexConfig: {
                 `vector.dimensions`: $dimensions,
@@ -33,7 +34,7 @@ class SimilarityService:
         RETURN ID(d) as id
         """
 
-        node = get_graph().query(
+        node = graphDBdataAccess().execute_query(
             query_to_create_or_update_document,
             params={NOTEID: noteId, "embedding": embeddings_arr}
         )
@@ -54,7 +55,7 @@ class SimilarityService:
         ORDER BY similarity DESC
         """
 
-        result = get_graph().query(
+        result = graphDBdataAccess().execute_query(
             query,
             params={
                 COURSEID: courseId,
@@ -95,7 +96,7 @@ class SimilarityService:
         LIMIT 1
         """
 
-        result = get_graph().query(
+        result = graphDBdataAccess().execute_query(
             query,
             params={
                 COURSEID: course_id,
@@ -144,7 +145,7 @@ class SimilarityService:
         return similar
         
     def delete_node(self, node):
-        get_graph().query("""
+        graphDBdataAccess().execute_query("""
             MATCH (d:Document)
             WHERE ID(d) = $nodeId
             DETACH DELETE d

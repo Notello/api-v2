@@ -3,7 +3,7 @@ import logging
 from typing import List, Tuple
 import re
 import os
-import uuid
+from uuid import uuid4
 
 from ..document_sources.youtube import create_youtube_url
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
@@ -14,11 +14,7 @@ from flask_app.services.HelperService import HelperService
 from typing import List
 from langchain_groq import ChatGroq
 
-from neo4j.exceptions import ClientError, TransientError
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
-from flask_app.services.Neo4jTransactionManager import transactional
-
-from flask_app.constants import COURSEID, GROQ_MODELS, LLAMA_405_MODEL, LLAMA_70B_MODEL, MIXTRAL_MODEL, LLAMA_8_MODEL, GPT_35_TURBO_MODEL, GPT_4O_MODEL, GPT_4O_MINI, LLAMA_8_TOOL_MODEL, NOTEID, OPENAI_MODELS, USERID
+from flask_app.constants import GROQ_MODELS, OPENAI_MODELS
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -47,22 +43,9 @@ def get_combined_chunks(chunkId_chunkDoc_list):
     for i in range(len(combined_chunks_page_content)):
          combined_chunk_document_list.append(Document(page_content=combined_chunks_page_content[i], metadata={"combined_chunk_ids":combined_chunks_ids[i]}))
     return combined_chunk_document_list
-
-def get_chunk_and_graphDocument(graph_document_list, chunkId_chunkDoc_list):
-  logging.info("creating list of chunks and graph documents in get_chunk_and_graphDocument func")
-  lst_chunk_chunkId_document=[]
-
-  for graph_document in graph_document_list:            
-          for chunk_id in graph_document.source.metadata['combined_chunk_ids']:
-
-            lst_chunk_chunkId_document.append({
-              'graph_doc': graph_document,
-              'chunk_id': chunk_id
-            })
-                  
-  return lst_chunk_chunkId_document  
                  
 def create_graph_database_connection(uri, userName, password, database):
+  logging.info(f"Creating graph database connection with uri: {uri}, userName: {userName}, password: {password}, database: {database}")
   graph = Neo4jGraph(url=uri, database=database, username=userName, password=password, refresh_schema=False, sanitize=True)
   return graph
 
@@ -72,93 +55,6 @@ def load_embedding_model():
   dimension = 1536
   logging.info(f"Embedding: Using OpenAI Embeddings , Dimension:{dimension}")
   return embeddings, dimension
-
-@staticmethod
-@retry(
-    stop=stop_after_attempt(5),
-    wait=wait_exponential(multiplier=1, min=4, max=30),
-    retry=retry_if_exception_type((ClientError, TransientError, AttributeError)),
-    reraise=True
-)
-@transactional
-def update_graph_documents(
-  tx,
-  graph_document_list: List[GraphDocument], 
-  noteId: str = None, 
-  courseId: str = None, 
-  userId: str = None
-):
-    nodes_data = []
-    relationships_data = []
-
-    for graph_document in graph_document_list:
-        for node in graph_document.nodes:
-            node_data = {
-                "id": node.id,
-                "uuid": str(uuid.uuid4()),
-                "type": node.type,
-                NOTEID: noteId,
-                COURSEID: courseId,
-                USERID: userId
-            }
-            if hasattr(node, 'properties') and isinstance(node.properties, dict):
-                for key, value in node.properties.items():
-                    if isinstance(value, (str, int, float, bool)) or value is None:
-                        node_data[key] = value
-                    else:
-                        node_data[key] = str(value)
-            nodes_data.append(node_data)
-
-        for relationship in graph_document.relationships:
-            relationships_data.append({
-                "source": relationship.source.id,
-                "target": relationship.target.id,
-                "type": relationship.type
-            })
-
-    node_query = """
-    UNWIND $nodes AS node
-    MERGE (n:Concept {id: node.id})
-    ON CREATE SET 
-        n.id = node.id,
-        n.type = node.type,
-        n.noteId = CASE WHEN node.noteId IS NOT NULL THEN [node.noteId] ELSE [] END,
-        n.courseId = CASE WHEN node.courseId IS NOT NULL THEN [node.courseId] ELSE [] END,
-        n.userId = CASE WHEN node.userId IS NOT NULL THEN [node.userId] ELSE [] END,
-        n.uuid = CASE WHEN node.uuid IS NOT NULL THEN [node.uuid] ELSE [] END
-    ON MATCH SET
-        n.type = node.type,
-        n.noteId = CASE 
-            WHEN node.noteId IS NOT NULL AND NOT node.noteId IN n.noteId 
-            THEN n.noteId + [node.noteId] 
-            ELSE n.noteId 
-        END,
-        n.courseId = CASE 
-            WHEN node.courseId IS NOT NULL AND NOT node.courseId IN n.courseId 
-            THEN n.courseId + [node.courseId] 
-            ELSE n.courseId 
-        END,
-        n.userId = CASE 
-            WHEN node.userId IS NOT NULL AND NOT node.userId IN n.userId 
-            THEN n.userId + [node.userId] 
-            ELSE n.userId 
-        END,
-        n.uuid = CASE 
-            WHEN node.uuid IS NOT NULL AND NOT node.uuid IN n.uuid 
-            THEN n.uuid + [node.uuid] 
-            ELSE n.uuid 
-        END
-    """
-
-    relationship_query = """
-    UNWIND $relationships AS rel
-    MATCH (source:Concept {id: rel.source})
-    MATCH (target:Concept {id: rel.target})
-    MERGE (source)-[r:RELATED {type: rel.type}]->(target)
-    """
-
-    tx.run(node_query, {"nodes": nodes_data})
-    tx.run(relationship_query, {"relationships": relationships_data})
    
 def close_db_connection(graph, api_name):
   if not graph._driver._closed:
@@ -171,13 +67,11 @@ def get_llm(model_version:str):
     llm = ChatOpenAI(api_key=os.environ.get('OPENAI_KEY'), 
                       model=model_version, 
                       temperature=.1)
-    logging.info(f"Model created : Model Version: {model_version}")
     return llm
   elif model_version in GROQ_MODELS:
     llm = ChatGroq(api_key=os.environ.get('GROQ_KEY'), 
                     model=model_version, 
                     temperature=.1)
-    logging.info(f"Model created : Model Version: {model_version}")
     return llm
   else:
     raise Exception(f"Model Version {model_version} not supported")
@@ -211,9 +105,23 @@ def embed_name(name: str, embeddings: OpenAIEmbeddings) -> Tuple[str, List[float
 def embed_chunk(row, embeddings: OpenAIEmbeddings) -> Tuple[str, List[float]]:
   return row['chunk_id'], embeddings.embed_query(text=row['chunk_doc'].page_content)
 
+def clean_chunk_text(chunk_text):
+    return chunk_text.replace('\n', ' ').replace('.', ' ')
+
 def clean_nodes(docs: List[GraphDocument]):
+  node_uuid_map = {}
+
   for doc in docs:
     nodes = doc.nodes
+    rels = doc.relationships
     for node in nodes:
       node.id = HelperService.clean_node_id(node.id)
+      new_uuid = str(uuid4())
+      node_uuid_map[node.id] = new_uuid
+      node.properties['uuid'] = new_uuid
+    for rel in rels:
+        rel.source.id = HelperService.clean_node_id(rel.source.id)
+        rel.source.properties['uuid'] = node_uuid_map.get(rel.source.id)
+        rel.target.id = HelperService.clean_node_id(rel.target.id)
+        rel.target.properties['uuid'] = node_uuid_map.get(rel.target.id)
   return docs

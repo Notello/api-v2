@@ -1,5 +1,4 @@
 from datetime import datetime
-import sys
 import logging
 from typing import Dict, List
 import json
@@ -8,15 +7,11 @@ from langchain.docstore.document import Document
 from flask_app.services.SupabaseService import SupabaseService
 from flask_app.src.graphDB_dataAccess import graphDBdataAccess
 from flask_app.src.entities.source_node import sourceNode
-from flask_app.services.TimestampService import TimestampService
 from flask_app.services.ChunkService import ChunkService
-from flask_app.services.SimilarityService import SimilarityService
 from flask_app.models.Quiz import QuizQuestion
-from flask_app.services.HelperService import HelperService
 from flask_app.services.RatelimitService import RatelimitService
 
 from flask_app.src.main import processing_source
-from flask_app.src.shared.common_fn import get_graph
 from flask_app.constants import COURSEID, NOTEID, USERID, GPT_4O_MINI
 
 class GraphCreationService:
@@ -60,31 +55,31 @@ class GraphCreationService:
         try:
             chunks = ChunkService.get_text_chunks(rawText)
 
-            similarityService = SimilarityService(
-                similarity_threshold=0.9, 
-                word_edit_distance=5
-            )
+            # similarityService = SimilarityService(
+            #     similarity_threshold=0.98, 
+            #     word_edit_distance=5
+            # )
 
-            similar = similarityService.has_similar_documents(
-                courseId=courseId,
-                noteId=noteId,
-                documents=chunks
-            )
+            # similar = similarityService.has_similar_documents(
+            #     courseId=courseId,
+            #     noteId=noteId,
+            #     documents=chunks
+            # )
 
-            if similar:
-                logging.info(f"File: {fileName} is similar to {similar}")
-                SupabaseService.update_note(
-                    noteId=noteId,
-                    key='matchingNoteId',
-                    value=similar
-                )
-                SupabaseService.update_note(
-                    noteId=noteId, 
-                    key='graphStatus', 
-                    value='complete'
-                    )
-                RatelimitService.remove_rate_limit(rateLimitId)
-                return
+            # if similar:
+            #     logging.info(f"File: {fileName} is similar to {similar}")
+            #     SupabaseService.update_note(
+            #         noteId=noteId,
+            #         key='matchingNoteId',
+            #         value=similar
+            #     )
+            #     SupabaseService.update_note(
+            #         noteId=noteId, 
+            #         key='graphStatus', 
+            #         value='complete'
+            #         )
+            #     RatelimitService.remove_rate_limit(rateLimitId)
+            #     return
     
             GraphCreationService.create_graph(
                 noteId=noteId,
@@ -119,7 +114,7 @@ class GraphCreationService:
             noteId=noteId,
         )
         
-        graphDb_data_Access: graphDBdataAccess = graphDBdataAccess(get_graph())
+        graphDb_data_Access: graphDBdataAccess = graphDBdataAccess()
 
         graphDb_data_Access.create_source_node(obj_source_node)
 
@@ -131,10 +126,11 @@ class GraphCreationService:
             courseId=courseId,
             noteId=noteId
             )
+        
 
     @staticmethod
     def insert_quiz_question(questions: List[QuizQuestion]) -> None:
-        graphAccess = graphDBdataAccess(get_graph())
+        graphAccess = graphDBdataAccess()
         
         query = """
         UNWIND $questions AS q
@@ -186,7 +182,7 @@ class GraphCreationService:
         graphAccess.execute_query(query, params)
 
     def insert_summaries(summaries: List[Dict[str, str]]) -> None:
-        graphAccess = graphDBdataAccess(get_graph())
+        graphAccess = graphDBdataAccess()
         
         query = """
         UNWIND $summaries AS s
@@ -224,7 +220,7 @@ class GraphCreationService:
 
     @staticmethod
     def insert_question_results(userId: str, results: Dict[str, bool]) -> None:
-        graphAccess = graphDBdataAccess(get_graph())
+        graphAccess = graphDBdataAccess()
         
         query = """
         MERGE (u:User {id: $userId})

@@ -82,6 +82,8 @@ class SupabaseService:
             return json['Id']
         except Exception as e:
             logging.exception(f'Exception in upload_file: {e}')
+            if hasattr(e, 'response'):
+                logging.error(f'Response content: {e.response.content}')
             return None
         
     @staticmethod

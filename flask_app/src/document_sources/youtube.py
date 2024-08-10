@@ -10,9 +10,6 @@ def get_youtube_transcript(youtube_id):
             transcript_dict = YouTubeTranscriptApi.get_transcript(youtube_id, languages=['en','en-US'])
         except Exception:
             transcript_dict = YouTubeTranscriptApi.get_transcript(youtube_id, languages=('en-US',))
-
-        print("##########################################################################################################################################")
-        print(transcript_dict)
         
         transcript = ''
         for td in transcript_dict:

@@ -1,6 +1,5 @@
 import logging
 from flask_app.src.graphDB_dataAccess import graphDBdataAccess
-from flask_app.src.shared.common_fn import get_graph
 
 class GraphDeletionService():
     @staticmethod
@@ -10,7 +9,7 @@ class GraphDeletionService():
         
         logging.info(f"Deleting nodes with {param} = {id}")
 
-        graphAccess = graphDBdataAccess(get_graph())
+        graphAccess = graphDBdataAccess()
 
         query = f"""
         MATCH (n)

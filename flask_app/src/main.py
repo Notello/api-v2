@@ -9,7 +9,6 @@ from flask_app.src.entities.source_node import sourceNode
 from flask_app.src.graphDB_dataAccess import graphDBdataAccess
 from flask_app.src.make_relationships import create_relation_between_chunks, merge_relationship_between_chunk_and_entities, update_embedding_create_vector_index
 from flask_app.src.openAI_llm import get_graph_from_OpenAI
-from flask_app.src.shared.common_fn import get_chunk_and_graphDocument, update_graph_documents
 from flask_app.services.SupabaseService import SupabaseService
 from flask_app.services.NodeUpdateService import NodeUpdateService
 from flask_app.constants import COURSEID, NOTEID
@@ -23,75 +22,85 @@ def processing_source(
       courseId,
       noteId
       ):
-  start_time = datetime.now()
+    start_time = datetime.now()
         
-  logging.info("Break down file into chunks")
+    logging.info("Break down file into chunks")
 
-  obj_source_node = sourceNode(
-    status = "Processing",
-    fileName = fileName,
-    noteId = noteId,
-    total_chunks = len(chunks),
-    model = GPT_4O_MINI,
-  )
-  graphDb_data_Access.update_source_node(obj_source_node)
+    obj_source_node = sourceNode(
+        status = "processing",
+        comStatus = "incomplete",
+        pagerankStatus = "incomplete",
+        mergeStatus = "incomplete",
+        fileName = fileName,
+        noteId = noteId,
+        total_chunks = len(chunks),
+        model = GPT_4O_MINI,
+    )
+    graphDb_data_Access.update_source_node(obj_source_node)
 
-  SupabaseService.update_note(noteId, 'graphStatus', '1')
-  
-  logging.info('Update the status as Processing')
+    SupabaseService.update_note(noteId, 'graphStatus', '1')
+    
+    logging.info('Update the status as Processing')
 
-  futures = []
+    futures = []
 
+    try:
+        with ThreadPoolExecutor(max_workers=200) as executor:
+            for i, chunk in enumerate(chunks):
+                futures.append(
+                    executor.submit(
+                        process_chunks,
+                        chunk=chunk,
+                        noteId=noteId,
+                        courseId=courseId,
+                        userId=userId,
+                        startI=i,
+                        document_name=fileName
+                    ))
+            for i, future in enumerate(concurrent.futures.as_completed(futures)):
+                logging.info(f"Future {i} is done")
+                SupabaseService.update_note(noteId, 'graphStatus', str(uuid4()))
+    except Exception as e:
+        logging.exception(f"Error in processing chunks: {e}")
+        raise e
 
-  try:
-    with ThreadPoolExecutor(max_workers=200) as executor:
-        for i, chunk in enumerate(chunks):
-            futures.append(
-                executor.submit(
-                    process_chunks,
-                    chunk=chunk,
-                    noteId=noteId,
-                    courseId=courseId,
-                    userId=userId,
-                    startI=i,
-                    document_name=fileName
-                ))
-        for i, future in enumerate(concurrent.futures.as_completed(futures)):
-            logging.info(f"Future {i} is done")
-            SupabaseService.update_note(noteId, 'graphStatus', str(uuid4()))
-  except Exception as e:
-    logging.exception(f"Error in processing chunks: {e}")
-    raise e
+    end_time = datetime.now()
+    processed_time = end_time - start_time
+    
+    NodeUpdateService.update_note_embeddings(noteId=noteId)
 
-  end_time = datetime.now()
-  processed_time = end_time - start_time
-  
-  obj_source_node = sourceNode(
-    fileName = fileName,
-    updated_at = end_time,
-    noteId = noteId,
-    processing_time = processed_time,
-  )
-  graphDb_data_Access.update_source_node(obj_source_node)
+    NodeUpdateService.merge_similar_nodes(id_type=NOTEID, target_id=noteId, note_id=noteId)
 
-  NodeUpdateService.update_note_embeddings(noteId=noteId)
+    NodeUpdateService.update_communities_for_param(id_type=NOTEID, target_id=noteId, note_id=noteId)
+    NodeUpdateService.update_page_rank(id_type=NOTEID, target_id=noteId, note_id=noteId)
 
-  try:
-    NodeUpdateService.merge_similar_nodes()
-  except Exception as e:
-    logging.error(f"Error in merge_similar_nodes: {str(e)}")
+    SupabaseService.update_note(noteId=noteId, key='graphStatus', value='complete')
 
-  NodeUpdateService.update_communities_for_param(id_type=NOTEID, target_id=noteId)
-  NodeUpdateService.update_page_rank(param=NOTEID, id=noteId)
+    obj_source_node = sourceNode(
+        fileName = fileName,
+        status = "complete",
+        updated_at = end_time,
+        noteId = noteId,
+        processing_time = processed_time,
+    )
 
-  SupabaseService.update_note(noteId=noteId, key='graphStatus', value='complete')
+    graphDb_data_Access.update_source_node(obj_source_node)
 
-  NodeUpdateService.update_communities_for_param(id_type=COURSEID, target_id=courseId)
-  NodeUpdateService.update_page_rank(param=COURSEID, id=courseId)
+    # Course-level operations now use the updated queuing system
+    NodeUpdateService.merge_similar_nodes(id_type=COURSEID, target_id=courseId, note_id=noteId)
+    graphDb_data_Access.update_source_node(sourceNode(noteId = noteId, mergeStatus = "complete"))
+    logging.info(f"Setting mergeStatus to complete for course {courseId}")
 
-  
-  logging.info('Updated the nodeCount and relCount properties in Document node')
-  logging.info(f'File: {fileName} extraction has been completed')
+    NodeUpdateService.update_communities_for_param(id_type=COURSEID, target_id=courseId, note_id=noteId)
+    graphDb_data_Access.update_source_node(sourceNode(noteId = noteId, comStatus = "complete"))
+    logging.info(f"Setting comStatus to complete for course {courseId}")
+
+    NodeUpdateService.update_page_rank(id_type=COURSEID, target_id=courseId, note_id=noteId)
+    graphDb_data_Access.update_source_node(sourceNode(noteId = noteId, pagerankStatus = "complete"))
+    logging.info(f"Setting pagerankStatus to complete for course {courseId}")
+    
+    logging.info('Updated the nodeCount and relCount properties in Document node')
+    logging.info(f'File: {fileName} extraction has been completed')
 
 def process_chunks(
     chunk, 
@@ -101,11 +110,9 @@ def process_chunks(
     startI,
     document_name
 ):
-  try:
-    
     logging.info(f"Starting process_chunks for chunk {startI}")
 
-    chunkId_chunkDoc_list = create_relation_between_chunks(
+    chunk_with_id = create_relation_between_chunks(
       noteId=noteId,
       courseId=courseId,
       userId=userId,
@@ -114,39 +121,33 @@ def process_chunks(
       document_name=document_name,
     )
 
-    logging.info(f"Created chunks for {len(chunkId_chunkDoc_list)} chunks between in create_relation_between_chunks")
-
     # Create vector index and update chunk node with embedding
     update_embedding_create_vector_index(
-      chunkId_chunkDoc_list=chunkId_chunkDoc_list, 
-      noteId=noteId
+      chunk=chunk_with_id
     )
 
     logging.info("Get graph document list from models")
 
+
     # Generates graph documents from chunks
     graph_documents = get_graph_from_OpenAI(
-      chunkId_chunkDoc_list,
+      chunk_with_id,
     )
 
+
     # Saves graph documents in Neo4j
-    update_graph_documents(
+    nodes_data = NodeUpdateService.update_graph_documents(
       graph_document_list=graph_documents,
       noteId=noteId,
       courseId=courseId,
       userId=userId
     )
 
-    chunks_and_graphDocuments_list = get_chunk_and_graphDocument(
-      graph_document_list=graph_documents, 
-      chunkId_chunkDoc_list=chunkId_chunkDoc_list
-    )
+    # logging.info(f"Graph documents: {nodes_data}")
 
     merge_relationship_between_chunk_and_entities(
-      graph_documents_chunk_chunk_Id=chunks_and_graphDocuments_list
+      chunk_with_id=chunk_with_id,
+      nodes_data=nodes_data
     )
 
     return startI
-  except Exception as e:
-    logging.exception(f"Error in process_chunks: {e}")
-    raise e

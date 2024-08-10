@@ -3,7 +3,6 @@ import logging
 import random
 from typing import Any, Dict, List, Tuple
 from flask_app.src.graphDB_dataAccess import graphDBdataAccess
-from flask_app.src.shared.common_fn import get_graph
 
 class GraphQueryService():
     @staticmethod
@@ -39,7 +38,7 @@ class GraphQueryService():
     @staticmethod
     def get_graph_for_param(key: str, value: str) -> Tuple[List[Dict], List[Dict[str, Any]]]:
         try:
-            graphDb_data_Access = graphDBdataAccess(get_graph())
+            graphAccess = graphDBdataAccess()
             com_string = GraphQueryService.get_com_string(communityType=key, communityId=value)
             page_rank_string = GraphQueryService.get_page_rank_string(param=key, id=value)
 
@@ -49,14 +48,14 @@ class GraphQueryService():
             # Execute queries for each node type
             for node_type in ["Document", "Chunk", "Concept"]:
                 query = GraphQueryService.get_node_query(node_type, key, value, com_string, page_rank_string)
-                result = graphDb_data_Access.execute_query(query, {"value": value})
+                result = graphAccess.execute_query(query, {"value": value})
                 for record in result:
                     node_info = dict(record)
                     nodes.append(node_info)
 
             # Execute query for relationships
             rel_query = GraphQueryService.get_relationships_query(key, value)
-            rel_result = graphDb_data_Access.execute_query(rel_query, {"value": value})
+            rel_result = graphAccess.execute_query(rel_query, {"value": value})
             for record in rel_result:
                 relationships.append(dict(record))
 
@@ -99,7 +98,7 @@ class GraphQueryService():
         return_params: List[Tuple[str, str]] = None
     ) -> Tuple[Dict[str, List[Dict]], List[Dict[str, Any]]]:
         try:
-            graphDb_data_Access = graphDBdataAccess(get_graph())
+            graphAccess = graphDBdataAccess()
 
             final_params = return_params if return_params is not None else \
                 GraphQueryService.get_default_graph_params(communityType=key, communityId=value)
@@ -118,7 +117,7 @@ class GraphQueryService():
                 "value": value
             }
 
-            result = graphDb_data_Access.execute_query(QUERY, parameters)
+            result = graphAccess.execute_query(QUERY, parameters)
 
             nodes = {
                 'documents': {},
@@ -204,7 +203,7 @@ class GraphQueryService():
         
         logging.info(f"Getting communities for {param} with id {id}")
 
-        graphAccess = graphDBdataAccess(get_graph())
+        graphAccess = graphDBdataAccess()
         com_string = GraphQueryService.get_com_string(communityType=param, communityId=id)
 
         parameters = {
@@ -253,7 +252,7 @@ class GraphQueryService():
         id: str,
         num_topics: int = 1
     ):
-        graphAccess = graphDBdataAccess(get_graph())
+        graphAccess = graphDBdataAccess()
         
         QUERY = f"""
         MATCH (c:Concept)
@@ -301,7 +300,7 @@ class GraphQueryService():
         num_rels: int = 5,
         chunks_per_rel: int = 1
     ):
-        graphAccess = graphDBdataAccess(get_graph())
+        graphAccess = graphDBdataAccess()
 
         MAIN_QUERY = f"""
         WITH {topics} AS allTopics
@@ -356,7 +355,7 @@ class GraphQueryService():
 
     @staticmethod
     def get_importance_graph_by_param(param: str, id: str) -> str | None:
-        graphAccess = graphDBdataAccess(get_graph())
+        graphAccess = graphDBdataAccess()
         pagerank_string = GraphQueryService.get_page_rank_string(param=param, id=id)
 
         QUERY = f"""
@@ -414,7 +413,7 @@ class GraphQueryService():
         
     @staticmethod
     def get_quiz_questions_by_id(quizId: str):
-        graphDb_data_Access = graphDBdataAccess(get_graph())
+        graphAccess = graphDBdataAccess()
 
         QUERY = f"""
         MATCH (q:QuizQuestion)
@@ -426,7 +425,7 @@ class GraphQueryService():
             "quizId": quizId
         }
 
-        result = graphDb_data_Access.execute_query(QUERY, parameters)
+        result = graphAccess.execute_query(QUERY, parameters)
 
         out = []
 
@@ -442,7 +441,7 @@ class GraphQueryService():
         topic_uuid: str,
         num_chunks: int = 5
     ): 
-        graphAccess = graphDBdataAccess(get_graph())
+        graphAccess = graphDBdataAccess()
         
         MAIN_QUERY = f"""
             WITH $topic_uuid AS topic_uuid
@@ -493,7 +492,7 @@ class GraphQueryService():
     @staticmethod
     def get_display_topic_graph(uuid: str, courseId: str) -> Tuple[Dict[str, List[Dict]], List[Dict[str, Any]]] | None:
         try:
-            graphAccess = graphDBdataAccess(get_graph())
+            graphAccess = graphDBdataAccess()
 
             com_string = GraphQueryService.get_com_string(communityType='courseId', communityId=courseId)
             page_rank_string = GraphQueryService.get_page_rank_string(param='courseId', id=courseId)
@@ -621,7 +620,7 @@ class GraphQueryService():
 
     @staticmethod
     def get_summary_for_param(param: str, id: str) -> str | None:
-        graphAccess = graphDBdataAccess(get_graph())
+        graphAccess = graphDBdataAccess()
 
         logging.info(f"Getting summary for param {param} with id {id}")
         
@@ -648,7 +647,7 @@ class GraphQueryService():
 
     @staticmethod
     def get_topic_summary(uuid: str) -> str | None:
-        graphAccess = graphDBdataAccess(get_graph())
+        graphAccess = graphDBdataAccess()
 
         QUERY = f"""
         Match (n:Concept)
@@ -667,7 +666,7 @@ class GraphQueryService():
     
     @staticmethod
     def get_topics_for_param(param: str, id: str) -> List[str] | None:
-        graphAccess = graphDBdataAccess(get_graph())
+        graphAccess = graphDBdataAccess()
         
         QUERY = f"""
         MATCH (n:Concept)

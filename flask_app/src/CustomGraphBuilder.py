@@ -526,8 +526,6 @@ def _parse_and_clean_json(
                 properties=rel_properties,
             )
         )
-    print("##################################################################")
-    print("RELATIONSHIPS", argument_json["relationships"])
 
 
     return nodes, relationships
@@ -735,9 +733,6 @@ class LLMGraphTransformer:
                 )
             # Create nodes list
             nodes = [Node(id=el[0], type=el[1]) for el in list(nodes_set)]
-        
-        print("##################################################################")
-        print("RELATIONSHIPS", relationships)
             
         # Strict mode filtering
         if self.strict_mode and (self.allowed_nodes or self.allowed_relationships):
