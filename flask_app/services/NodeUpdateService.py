@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, List
+from typing import Any, Dict, List
 from concurrent.futures import ThreadPoolExecutor
 import concurrent.futures
 from langchain_community.graphs.graph_document import GraphDocument
@@ -13,27 +13,15 @@ from flask_app.constants import COMMUNITY_DETECTION, COURSEID, LOUVAIN, NOTEID, 
 
 class NodeUpdateService:
     @staticmethod
-    def update_embeddings(noteId: str) -> None:
+    def update_embeddings(noteId: str, nodes_data) -> None:
         embeddings, dimension = load_embedding_model()
-
-        query = """
-        MATCH (n:Concept) 
-        WHERE $noteId IN n.noteId AND n.embedding IS NULL
-        RETURN n.id as id
-        """
-
-        graphAccess = graphDBdataAccess()
-
-        result = graphAccess.execute_query(query, {NOTEID: noteId})
 
         nodes_to_update = []
         futures = []
 
-        logging.info(f"len of res: {len(result)}")
-
         with ThreadPoolExecutor(max_workers=200) as executor:
-            for record in result:
-                name = record['id']
+            for node in nodes_data:
+                name = node['id']
                 futures.append(
                     executor.submit(
                         embed_name,
@@ -53,6 +41,8 @@ class NodeUpdateService:
         SET n.embedding = node.embedding
         RETURN count(n) as updatedCount
         """
+
+        graphAccess = graphDBdataAccess()
 
         update_result = graphAccess.execute_query(update_query, {'nodes': nodes_to_update, NOTEID: noteId})
         logging.info(f"Updated nodes: {update_result}")
@@ -76,16 +66,11 @@ class NodeUpdateService:
         graphAccess.execute_query(index_query)
 
         logging.info("Created or updated embedding index")
-
-    @staticmethod
-    def update_note_embeddings(noteId: str) -> None:
-        dimension = NodeUpdateService.update_embeddings(noteId)
-        
-        NodeUpdateService.create_embedding_index(dimension)
     
     @staticmethod
     def update_graph_documents(
         graph_document_list: List[GraphDocument], 
+        graphAccess: graphDBdataAccess,
         noteId: str = None, 
         courseId: str = None, 
         userId: str = None
@@ -131,8 +116,6 @@ class NodeUpdateService:
             MATCH (target:Concept {uuid: rel.target_uuid})
             MERGE (source)-[r:RELATED {type: rel.type}]->(target)
             """
-
-            graphAccess = graphDBdataAccess()
 
             graphAccess.execute_query(node_query, {"nodes": nodes_data})
             graphAccess.execute_query(relationship_query, {"relationships": relationships_data})

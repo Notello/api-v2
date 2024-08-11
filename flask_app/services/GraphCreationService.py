@@ -114,12 +114,12 @@ class GraphCreationService:
             noteId=noteId,
         )
         
-        graphDb_data_Access: graphDBdataAccess = graphDBdataAccess()
+        graphAccess: graphDBdataAccess = graphDBdataAccess()
 
-        graphDb_data_Access.create_source_node(obj_source_node)
+        graphAccess.create_source_node(obj_source_node)
 
         processing_source(
-            graphDb_data_Access=graphDb_data_Access,
+            graphAccess=graphAccess,
             fileName=fileName,
             chunks=chunks,
             userId=userId,

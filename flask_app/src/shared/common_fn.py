@@ -13,6 +13,7 @@ from langchain_community.graphs.graph_document import GraphDocument
 from flask_app.services.HelperService import HelperService
 from typing import List
 from langchain_groq import ChatGroq
+from flask_app.src.graphDB_dataAccess import graphDBdataAccess
 
 from flask_app.constants import GROQ_MODELS, OPENAI_MODELS
 
@@ -45,7 +46,7 @@ def get_combined_chunks(chunkId_chunkDoc_list):
     return combined_chunk_document_list
                  
 def create_graph_database_connection(uri, userName, password, database):
-  logging.info(f"Creating graph database connection with uri: {uri}, userName: {userName}, password: {password}, database: {database}")
+  logging.info(f"Creating graph database connection with uri: {uri}, userName: {userName}, database: {database}")
   graph = Neo4jGraph(url=uri, database=database, username=userName, password=password, refresh_schema=False, sanitize=True)
   return graph
 
@@ -125,3 +126,28 @@ def clean_nodes(docs: List[GraphDocument]):
         rel.target.id = HelperService.clean_node_id(rel.target.id)
         rel.target.properties['uuid'] = node_uuid_map.get(rel.target.id)
   return docs
+
+def init_indexes():
+  graphAccess = graphDBdataAccess()
+  embeddings, dimension = load_embedding_model()
+
+  graphAccess.execute_query(f"""CREATE VECTOR INDEX `vector` if not exists for (c:Chunk) on (c.embedding)
+                OPTIONS {{indexConfig: {{
+                `vector.dimensions`: {dimension},
+                `vector.similarity_function`: 'cosine'
+                }}}}
+            """)
+  
+  logging.info("Created or updated embedding index")
+  
+  graphAccess.execute_query(f"""
+        CREATE VECTOR INDEX concept_embedding IF NOT EXISTS
+        FOR (n:Concept)
+        ON (n.embedding)
+        OPTIONS {{indexConfig: {{
+        `vector.dimensions`: {dimension},
+        `vector.similarity_function`: 'cosine'
+        }}}}
+        """)
+  
+  logging.info("Created or updated concept embedding index")

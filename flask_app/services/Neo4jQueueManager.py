@@ -1,14 +1,13 @@
-import os
 import time
 import random
-from neo4j import GraphDatabase
-from neo4j.exceptions import ServiceUnavailable, SessionExpired, TransientError
-import logging
-from functools import wraps
 from queue import Queue
 from threading import Thread, Lock
 from typing import Callable, Dict, Any
 from flask_app.constants import COURSEID, NOTEID
+from neo4j.exceptions import ServiceUnavailable, SessionExpired, TransientError
+import logging
+from functools import wraps
+from flask_app.services.Neo4jConnection import Neo4jConnection
 
 class Neo4jQueueManager:
     _instance = None
@@ -26,10 +25,7 @@ class Neo4jQueueManager:
             return
         self._initialized = True
         
-        self.driver = GraphDatabase.driver(
-            os.getenv('NEO4J_URI'),
-            auth=(os.getenv('NEO4J_USERNAME'), os.getenv('NEO4J_PASSWORD'))
-        )
+        Neo4jConnection.initialize()  # Initialize the Neo4jConnection
         self.queue = Queue()
         self.course_tasks: Dict[str, Dict[str, Any]] = {}
         self.worker_thread = Thread(target=self._worker)
@@ -38,7 +34,7 @@ class Neo4jQueueManager:
 
     def close(self):
         self.queue.join()
-        self.driver.close()
+        Neo4jConnection.close()  # Close the Neo4jConnection
 
     def _worker(self):
         while True:
@@ -67,7 +63,6 @@ class Neo4jQueueManager:
                             if not self.course_tasks[course_id]:
                                 del self.course_tasks[course_id]
 
-
     def _should_skip_processing(self, course_id: str, note_id: str, task_type: str) -> bool:
         status_field = {
             'merge': 'mergeStatus',
@@ -88,12 +83,11 @@ class Neo4jQueueManager:
 
         logging.info(f"query: {query}")
 
-        with self.driver.session() as session:
-            result = session.run(query, courseId=course_id, noteId=note_id)
-            out = result.single()['count']
-            logging.info(f"out: {out}")
-            logging.info("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
-            return out != 0
+        result = Neo4jConnection.run_query(query, {"courseId": course_id, "noteId": note_id})
+        out = result[0]['count']
+        logging.info(f"out: {out}")
+        logging.info("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
+        return out != 0
 
     def _execute_transaction(self, work_func, *args, **kwargs):
         max_retries = 5
@@ -102,7 +96,7 @@ class Neo4jQueueManager:
 
         for retry_count in range(max_retries):
             try:
-                with self.driver.session() as session:
+                with Neo4jConnection.get_session() as session:
                     result = session.execute_write(self._run_transaction, work_func, *args, **kwargs)
                 return result
             except (ServiceUnavailable, SessionExpired) as e:

@@ -7,7 +7,7 @@ from uuid import uuid4
 
 from flask_app.src.entities.source_node import sourceNode
 from flask_app.src.graphDB_dataAccess import graphDBdataAccess
-from flask_app.src.make_relationships import create_relation_between_chunks, merge_relationship_between_chunk_and_entities, update_embedding_create_vector_index
+from flask_app.src.make_relationships import create_relation_between_chunks, merge_relationship_between_chunk_and_entities, update_chunk_embedding
 from flask_app.src.openAI_llm import get_graph_from_OpenAI
 from flask_app.services.SupabaseService import SupabaseService
 from flask_app.services.NodeUpdateService import NodeUpdateService
@@ -15,7 +15,7 @@ from flask_app.constants import COURSEID, NOTEID
 from flask_app.constants import GPT_4O_MINI
 
 def processing_source(
-      graphDb_data_Access: graphDBdataAccess, 
+      graphAccess: graphDBdataAccess, 
       fileName: str, 
       chunks, 
       userId,
@@ -36,13 +36,14 @@ def processing_source(
         total_chunks = len(chunks),
         model = GPT_4O_MINI,
     )
-    graphDb_data_Access.update_source_node(obj_source_node)
+    graphAccess.update_source_node(obj_source_node)
 
     SupabaseService.update_note(noteId, 'graphStatus', '1')
     
     logging.info('Update the status as Processing')
 
     futures = []
+    nodes_data = []
 
     try:
         with ThreadPoolExecutor(max_workers=200) as executor:
@@ -55,10 +56,13 @@ def processing_source(
                         courseId=courseId,
                         userId=userId,
                         startI=i,
-                        document_name=fileName
+                        document_name=fileName,
+                        graphAccess=graphAccess
                     ))
             for i, future in enumerate(concurrent.futures.as_completed(futures)):
                 logging.info(f"Future {i} is done")
+                result = future.result()
+                nodes_data.extend(result)
                 SupabaseService.update_note(noteId, 'graphStatus', str(uuid4()))
     except Exception as e:
         logging.exception(f"Error in processing chunks: {e}")
@@ -67,7 +71,7 @@ def processing_source(
     end_time = datetime.now()
     processed_time = end_time - start_time
     
-    NodeUpdateService.update_note_embeddings(noteId=noteId)
+    NodeUpdateService.update_embeddings(noteId=noteId, nodes_data=nodes_data)
 
     NodeUpdateService.merge_similar_nodes(id_type=NOTEID, target_id=noteId, note_id=noteId)
 
@@ -84,19 +88,19 @@ def processing_source(
         processing_time = processed_time,
     )
 
-    graphDb_data_Access.update_source_node(obj_source_node)
+    graphAccess.update_source_node(obj_source_node)
 
     # Course-level operations now use the updated queuing system
     NodeUpdateService.merge_similar_nodes(id_type=COURSEID, target_id=courseId, note_id=noteId)
-    graphDb_data_Access.update_source_node(sourceNode(noteId = noteId, mergeStatus = "complete"))
+    graphAccess.update_source_node(sourceNode(noteId = noteId, mergeStatus = "complete"))
     logging.info(f"Setting mergeStatus to complete for course {courseId}")
 
     NodeUpdateService.update_communities_for_param(id_type=COURSEID, target_id=courseId, note_id=noteId)
-    graphDb_data_Access.update_source_node(sourceNode(noteId = noteId, comStatus = "complete"))
+    graphAccess.update_source_node(sourceNode(noteId = noteId, comStatus = "complete"))
     logging.info(f"Setting comStatus to complete for course {courseId}")
 
     NodeUpdateService.update_page_rank(id_type=COURSEID, target_id=courseId, note_id=noteId)
-    graphDb_data_Access.update_source_node(sourceNode(noteId = noteId, pagerankStatus = "complete"))
+    graphAccess.update_source_node(sourceNode(noteId = noteId, pagerankStatus = "complete"))
     logging.info(f"Setting pagerankStatus to complete for course {courseId}")
     
     logging.info('Updated the nodeCount and relCount properties in Document node')
@@ -108,7 +112,8 @@ def process_chunks(
     courseId,
     userId,
     startI,
-    document_name
+    document_name,
+    graphAccess
 ):
     logging.info(f"Starting process_chunks for chunk {startI}")
 
@@ -119,11 +124,13 @@ def process_chunks(
       chunk=chunk,
       startI=startI,
       document_name=document_name,
+      graphAccess=graphAccess
     )
 
     # Create vector index and update chunk node with embedding
-    update_embedding_create_vector_index(
-      chunk=chunk_with_id
+    update_chunk_embedding(
+      chunk=chunk_with_id,
+      graphAccess=graphAccess
     )
 
     logging.info("Get graph document list from models")
@@ -131,23 +138,24 @@ def process_chunks(
 
     # Generates graph documents from chunks
     graph_documents = get_graph_from_OpenAI(
-      chunk_with_id,
+      chunk_with_id
     )
-
 
     # Saves graph documents in Neo4j
     nodes_data = NodeUpdateService.update_graph_documents(
       graph_document_list=graph_documents,
+      graphAccess=graphAccess,
       noteId=noteId,
       courseId=courseId,
-      userId=userId
+      userId=userId,
     )
 
     # logging.info(f"Graph documents: {nodes_data}")
 
     merge_relationship_between_chunk_and_entities(
       chunk_with_id=chunk_with_id,
-      nodes_data=nodes_data
+      nodes_data=nodes_data,
+      graphAccess=graphAccess
     )
 
-    return startI
+    return nodes_data

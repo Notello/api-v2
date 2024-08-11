@@ -8,9 +8,7 @@ from flask_app.constants import COURSEID, NOTEID, USERID
 logging.basicConfig(format='%(asctime)s - %(message)s', level='INFO')
 
 @staticmethod
-def merge_relationship_between_chunk_and_entities(nodes_data, chunk_with_id):
-    graphAccess = graphDBdataAccess()
-
+def merge_relationship_between_chunk_and_entities(nodes_data, chunk_with_id, graphAccess: graphDBdataAccess):
     unwind_query = f"""
         UNWIND $nodes_data AS node
         MATCH (c:Chunk {{id: '{chunk_with_id.get('id')}'}})
@@ -19,28 +17,17 @@ def merge_relationship_between_chunk_and_entities(nodes_data, chunk_with_id):
     """
     graphAccess.execute_query(unwind_query, {"nodes_data": nodes_data})
 
-def update_embedding_create_vector_index(chunk):
+def update_chunk_embedding(chunk, graphAccess: graphDBdataAccess):
     embeddings, dimension = load_embedding_model()
     logging.info(f"update embedding and vector index for chunks")
 
     emedding = embeddings.embed_query(text=chunk.get('pg_content'))
-
-    graphDBdataAccess().execute_query("""CREATE VECTOR INDEX `vector` if not exists for (c:Chunk) on (c.embedding)
-                    OPTIONS {indexConfig: {
-                    `vector.dimensions`: $dimensions,
-                    `vector.similarity_function`: 'cosine'
-                    }}
-                """,
-                {
-                    "dimensions" : dimension
-                }
-                )
     
     query_to_create_embedding = f"""
         MATCH (c:Chunk {{id: '{chunk.get('id')}'}})
         SET c.embedding = {emedding}
     """       
-    graphDBdataAccess().execute_query(query_to_create_embedding)
+    graphAccess.execute_query(query_to_create_embedding)
 
 
 def create_relation_between_chunks(
@@ -49,7 +36,8 @@ def create_relation_between_chunks(
         userId, 
         chunk: Document,
         startI,
-        document_name
+        document_name,
+        graphAccess: graphDBdataAccess
         ) -> list:
     try:
         logging.info("creating FIRST_CHUNK relationships between chunks")
@@ -85,7 +73,7 @@ def create_relation_between_chunks(
             MATCH (d:Document {{noteId: '{noteId}'}})
             MERGE (c)-[r:HAS_DOCUMENT {{type: 'PART_OF'}}]->(d)
         """
-        graphDBdataAccess().execute_query(query_to_create_chunk_and_PART_OF_relation, {"chunk_data": chunk_data})
+        graphAccess.execute_query(query_to_create_chunk_and_PART_OF_relation, {"chunk_data": chunk_data})
         
         return chunk_data
     except Exception as e:
