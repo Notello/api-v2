@@ -226,10 +226,11 @@ class GraphCreationService:
         MERGE (u:User {id: $userId})
         WITH u
         UNWIND $results AS result
-        MERGE (q:Question {id: result.questionId})
-        MERGE (u)-[r:ANSWERED]->(q)
+        MERGE (q:QuizQuestion {id: result.questionId})
+        CREATE (u)-[r:ANSWERED]->(q)
         SET r.correct = result.correct,
-            r.relationship = CASE WHEN result.correct THEN 'RIGHT' ELSE 'WRONG' END
+            r.relationship = CASE WHEN result.correct THEN 'RIGHT' ELSE 'WRONG' END,
+            r.timestamp = $timestamp
         """
         
         # Transform the results dictionary into a list of dictionaries
@@ -237,5 +238,8 @@ class GraphCreationService:
         
         params = {
             "userId": userId,
-            "results": results_list
+            "results": results_list,
+            "timestamp": datetime.now().isoformat()
         }
+
+        graphAccess.execute_query(query, params)

@@ -135,7 +135,7 @@ complete_quiz_parser = api.parser()
 complete_quiz_parser.add_argument(USERID, location='form', 
                         type=str, required=True,
                         help='Supabase ID of the user')
-complete_quiz_parser.add_argument('results', location='form', type=dict, required=True,
+complete_quiz_parser.add_argument('results', location='form', type=str, required=True,
                         help='Dictionary of UUID to boolean results')
 
 @api.route('/complete-quiz/<string:quizId>')
