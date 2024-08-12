@@ -485,7 +485,7 @@ class GraphQueryService():
             'topic_uuid': topic_uuid
         }
 
-        result = graphAccess.execute_query(query=MAIN_QUERY, param=parameters)
+        result = graphAccess.execute_query(query=MAIN_QUERY, params=parameters)
 
         return result
     
@@ -641,7 +641,7 @@ class GraphQueryService():
         logging.info(f"Result: {result}")
 
         return {
-            'summaries': [res.get('s') for res in result if res.get('s') is not None],
+            'summaries': [res.data().get('s') for res in result if res.get('s') is not None],
             'concept': result[0].get('conceptId') if len(result) > 0 else None
         }
 

@@ -99,6 +99,8 @@ class GenerateNoteSummary(Resource):
                 return {'message': 'You have exceeded your note summary rate limit'}, 400
             
             rateLimitId = RatelimitService.add_rate_limit(userId, NOTE_SUMMARY, 1)
+
+            logging.info(f"Generated note summary for userId: {userId}, courseId: {courseId}, noteId: {noteId}, specifierParam: {NOTEID}")
             
             SummaryService.generate_note_summary(
                 userId=userId, 

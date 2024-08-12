@@ -185,6 +185,15 @@ class SummaryService():
 
         with ThreadPoolExecutor(max_workers=10) as executor:
             for graph in importance_graph:
+
+                graph = graph.data()
+                                
+                logging.info(f"Graph: {graph}")
+                logging.info(f"Graph: {graph is not None}")
+                logging.info(f"Graph: {'conceptId' in graph}")
+                logging.info(f"Graph: {'topChunks' in graph}")
+                logging.info(f"Graph: {'relatedConcepts' in graph}")
+
                 if graph is not None and 'conceptId' in graph and 'relatedConcepts' in graph and 'topChunks' in graph:
                     futures.append(
                         executor.submit(
@@ -194,6 +203,8 @@ class SummaryService():
                             related_concepts=graph['relatedConcepts'],
                             chunks=graph['topChunks']
                         ))
+                else:
+                    logging.error(f"Issue with graph: {graph}")
         
             for future in concurrent.futures.as_completed(futures):
                 try:
@@ -291,7 +302,6 @@ class SummaryService():
             SupabaseService.update_summary(summaryId, 'status', 'complete')
         except Exception as e:
             logging.error(f"Error generating topic summary: {str(e)}")
-            SupabaseService.update_summary(summaryId, 'status', 'error')
             RatelimitService.remove_rate_limit(rateLimitId)
             return None
 

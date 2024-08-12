@@ -1,4 +1,4 @@
-from neo4j import GraphDatabase
+from neo4j import GraphDatabase, Record, Result
 import os
 from retry import retry
 import logging
@@ -47,8 +47,8 @@ class Neo4jConnection:
         for attempt in range(max_retries):
             try:
                 with cls.get_session() as session:
-                    result = session.run(query, params)
-                    return list(result)
+                    result: Result = session.run(query, params)
+                    return result.data()
             except (ServiceUnavailable, SessionExpired, TransientError) as e:
                 if attempt == max_retries - 1:
                     raise
