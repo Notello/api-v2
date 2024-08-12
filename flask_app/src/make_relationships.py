@@ -55,7 +55,7 @@ def create_relation_between_chunks(
             "offset": chunk.metadata.get("start"),
         }
                 
-        query_to_create_chunk_and_PART_OF_relation = f"""
+        chunk_to_doc = f"""
             WITH $chunk_data AS data
             MERGE (c:Chunk {{id: data.id}})
             SET 
@@ -72,8 +72,13 @@ def create_relation_between_chunks(
 
             MATCH (d:Document {{noteId: '{noteId}'}})
             MERGE (c)-[r:HAS_DOCUMENT {{type: 'PART_OF'}}]->(d)
+
+            WITH c
+            MATCH (prev:Chunk {{noteId: '{noteId}', position: c.position - 1}})
+            MERGE (prev)-[:NEXT_CHUNK]->(c)
         """
-        graphAccess.execute_query(query_to_create_chunk_and_PART_OF_relation, {"chunk_data": chunk_data})
+
+        graphAccess.execute_query(chunk_to_doc, {"chunk_data": chunk_data})
         
         return chunk_data
     except Exception as e:

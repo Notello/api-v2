@@ -29,34 +29,36 @@ def setup_llm(
     chunks_str: str,
 ):
     system_prompt = """
-    You are an advanced citation focused Markdown formatted summarization system. Your task is to generate a focused, extended sub-summary that delves deeply into a single main concept and cites as many related concepts as possible.
+    You are an advanced in-text citation focused Markdown formatted summarization system. Your task is to generate a focused, extended summary that delves deeply into a single main concept and cites sources within the text as frequently as possible.
 
     ## Key Guidelines:
     1. Focus exclusively on the main concept, mentioning as many ##RELATED CONCEPTS## as possible in direct relation to the main concept.
-    2. Create a sub-summary equivalent to 6-8 paragraphs in length, using markdown formatting for readability.
+    2. Create a summary equivalent to 6-8 paragraphs in length, using markdown formatting for readability.
     3. Start immediately with content relevant to the main concept. No introduction or conclusion.
     4. Use provided chunks to support your summary with specific details and examples.
     5. Utilize markdown features: headings, lists, bold/italic text, blockquotes, code blocks, and tables as appropriate.
     6. Prefer to use code blocks to highlight important information.
 
-    ## CRITICAL: Concept and Chunk Citation Guidelines
-    2. ALWAYS cite ##RELATED CONCEPTS## using this format: [Concept Name](Concept UUID)
-    3. ALWAYS cite chunks using this format: [Chunk Name](Chunk UUID)
+    ## CRITICAL: In-Text Citation Guidelines
+    1. ALWAYS cite ##RELATED CONCEPTS## using this format: [Concept Name](Concept UUID)
+    2. ALWAYS cite chunks using this format: [Chunk Name](Chunk UUID)
+    3. Place citations immediately after the relevant information, NOT at the end of sentences or paragraphs.
 
     Examples:
-    - Related Concept: [Machine Learning](6ba7b810-9dad-11d1-80b4-00c04fd430c8)
-    - Chunk: [Introduction to AI](6ba7b811-9dad-11d1-80b4-00c04fd430c8)
+    - The field of [Machine Learning](6ba7b810-9dad-11d1-80b4-00c04fd430c8) has seen rapid advancements in recent years.
+    - According to [Introduction to AI](6ba7b811-9dad-11d1-80b4-00c04fd430c8), artificial intelligence encompasses various subfields.
 
     IMPORTANT: 
-    - Cite the main concept and ##RELATED CONCEPTS## as frequently as possible without disrupting readability.
+    - Cite the main concept, ##RELATED CONCEPTS##, and chunks as frequently as possible without disrupting readability.
     - Aim to include ALL ##RELATED CONCEPTS## at least once in your summary.
-    - Failure to cite correctly or adding a conclusion will result in immediate termination.
+    - Ensure that every piece of information is immediately followed by a relevant citation.
+    - Failure to use in-text citations or adding a conclusion will result in immediate termination.
 
     Always start with a level 2 heading of the main concept and end with relevant, substantive information.
     """
     
     user_template = f"""
-    Generate a focused, extended sub-summary based on:
+    Generate a focused, extended summary with in-text citations based on:
 
     Main Concept: {main_concept}
     ##RELATED CONCEPTS##: {related_concepts_str}
@@ -64,7 +66,7 @@ def setup_llm(
     Text Information:
     {chunks_str}
 
-    Your markdown-formatted sub-summary should:
+    Your markdown-formatted summary should:
     - Start with a level 2 heading of the main concept
     - Be equivalent to 6-8 paragraphs, using extensive markdown formatting
     - Focus exclusively on the main concept
@@ -73,15 +75,16 @@ def setup_llm(
     - End with substantive information about the main concept
 
     #CRITICAL:
-    - ALWAYS cite ##RELATED CONCEPTS## using this format: [Concept Name](Concept UUID)
-    - ALWAYS cite chunks using this format: [Chunk Name](Chunk UUID)
+    - ALWAYS use in-text citations for ##RELATED CONCEPTS## using this format: [Concept Name](Concept UUID)
+    - ALWAYS use in-text citations for chunks using this format: [Chunk Name](Chunk UUID)
+    - Place citations immediately after the relevant information, NOT at the end of sentences or paragraphs
     - Include as many ##RELATED CONCEPTS## as possible, aiming to reference ALL of them at least once
     - Cite concepts and chunks as frequently as possible without disrupting readability
     - Never say the word "Chunk" or "Chunks" in your summary, simply refer to the document name
     - NO conclusions or summaries at the end
-    - Failure to cite correctly or adding a conclusion will result in immediate termination
+    - Failure to use in-text citations or adding a conclusion will result in immediate termination
 
-    Remember to reference the main concept and ##RELATED CONCEPTS## using their respective UUIDs whenever mentioned.
+    Remember to reference the main concept and ##RELATED CONCEPTS## using their respective UUIDs whenever mentioned, and always place citations immediately after the relevant information.
     """
 
     extraction_llm = get_llm(GPT_4O_MINI)
@@ -102,6 +105,7 @@ def generate_summary(
     main_concept_uuid: str,
     related_concepts: List[Dict[str, str]],
     chunks: List[Dict[str, str]],
+    importance: float = None
 ) -> Optional[Summary]:
     try:
         logging.info(f"Generating summary for Main Concept: {main_concept}")
@@ -129,7 +133,8 @@ def generate_summary(
             'content': result.dict()['content'],
             'concept': main_concept,
             'concept_uuid': main_concept_uuid,
-            'chunks_map': chunks_map
+            'chunks_map': chunks_map,
+            'importance': importance
         }
     except Exception as e:
         logging.error(f"Error generating summary: {str(e)}")
@@ -142,9 +147,11 @@ class SummaryService():
         main_concept_uuid: str,
         related_concepts: List[Dict[str, str]],
         chunks: List[Dict[str, str]],
+        importance: float = None
     ):
         logging.info(f"Generating individual summary for {main_concept}")
         return generate_summary(
+            importance=importance,
             main_concept=main_concept,
             related_concepts=related_concepts,
             main_concept_uuid=main_concept_uuid,
@@ -186,18 +193,11 @@ class SummaryService():
         with ThreadPoolExecutor(max_workers=10) as executor:
             for graph in importance_graph:
 
-                graph = graph.data()
-                                
-                logging.info(f"Graph: {graph}")
-                logging.info(f"Graph: {graph is not None}")
-                logging.info(f"Graph: {'conceptId' in graph}")
-                logging.info(f"Graph: {'topChunks' in graph}")
-                logging.info(f"Graph: {'relatedConcepts' in graph}")
-
                 if graph is not None and 'conceptId' in graph and 'relatedConcepts' in graph and 'topChunks' in graph:
                     futures.append(
                         executor.submit(
                             SummaryService.get_individual_summary,
+                            importance=graph['conceptPageRank'],
                             main_concept=graph['conceptId'],
                             main_concept_uuid=graph['conceptUuid'],
                             related_concepts=graph['relatedConcepts'],
@@ -227,7 +227,8 @@ class SummaryService():
                         COURSEID: courseId,
                         NOTEID: list(noteIds),
                         'topicId': summary['concept_uuid'],
-                        'document_name': document_name
+                        'document_name': document_name,
+                        'importance': summary['importance']
                     }
 
                     GraphCreationService.insert_summaries([summary])
@@ -327,7 +328,7 @@ class SummaryService():
                 document_name = chunks_map[link_url]['document_name']
                 noteId = chunks_map[link_url]['noteId']
                 offset = chunks_map[link_url]['offset']
-                return f"[{document_name}](/course/{courseId}/note/{noteId}?offset={offset})"
+                return f"(Source: [{document_name}](/course/{courseId}/note/{noteId}?offset={offset}))"
             return match.group(0)
 
         content = re.sub(r'\[([^\]]+)\]\(([^\)]+)\)', replace_chunk_reference, content)

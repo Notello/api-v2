@@ -126,3 +126,25 @@ class GetTopicListForParam(Resource):
             message = f" Unable to get notes for {param} {id}, Exception: {e}"
             logging.exception(f" Unable to get notes for {param} {id}, Exception: {e}")
             return {'message': message}, 400
+        
+@api.route('/get-notes-for-topic/<string:topicId>')
+class GetNotesForTopic(Resource):
+    @api.doc(security="jsonWebToken")
+    @token_required
+    def get(self, topicId):
+        try:
+            logging.info(f"Get notes for topicId: {topicId}")
+
+            if not HelperService.validate_all_uuid4(topicId):
+                logging.info(f"Invalid topicId: {topicId}")
+                return {f'message': 'Invalid topicId'}, 400
+
+            notes = GraphQueryService.get_notes_for_topic(uuid=topicId)
+
+            if notes is None:
+                return {'message': 'Error getting notes'}, 400
+
+            return notes, 200
+        except Exception as e:
+            logging.exception(f"Unable to get notes for topicId {topicId}, Exception: {e}")
+            return {'message': f"Unable to get notes for topicId {topicId}, Exception: {e}"}, 400

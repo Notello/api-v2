@@ -307,7 +307,7 @@ class GraphQueryService():
         UNWIND range(0, {num_rels} - 1) AS i
         WITH allTopics[i % size(allTopics)] AS topic, i
         MATCH (start:Concept)
-        WHERE topic IN start.id
+        WHERE topic IN start.uuid
         MATCH (start)-[rel]-(related:Concept)
         WHERE '{id}' IN related.{param}
         WITH start, rel, related, i
@@ -641,7 +641,7 @@ class GraphQueryService():
         logging.info(f"Result: {result}")
 
         return {
-            'summaries': [res.data().get('s') for res in result if res.get('s') is not None],
+            'summaries': [res.get('s') for res in result if res.get('s') is not None],
             'concept': result[0].get('conceptId') if len(result) > 0 else None
         }
 
@@ -702,3 +702,18 @@ class GraphQueryService():
         result = graphAccess.execute_query(QUERY, parameters)
 
         return result[0].get('num_topics') if len(result) > 0 else None
+
+
+    @staticmethod
+    def get_notes_for_topic(uuid: str) -> List[Dict] | None:
+        graphAccess = graphDBdataAccess()
+        
+        QUERY = f"""
+        MATCH (n:Concept)
+        WHERE '{uuid}' IN n.uuid
+        RETURN n.noteId AS noteId
+        """
+
+        result = graphAccess.execute_query(QUERY)
+
+        return result

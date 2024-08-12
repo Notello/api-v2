@@ -1,3 +1,4 @@
+import json
 import logging
 from flask_restx import Namespace, Resource
 from flask import g
@@ -9,8 +10,10 @@ from flask_app.services.ContextAwareThread import ContextAwareThread
 from flask_app.services.SummaryService import SummaryService
 from flask_app.services.AuthService import AuthService
 from flask_app.services.RatelimitService import RatelimitService
+
+from flask_app.extensions import r
 from flask_app.routes.middleware import token_required
-from flask_app.constants import COURSEID, NOTE_SUMMARY, NOTEID, TOPIC_SUMMARY, USERID, NOTE
+from flask_app.constants import COURSEID, NOTE_SUMMARY, NOTEID, TOPIC_SUMMARY, USERID, NOTE, getSummaryKey
 
 api = Namespace('summary')
 
@@ -123,6 +126,12 @@ class GetSummaryFor(Resource):
         try:
             logging.info(f"Get summary for param: {param}, id: {id}")
             summaries = GraphQueryService.get_summary_for_param(param=param, id=id)
+
+            logging.info(f"Summaries: {summaries}")
+            
+            if summaries:
+                r.set(getSummaryKey(id), json.dumps(summaries))
+
             logging.info(f"Summaries: {summaries}")
             return summaries
         except Exception as e:

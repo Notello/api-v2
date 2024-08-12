@@ -13,6 +13,9 @@ RATE_LIMIT_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_rate_limit"
 RATE_LIMIT_VALUES_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_rate_limit_values"
 COLLEGE_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_college"
 
+getGraphKey = lambda id: f"graph:{id}"
+getSummaryKey = lambda id: f"summary:{id}"
+
 ID = "id"
 UUID = "uuid"
 COURSEID = "courseId"

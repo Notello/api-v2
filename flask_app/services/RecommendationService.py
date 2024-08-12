@@ -1,3 +1,4 @@
+import logging
 from flask_app.src.graphDB_dataAccess import graphDBdataAccess
 
 class RecommendationService():
@@ -23,6 +24,27 @@ class RecommendationService():
         ORDER BY sharedConcepts DESC
         LIMIT 10
         """
+
+        result = graphAccess.execute_query(query)
+
+        return result
+    
+    @staticmethod
+    def get_recommended_topics_for_user(userId, courseId):
+        graphAccess = graphDBdataAccess()
+
+        query = f"""
+        MATCH (user:User {{id: '{userId}'}})
+        MATCH (user)-[r:ANSWERED]->(question:QuizQuestion)
+        MATCH (concept:Concept)-[:HAS_QUESTION]->(question)
+        WITH concept, 
+            SUM(CASE WHEN r.relationship = 'RIGHT' THEN 1 ELSE -1 END) AS score
+        ORDER BY score ASC
+        LIMIT 10
+        RETURN concept.id AS conceptName, score
+        """
+
+        logging.info(f"Query: {query}")
 
         result = graphAccess.execute_query(query)
 

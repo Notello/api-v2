@@ -39,7 +39,9 @@ create_quiz_parser.add_argument('difficulty', location='form',
 create_quiz_parser.add_argument('numQuestions', location='form', 
                         type=int, required=False,
                         help='Number of questions to generate')
-create_quiz_parser.add_argument('topics', location='form', action='split')
+create_quiz_parser.add_argument('topics', location='form', 
+                        type=str, required=False,
+                        help='Topics to focus quiz on')
 
 @api.expect(create_quiz_parser)
 @api.route('/generate-quiz')
@@ -56,12 +58,12 @@ class GenerateQuiz(Resource):
             difficulty = args.get('difficulty', 3)
             numQuestions = args.get('numQuestions', 5)
             topics = args.get('topics', None)
+            topics = topics.split(',') if topics is not None else []
             reqUserId = g.user_id
 
             logging.info(f"Generate quiz for userId: {userId}, courseId: {courseId}, noteId: {noteId}, specifierParam: {specifierParam}, difficulty: {difficulty}, numQuestions: {numQuestions}, topics: {topics}")
 
-            if topics is None:
-                topics = []
+            logging.info(f"Topics: {topics}")
 
             if (
                 not HelperService.validate_all_uuid4(userId, courseId) \

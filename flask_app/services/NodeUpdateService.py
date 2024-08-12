@@ -1,3 +1,4 @@
+from datetime import datetime
 import logging
 from typing import Any, Dict, List
 from concurrent.futures import ThreadPoolExecutor
@@ -245,6 +246,8 @@ class NodeUpdateService:
     @queued_transaction(task_type='merge')
     def merge_similar_nodes(tx, id_type: str, target_id: str, note_id: str, distance: int = 2, embedding_cutoff: float = 0.95) -> None:
         logging.info(f"Merging similar nodes for {id_type}: {target_id}")
+        start = datetime.now()
+        logging.info(f"Starting at {start}")
 
         query = f"""
         MATCH (e:Concept)
@@ -343,3 +346,6 @@ class NodeUpdateService:
                     # Continue with the next merge instead of raising the exception
 
         logging.info("Node merging process completed.")
+        end = datetime.now()
+        logging.info(f"Ending at {end}")
+        logging.info(f"Query took: {end - start}")

@@ -1,5 +1,6 @@
 import json
 import os
+import redis
 from flask_restx import Api
 from flask_cors import CORS
 from supabase import create_client
@@ -14,6 +15,12 @@ api = Api(doc='/docs', title='Notello API', version='1.0', description='An API f
 
 cors = CORS(resources={r"/*": {"origins": "*"}})
 
+r = redis.Redis(
+  host=os.getenv('REDIS_HOST'),
+  port=os.getenv('REDIS_PORT'),
+  password=os.getenv('REDIS_PASSWORD'),
+  ssl=True
+)
 
 supabase = create_client(os.getenv('SUPABASE_URL'), os.getenv('SUPABASE_SERVICE_KEY'))
 runpod.api_key = os.getenv("RUNPOD_API_KEY")

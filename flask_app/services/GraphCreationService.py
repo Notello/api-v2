@@ -11,9 +11,11 @@ from flask_app.services.ChunkService import ChunkService
 from flask_app.models.Quiz import QuizQuestion
 from flask_app.services.RatelimitService import RatelimitService
 from flask_app.services.SimilarityService import SimilarityService
+from flask_app.services.GraphQueryService import GraphQueryService
+from flask_app.extensions import r
 
 from flask_app.src.main import processing_source
-from flask_app.constants import COURSEID, NOTEID, USERID, GPT_4O_MINI
+from flask_app.constants import COURSEID, NOTEID, USERID, GPT_4O_MINI, getGraphKey
 
 class GraphCreationService:
     @staticmethod
@@ -128,6 +130,14 @@ class GraphCreationService:
             noteId=noteId
             )
         
+        nodes, relationships = GraphQueryService.old_get_graph_for_param(key=NOTEID, value=noteId)
+
+        r.set(getGraphKey(noteId), json.dumps({'nodes': nodes, 'relationships': relationships}))
+
+        nodes, relationships = GraphQueryService.old_get_graph_for_param(key=COURSEID, value=courseId)
+
+        r.set(getGraphKey(courseId), json.dumps({'nodes': nodes, 'relationships': relationships}))
+        
 
     @staticmethod
     def insert_quiz_question(questions: List[QuizQuestion]) -> None:
@@ -194,7 +204,8 @@ class GraphCreationService:
             content: s.content,
             concept: s.concept,
             topicId: s.topicId,
-            document_name: s.document_name
+            document_name: s.document_name,
+            importance: s.importance
         })
 
         WITH summary, s
@@ -214,6 +225,7 @@ class GraphCreationService:
                 'concept': s.get('concept'),
                 'topicId': s.get('topicId'),
                 'document_name': s.get('document_name'),
+                'importance': s.get('importance'),
             } for s in summaries
         ]}
 
