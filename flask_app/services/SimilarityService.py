@@ -88,7 +88,7 @@ class SimilarityService:
             return None
 
     @staticmethod
-    def same_youtube_node_exists(course_id, url) -> str | None:
+    def same_youtube_node_exists(courseId, url) -> str | None:
         query = """
         MATCH (d:Document)
         WHERE d.courseId = $courseId AND d.url = $url
@@ -99,14 +99,14 @@ class SimilarityService:
         result = graphDBdataAccess().execute_query(
             query,
             params={
-                COURSEID: course_id,
+                COURSEID: courseId,
                 "url": url
             }
         )
 
         print("result", result)
 
-        if len(result) > 0:
+        if not SupabaseService.isCollegePrivate(courseId=courseId) and len(result) > 0:
             return result[0][NOTEID]
         else:
             return None
@@ -118,7 +118,7 @@ class SimilarityService:
         sourceUrl: str
     ):
         try:
-            similar = SimilarityService.same_youtube_node_exists(course_id=courseId, url=sourceUrl)
+            similar = SimilarityService.same_youtube_node_exists(courseId=courseId, url=sourceUrl)
         except Exception as e:
             logging.exception(f'Exception in same_youtube_node_exists: {e}')
             SupabaseService.update_note(noteId=noteId, key='contentStatus', value='error')
