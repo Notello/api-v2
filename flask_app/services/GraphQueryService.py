@@ -2,6 +2,8 @@ import json
 import logging
 import random
 from typing import Any, Dict, List, Tuple
+
+from flask_app.src.shared.common_fn import load_embedding_model
 from flask_app.src.graphDB_dataAccess import graphDBdataAccess
 
 class GraphQueryService():
@@ -717,3 +719,34 @@ class GraphQueryService():
         result = graphAccess.execute_query(QUERY)
 
         return result
+    
+    @staticmethod
+    def get_most_similar_topic(topic_name: str):
+        graph_access = graphDBdataAccess()
+
+        embeddings, dimension = load_embedding_model()
+
+        topic_embedding = embeddings.embed_query(text=topic_name)
+
+        QUERY = """
+        MATCH (n:Concept)
+        WHERE n.embedding IS NOT NULL
+        WITH n, gds.similarity.cosine(n.embedding, $embedding) AS similarity
+        ORDER BY similarity DESC
+        LIMIT 1
+        RETURN {
+            uuid: n.uuid[0],
+            id: n.id
+        } AS result
+        """
+
+        result = graph_access.execute_query(
+            query=QUERY,
+            params={"embedding": topic_embedding}
+        )
+
+        # Check if a result was found
+        if result and len(result) > 0:
+            return result[0]["result"]
+        else:
+            return None

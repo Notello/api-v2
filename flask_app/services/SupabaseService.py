@@ -6,7 +6,7 @@ from typing import Dict, List
 from supabase import Client, create_client
 from flask_app.services.HelperService import HelperService
 
-from flask_app.constants import COURSEID, ID, COLLEGE_TABLE_NAME, NOTE_TABLE_NAME, NOTEID, PROFILE_TABLE_NAME, QUIZ_TABLE_NAME, RATE_LIMIT_TABLE_NAME, RATE_LIMIT_VALUES_TABLE_NAME, SUPAID, TOPIC_SUMMARY_TABLE_NAME, USERID, COURSE_TABLE_NAME
+from flask_app.constants import CHAT_MESSAGE_TABLE_NAME, CHAT_TABLE_NAME, COURSEID, ID, COLLEGE_TABLE_NAME, NOTE_TABLE_NAME, NOTEID, PROFILE_TABLE_NAME, QUIZ_TABLE_NAME, RATE_LIMIT_TABLE_NAME, RATE_LIMIT_VALUES_TABLE_NAME, SUPAID, TOPIC_SUMMARY_TABLE_NAME, USERID, COURSE_TABLE_NAME
 
 supabase: Client = create_client(os.getenv('SUPABASE_URL'), os.getenv('SUPABASE_SERVICE_KEY'))
 
@@ -346,3 +346,35 @@ class SupabaseService:
             return None
 
         return out[0]['isPrivate']
+    
+    @staticmethod
+    def create_chat_room(user_id):
+        if not HelperService.validate_all_uuid4(user_id):
+            logging.error(f'Invalid userId: {user_id}')
+            return None
+        
+        chatRoom = supabase.table(CHAT_TABLE_NAME).insert({
+            'ownerId': str(user_id)
+        }).execute().data
+
+        if not chatRoom:
+            return None
+
+        return chatRoom[0]['id']
+    
+    @staticmethod
+    def add_chat_message(chat_room_id, user_id, message):
+        if not HelperService.validate_all_uuid4(chat_room_id, user_id):
+            logging.error(f'Invalid chat_room_id: {chat_room_id}, user_id: {user_id}')
+            return None
+
+        message = supabase.table(CHAT_MESSAGE_TABLE_NAME).insert({
+            'chatId': str(chat_room_id),
+            'userId': str(user_id),
+            'content': str(message)
+        }).execute().data
+
+        if not message:
+            return None
+
+        return message[0]['id']

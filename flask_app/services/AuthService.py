@@ -2,7 +2,8 @@ import logging
 import os
 from supabase import Client, create_client
 
-from flask_app.constants import NOTE_TABLE_NAME, USER_CLASS_TABLE_NAME, SUPER_ADMIN_EMAILS
+from flask_app.services.HelperService import HelperService
+from flask_app.constants import NOTE_TABLE_NAME, USER_CLASS_TABLE_NAME, SUPER_ADMIN_EMAILS, CHAT_TABLE_NAME
 
 
 supabase: Client = create_client(os.getenv('SUPABASE_URL'), os.getenv('SUPABASE_SERVICE_KEY'))
@@ -43,6 +44,16 @@ class AuthService():
     def can_edit_note(user_id, note_id):
         note = supabase.table(NOTE_TABLE_NAME).select('*').eq('id', note_id).execute().data
 
-        print(f"note: {note}")
-
         return len(note) != 0 and (AuthService.is_authed_for_userId(user_id, note[0]['userId']))
+    
+    @staticmethod
+    def can_access_chat_room(user_id, chat_room_id):
+        if not HelperService.validate_all_uuid4(chat_room_id):
+            return True
+
+        chat_room = supabase.table(CHAT_TABLE_NAME).select('*').eq('id', str(chat_room_id)).execute().data
+
+        if not chat_room:
+            return True
+
+        return chat_room[0]['public'] or (AuthService.is_authed_for_userId(user_id, chat_room[0]['ownerId']))

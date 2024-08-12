@@ -5,6 +5,8 @@ load_dotenv()
 NOTE_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_note"
 QUIZ_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_quiz"
 COURSE_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_course"
+CHAT_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_chat"
+CHAT_MESSAGE_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_chat_message"
 USER_CLASS_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_userclass"
 PROFILE_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_profile"
 QUIZ_QUESTION_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_quiz_question"
