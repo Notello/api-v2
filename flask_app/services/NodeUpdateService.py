@@ -3,8 +3,8 @@ from typing import Any, Dict, List
 from concurrent.futures import ThreadPoolExecutor
 import concurrent.futures
 from langchain_community.graphs.graph_document import GraphDocument
-from flask_app.src.graphDB_dataAccess import graphDBdataAccess
 
+from flask_app.src.graphDB_dataAccess import graphDBdataAccess
 from flask_app.src.shared.common_fn import load_embedding_model, embed_name
 from flask_app.services.GraphQueryService import GraphQueryService
 from flask_app.services.RunpodService import RunpodService
@@ -240,87 +240,50 @@ class NodeUpdateService:
 
         return stats
     
+
     @staticmethod
     @queued_transaction(task_type='merge')
-    def merge_similar_nodes(tx, id_type: str, target_id: str, note_id: str, distance: int = 3, embedding_cutoff: float = 0.95) -> None:
+    def merge_similar_nodes(tx, id_type: str, target_id: str, note_id: str, distance: int = 2, embedding_cutoff: float = 0.95) -> None:
+        logging.info(f"Merging similar nodes for {id_type}: {target_id}")
+
         query = f"""
         MATCH (e:Concept)
         WHERE e.embedding IS NOT NULL AND size(e.uuid) > 0 AND '{target_id}' IN e.{id_type}
         CALL {{
         WITH e
-        CALL db.index.vector.queryNodes('concept_embedding', 10, e.embedding)
+        CALL db.index.vector.queryNodes('concept_embedding', 50, e.embedding)
         YIELD node, score
         WITH node, score
         WHERE score > toFloat($embedding_cutoff) AND size(node.uuid) > 0
-        WITH node, score
-        ORDER BY node.id
-        RETURN collect({{id: node.id, uuid: node.uuid[0]}}) AS nodes
+        WITH collect({{id: node.id, uuid: node.uuid[0]}}) AS nodes
+        UNWIND nodes AS n1
+        WITH n1, nodes
+        UNWIND nodes AS n2
+        WITH n1, n2
+        WHERE n1.id <= n2.id
+        WITH n1, n2, apoc.text.levenshteinDistance(n1.id, n2.id) AS dist
+        WHERE dist <= $distance
+        WITH n1, collect(n2) AS similar_nodes
+        RETURN n1.id AS base_word, similar_nodes AS group
         }}
-        WITH distinct nodes
-        WHERE size(nodes) > 1
-        WITH collect([n in nodes | {{id: n.id, uuid: n.uuid}}]) AS results
-        UNWIND range(0, size(results)-1, 1) as index
-        WITH results, index, results[index] as result
-        WITH reduce(acc = result, index2 IN range(0, size(results)-1, 1) |
-                CASE WHEN index2 <> index AND
-                    size(apoc.coll.intersection(acc, results[index2])) > 0
-                    THEN apoc.coll.union(acc, results[index2])
-                    ELSE acc
-                END
-        ) as combinedResult
-        WITH distinct(combinedResult) as combinedResult
-        WITH collect(combinedResult) as allCombinedResults
-        UNWIND range(0, size(allCombinedResults)-1, 1) as combinedResultIndex
-        WITH allCombinedResults[combinedResultIndex] as combinedResult, combinedResultIndex, allCombinedResults
-        WHERE NOT any(x IN range(0,size(allCombinedResults)-1,1)
-            WHERE x <> combinedResultIndex
-            AND apoc.coll.containsAll(allCombinedResults[x], combinedResult)
-        )
-        RETURN combinedResult
+        RETURN base_word, group
         """
+
+        logging.info(f"Query: {query}")
 
         result = tx.run(query, {'distance': distance, 'embedding_cutoff': embedding_cutoff})
 
-        two_options = []
-        llm_options = []
         combined_words = []
-
-        bad_ends = ['s', 'ed', 'ing', 'er']
-
         for record in result:
-            combined_result = record['combinedResult']
-            if len(combined_result) == 2:
-                two_options.append(combined_result)
-            else:
-                continue
-
-        for option in two_options:
-            word1, word2 = option
-            seen = False
-
-            if word1['id'] == word2['id']:
-                logging.info(f"Easy Merge: {word1['id']} -> {word2['id']}")
-                combined_words.append({word1['id']: [word1, word2]})
-                continue
-
-            for ending in bad_ends:
-                if word1['id'].endswith(ending) and word2['id'] == word1['id'][:-len(ending)]:
-                    logging.info(f"Easy Merge: {word2['id']} -> {word1['id']}")
-                    combined_words.append({word2['id']: [word1, word2]})
-                    seen = True
-                elif word2['id'].endswith(ending) and word1['id'] == word2['id'][:-len(ending)]:
-                    logging.info(f"Easy Merge: {word1['id']} -> {word2['id']}")
-                    combined_words.append({word1['id']: [word1, word2]})
-                    seen = True
-            
-            if not seen:
-                llm_options.append(option)
+            base_word = record['base_word']
+            group = record['group']
+            if len(group) > 1:  # Only include groups with more than one word
+                combined_words.append({base_word: group})
 
         # Merge the nodes
         for merge_group in combined_words:
             for final_label, entities in merge_group.items():
-                sorted_entities = sorted(entities, key=lambda x: x['uuid'])
-                primary_node = sorted_entities[0]
+                primary_node = entities[0]
                 
                 merge_query = """
                 MATCH (primary:Concept)
@@ -367,7 +330,7 @@ class NodeUpdateService:
                 
                 merge_params = {
                     "primary_uuid": primary_node['uuid'],
-                    "other_uuids": [e['uuid'] for e in sorted_entities[1:]],
+                    "other_uuids": [e['uuid'] for e in entities[1:]],
                     "final_label": final_label
                 }
                 
@@ -376,7 +339,7 @@ class NodeUpdateService:
                     result.consume()  # Ensure the query is executed
                     
                 except Exception as e:
-                    logging.error(f"Error merging nodes {sorted_entities}: {str(e)}")
+                    logging.error(f"Error merging nodes {entities}: {str(e)}")
                     # Continue with the next merge instead of raising the exception
 
         logging.info("Node merging process completed.")

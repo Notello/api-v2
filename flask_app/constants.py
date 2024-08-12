@@ -11,6 +11,7 @@ QUIZ_QUESTION_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_quiz_question"
 TOPIC_SUMMARY_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_topic_summary"
 RATE_LIMIT_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_rate_limit"
 RATE_LIMIT_VALUES_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_rate_limit_values"
+COLLEGE_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_college"
 
 ID = "id"
 UUID = "uuid"

@@ -6,7 +6,7 @@ from typing import Dict, List
 from supabase import Client, create_client
 from flask_app.services.HelperService import HelperService
 
-from flask_app.constants import COURSEID, ID, NOTE_TABLE_NAME, NOTEID, PROFILE_TABLE_NAME, QUIZ_TABLE_NAME, RATE_LIMIT_TABLE_NAME, RATE_LIMIT_VALUES_TABLE_NAME, SUPAID, TOPIC_SUMMARY_TABLE_NAME, USERID, COURSE_TABLE_NAME
+from flask_app.constants import COURSEID, ID, COLLEGE_TABLE_NAME, NOTE_TABLE_NAME, NOTEID, PROFILE_TABLE_NAME, QUIZ_TABLE_NAME, RATE_LIMIT_TABLE_NAME, RATE_LIMIT_VALUES_TABLE_NAME, SUPAID, TOPIC_SUMMARY_TABLE_NAME, USERID, COURSE_TABLE_NAME
 
 supabase: Client = create_client(os.getenv('SUPABASE_URL'), os.getenv('SUPABASE_SERVICE_KEY'))
 
@@ -322,3 +322,27 @@ class SupabaseService:
             return None
 
         return out[0]['form']
+    
+    @staticmethod
+    def isCollegePrivate(courseId: str):
+        if not HelperService.validate_all_uuid4(courseId):
+            logging.error(f'Invalid courseId: {courseId}')
+            return None
+
+        out = supabase.table(COURSE_TABLE_NAME).select('*').eq(ID, courseId).execute().data
+
+        if not out:
+            return None
+
+        collegeId = out[0]['collegeId']
+
+        if not HelperService.validate_all_uuid4(collegeId):
+            logging.error(f'Invalid collegeId: {collegeId}')
+            return None
+
+        out = supabase.table(COLLEGE_TABLE_NAME).select('*').eq(ID, collegeId).execute().data
+
+        if not out:
+            return None
+
+        return out[0]['isPrivate']

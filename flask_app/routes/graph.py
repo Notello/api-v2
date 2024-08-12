@@ -102,3 +102,27 @@ class GetTopicListForParam(Resource):
             message = f" Unable to get notes for {param} {id}, Exception: {e}"
             logging.exception(f" Unable to get notes for {param} {id}, Exception: {e}")
             return {'message': message}, 400
+
+@api.route('/get-num-topics-for-param/<string:param>/<string:id>')
+class GetTopicListForParam(Resource):
+    @api.doc(security="jsonWebToken")
+    @token_required
+    def get(self, param, id):
+        try:
+            logging.info(f"Get topic list for {param}, {id}")
+
+            if not HelperService.validate_all_uuid4(id) or \
+                not SupabaseService.param_id_exists(param, id):
+                logging.info(f"Invalid {param} id: {id}")
+                return {f'message': 'Invalid {param} id'}, 400
+
+            num_topics = GraphQueryService.get_num_topics_for_param(param=param, id=id)
+
+            if num_topics is None:
+                return {'message': 'Error getting graph'}, 400
+        
+            return num_topics, 200
+        except Exception as e:
+            message = f" Unable to get notes for {param} {id}, Exception: {e}"
+            logging.exception(f" Unable to get notes for {param} {id}, Exception: {e}")
+            return {'message': message}, 400

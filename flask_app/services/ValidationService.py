@@ -53,7 +53,7 @@ class ValidationService:
             logging.error(f"User {userId} is not authorized for user {reqUserId}")
             return False
         
-        if RatelimitService.is_rate_limited(userId, NOTE):
+        if RatelimitService.is_rate_limited(userId=reqUserId, type=NOTE):
             logging.error(f"User {reqUserId} has exceeded their note upload rate limit")
             return False
         

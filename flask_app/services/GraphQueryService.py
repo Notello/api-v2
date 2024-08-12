@@ -684,3 +684,21 @@ class GraphQueryService():
         result = graphAccess.execute_query(QUERY, parameters)
 
         return result
+    
+    @staticmethod
+    def get_num_topics_for_param(param: str, id: str) -> int | None:
+        graphAccess = graphDBdataAccess()
+        
+        QUERY = f"""
+        MATCH (n:Concept)
+        WHERE $id IN n.{param}
+        RETURN COUNT(n) AS num_topics
+        """
+
+        parameters = {
+            'id': id
+        }
+
+        result = graphAccess.execute_query(QUERY, parameters)
+
+        return result[0].get('num_topics') if len(result) > 0 else None

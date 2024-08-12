@@ -7,6 +7,7 @@ def init_api(api):
     from .course import api as course_ns
     from .user import api as user_ns
     from .auth import api as auth_ns
+    from .recommend import api as recommend_ns
 
     api.add_namespace(graph_ns)
     api.add_namespace(note_ns)
@@ -16,3 +17,4 @@ def init_api(api):
     api.add_namespace(course_ns)
     api.add_namespace(user_ns)
     api.add_namespace(auth_ns)
+    api.add_namespace(recommend_ns)

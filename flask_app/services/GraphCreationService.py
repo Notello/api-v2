@@ -10,6 +10,7 @@ from flask_app.src.entities.source_node import sourceNode
 from flask_app.services.ChunkService import ChunkService
 from flask_app.models.Quiz import QuizQuestion
 from flask_app.services.RatelimitService import RatelimitService
+from flask_app.services.SimilarityService import SimilarityService
 
 from flask_app.src.main import processing_source
 from flask_app.constants import COURSEID, NOTEID, USERID, GPT_4O_MINI
@@ -55,31 +56,31 @@ class GraphCreationService:
         try:
             chunks = ChunkService.get_text_chunks(rawText)
 
-            # similarityService = SimilarityService(
-            #     similarity_threshold=0.98, 
-            #     word_edit_distance=5
-            # )
+            similarityService = SimilarityService(
+                similarity_threshold=0.98, 
+                word_edit_distance=5
+            )
 
-            # similar = similarityService.has_similar_documents(
-            #     courseId=courseId,
-            #     noteId=noteId,
-            #     documents=chunks
-            # )
+            similar = similarityService.has_similar_documents(
+                courseId=courseId,
+                noteId=noteId,
+                documents=chunks
+            )
 
-            # if similar:
-            #     logging.info(f"File: {fileName} is similar to {similar}")
-            #     SupabaseService.update_note(
-            #         noteId=noteId,
-            #         key='matchingNoteId',
-            #         value=similar
-            #     )
-            #     SupabaseService.update_note(
-            #         noteId=noteId, 
-            #         key='graphStatus', 
-            #         value='complete'
-            #         )
-            #     RatelimitService.remove_rate_limit(rateLimitId)
-            #     return
+            if similar:
+                logging.info(f"File: {fileName} is similar to {similar}")
+                SupabaseService.update_note(
+                    noteId=noteId,
+                    key='matchingNoteId',
+                    value=similar
+                )
+                SupabaseService.update_note(
+                    noteId=noteId, 
+                    key='graphStatus', 
+                    value='complete'
+                    )
+                RatelimitService.remove_rate_limit(rateLimitId)
+                return
     
             GraphCreationService.create_graph(
                 noteId=noteId,

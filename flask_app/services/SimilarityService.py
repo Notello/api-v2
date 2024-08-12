@@ -81,7 +81,7 @@ class SimilarityService:
             documents=documents
             )
 
-        if len(docs) > 0:
+        if not SupabaseService.isCollegePrivate(courseId=courseId) and len(docs) > 0:
             self.delete_node(node[0])
             return docs[0][NOTEID]
         else:
