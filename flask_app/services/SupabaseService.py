@@ -389,6 +389,8 @@ class SupabaseService:
 
         logging.info(f"Chat messages: {messages}")
 
+        messages.pop()
+
         if len(messages) > 10:
             messages = messages[-10:]
         
