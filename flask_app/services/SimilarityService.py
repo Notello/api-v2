@@ -1,8 +1,16 @@
 import logging
-from flask_app.src.shared.common_fn import load_embedding_model
-from flask_app.constants import COURSEID, NOTEID
+from langchain_core.pydantic_v1 import BaseModel, Field
+
+from flask_app.src.shared.common_fn import get_llm, load_embedding_model
+from flask_app.constants import COURSEID, GPT_4O_MINI, NOTEID
 from flask_app.services.SupabaseService import SupabaseService
 from flask_app.src.graphDB_dataAccess import graphDBdataAccess
+from langchain.prompts import ChatPromptTemplate
+
+class IsRelated(BaseModel):
+    isRelated: bool = Field(
+        description="A true/false value indicating if the document summary is in the same subject as the course description."
+    )
 
 class SimilarityService:
     def __init__(self, similarity_threshold = 0.98, word_edit_distance = 5):
@@ -27,7 +35,6 @@ class SimilarityService:
             "dimensions": dimension
         })
 
-        ## UPDATE TO BE NOTEID NOT FILENAME
         query_to_create_or_update_document = """
         MERGE (d:Document {noteId: $noteId})
         SET d.embedding = $embedding
@@ -152,3 +159,33 @@ class SimilarityService:
             """,
             params={"nodeId": node["id"]}
         )
+
+    @staticmethod
+    def same_subject(courseId, documentSummary):
+        description = SupabaseService.get_course_description(courseId)
+        
+        if description is None:
+            return None
+        
+        llm = get_llm(GPT_4O_MINI).with_structured_output(IsRelated)
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", """
+             You are a first pass content classifier. 
+             Your job is to generally determine if the provided document summary is related to the course description. 
+             It is ok if they are only tangentially related.
+             """,
+             "user", f"Please classify the following document summary as related to the course description: {documentSummary}"),
+        ])
+
+        result = prompt | llm
+
+        return result.dict()['isRelated']
+    
+    @staticmethod
+    def is_related(courseId, documentSummary):
+        isPrivate = SupabaseService.isCollegePrivate(courseId=courseId)
+
+        if isPrivate:
+            return True
+        
+        return SimilarityService.same_subject(courseId=courseId, documentSummary=documentSummary)

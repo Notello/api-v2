@@ -397,3 +397,16 @@ class SupabaseService:
         messages = [f"{'Human' if message['userId'] is not None else 'Bot'} Message: {json.loads(message['content'])['message']}" for message in messages]
 
         return messages
+    
+    @staticmethod
+    def get_course_description(courseId: str) -> str:
+        if not HelperService.validate_all_uuid4(courseId):
+            logging.error(f'Invalid courseId: {courseId}')
+            return None
+
+        out = supabase.table(COURSE_TABLE_NAME).select('*').eq(ID, courseId).execute().data
+
+        if not out:
+            return None
+
+        return out[0]['description']

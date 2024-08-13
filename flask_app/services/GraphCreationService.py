@@ -12,6 +12,7 @@ from flask_app.models.Quiz import QuizQuestion
 from flask_app.services.RatelimitService import RatelimitService
 from flask_app.services.SimilarityService import SimilarityService
 from flask_app.services.GraphQueryService import GraphQueryService
+from flask_app.services.SummaryService import SummaryService
 from flask_app.extensions import r
 
 from flask_app.src.main import processing_source
@@ -108,6 +109,14 @@ class GraphCreationService:
         import_type: str,
         chunks: List[Document],
     ):
+        summary = SummaryService.get_document_summary(chunks)
+
+        isRelated = SimilarityService.is_related(courseId=courseId, documentSummary=summary)
+
+        if not isRelated:
+            SupabaseService.update_note(noteId=noteId, key='contentStatus', value='unrelated')
+            return None
+
         obj_source_node = sourceNode(
             file_source=import_type,
             model=GPT_4O_MINI,
@@ -115,6 +124,7 @@ class GraphCreationService:
             userId=userId,
             created_at=datetime.now(),
             noteId=noteId,
+            summary=summary
         )
         
         graphAccess: graphDBdataAccess = graphDBdataAccess()
