@@ -54,6 +54,3 @@ class Chat(Resource):
             return {'message': 'Error creating chat room'}, 400
         
         return {'message': 'Chat created'}, 201
-        
-        
-        

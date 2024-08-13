@@ -33,8 +33,6 @@ def setup_llm(
 class EntityExtractor():
     @staticmethod
     def extract_entities(query_str: str) -> str:
-
-
         extraction_chain = setup_llm(
             text=query_str
         )
@@ -52,9 +50,19 @@ class EntityExtractor():
         if entites:
             for entity in entites:
                 similar_topic = GraphQueryService.get_most_similar_topic(topic_name=entity)
-                context_nodes[similar_topic['id']] = GraphQueryService.get_topic_graph_for_topic_uuid(topic_uuid=similar_topic['uuid'], num_chunks=3)
+                output = GraphQueryService.get_topic_graph_for_topic_uuid(topic_uuid=similar_topic['uuid'], num_chunks=3)
+
+                if not output:
+                    return None
+
+                context_nodes[similar_topic['id']] = output[0]['result']
+        else:
+            similar_topic = GraphQueryService.get_most_similar_topic(topic_name=query_str)
+            output = GraphQueryService.get_topic_graph_for_topic_uuid(topic_uuid=similar_topic['uuid'], num_chunks=3)
+
+            if not output:
+                return None
+
+            context_nodes[similar_topic['id']] = output[0]['result']
         
         return context_nodes
-                
-        
-
