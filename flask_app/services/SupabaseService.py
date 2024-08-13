@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, UTC
 from io import BytesIO
+import json
 import logging
 import os
 from typing import Dict, List
@@ -274,7 +275,6 @@ class SupabaseService:
 
         now = datetime.now(UTC)
 
-        # Fetch data for the last 30 days
         result = supabase.table(RATE_LIMIT_TABLE_NAME)\
             .select('created_at, count')\
             .eq('type', str(type))\
@@ -364,13 +364,13 @@ class SupabaseService:
     
     @staticmethod
     def add_chat_message(chat_room_id, user_id, message):
-        if not HelperService.validate_all_uuid4(chat_room_id, user_id):
+        if not HelperService.validate_all_uuid4(chat_room_id):
             logging.error(f'Invalid chat_room_id: {chat_room_id}, user_id: {user_id}')
             return None
 
         message = supabase.table(CHAT_MESSAGE_TABLE_NAME).insert({
             'chatId': str(chat_room_id),
-            'userId': str(user_id),
+            'userId': user_id,
             'content': str(message)
         }).execute().data
 
@@ -378,3 +378,20 @@ class SupabaseService:
             return None
 
         return message[0]['id']
+    
+    @staticmethod
+    def get_chat_history(chat_room_id):
+        if not HelperService.validate_all_uuid4(chat_room_id):
+            logging.error(f'Invalid chat_room_id: {chat_room_id}')
+            return None
+
+        messages = supabase.table(CHAT_MESSAGE_TABLE_NAME).select('*').eq('chatId', str(chat_room_id)).order('created_at', desc=False).execute().data
+
+        logging.info(f"Chat messages: {messages}")
+
+        if len(messages) > 10:
+            messages = messages[-10:]
+        
+        messages = [f"{'Human' if message['userId'] is not None else 'Bot'} Message: {json.loads(message['content'])['message']}" for message in messages]
+
+        return messages

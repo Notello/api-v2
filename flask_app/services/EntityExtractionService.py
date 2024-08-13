@@ -1,3 +1,4 @@
+import logging
 from typing import Any, Dict, Optional
 
 from langchain_core.pydantic_v1 import BaseModel, Field
@@ -17,7 +18,7 @@ def setup_llm(
     text: str,
 ):
     prompt_template_entities = f"""
-    Extract all named entities or proper nouns such as names of people, organizations, concepts, ideas or locations
+    Extract nouns or entities from the following text
     from the following text:
     {text}
     """
@@ -45,6 +46,8 @@ class EntityExtractor():
     def get_context_nodes(query_str: str) -> Dict[str, str]:
         entites = EntityExtractor.extract_entities(query_str=query_str)
 
+        logging.info(f"Entities: {entites}")
+
         context_nodes = {}
 
         if entites:
@@ -55,7 +58,11 @@ class EntityExtractor():
                 if not output:
                     return None
 
-                context_nodes[similar_topic['id']] = output[0]['result']
+                context_nodes[similar_topic['id']] = {
+                    'uuid': output[0]['result']['start_concept']['uuid'],
+                    'related_chunks': output[0]['result']['related_chunks'],
+                    'related_concepts': output[0]['result']['related_concepts']
+                }
         else:
             similar_topic = GraphQueryService.get_most_similar_topic(topic_name=query_str)
             output = GraphQueryService.get_topic_graph_for_topic_uuid(topic_uuid=similar_topic['uuid'], num_chunks=3)
