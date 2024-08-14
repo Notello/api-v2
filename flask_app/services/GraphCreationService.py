@@ -13,7 +13,6 @@ from flask_app.services.RatelimitService import RatelimitService
 from flask_app.services.SimilarityService import SimilarityService
 from flask_app.services.GraphQueryService import GraphQueryService
 from flask_app.services.HelperService import HelperService
-from flask_app.extensions import r
 
 from flask_app.src.main import processing_source
 from flask_app.constants import COURSEID, NOTEID, USERID, GPT_4O_MINI, getGraphKey
