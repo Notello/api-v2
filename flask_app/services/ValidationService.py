@@ -76,7 +76,7 @@ class ValidationService:
             return False
         
         duration = HelperService.get_video_duration(youtube_url=youtubeUrl)
-        if duration > ValidationService.YOUTUBE_MAX_DURATION:
+        if not AuthService.is_super_admin(reqUserId) and duration > ValidationService.YOUTUBE_MAX_DURATION:
             logging.error(f"YouTube video exceeds the maximum duration of 2 hours: {youtubeUrl}")
             return False
         
@@ -100,7 +100,7 @@ class ValidationService:
             file_size = audio_file.tell()  # Get the size of the file
             audio_file.seek(0)  # Reset file pointer to the beginning
 
-            if file_size > ValidationService.MAX_AUDIO_SIZE:
+            if not AuthService.is_super_admin(reqUserId) and file_size > ValidationService.MAX_AUDIO_SIZE:
                 logging.error(f"Audio file of size {file_size} exceeds the maximum file size of 5MB: {audio_file.filename}")
                 return False
         except ValueError as e:
@@ -122,7 +122,7 @@ class ValidationService:
             return False
         
         # Check text length
-        if len(rawText.encode('utf-8')) > ValidationService.MAX_TEXT_LENGTH:
+        if not AuthService.is_super_admin(reqUserId) and len(rawText.encode('utf-8')) > ValidationService.MAX_TEXT_LENGTH:
             False
         
         return True
@@ -144,7 +144,7 @@ class ValidationService:
         file_size = file.tell()  # Get the size of the file
         file.seek(0)  # Reset file pointer to the beginning
 
-        if file_size > ValidationService.MAX_FILE_SIZE:
+        if not AuthService.is_super_admin(reqUserId) and file_size > ValidationService.MAX_FILE_SIZE:
             return False, None
 
         file_type = HelperService.guess_mime_type(file.filename)
