@@ -139,15 +139,6 @@ class GraphCreationService:
             courseId=courseId,
             noteId=noteId
             )
-        
-        nodes, relationships = GraphQueryService.old_get_graph_for_param(key=NOTEID, value=noteId)
-
-        r.set(getGraphKey(noteId), json.dumps({'nodes': nodes, 'relationships': relationships}))
-
-        nodes, relationships = GraphQueryService.old_get_graph_for_param(key=COURSEID, value=courseId)
-
-        r.set(getGraphKey(courseId), json.dumps({'nodes': nodes, 'relationships': relationships}))
-        
 
     @staticmethod
     def insert_quiz_question(questions: List[QuizQuestion]) -> None:

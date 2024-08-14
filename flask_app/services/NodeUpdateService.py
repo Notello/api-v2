@@ -250,6 +250,7 @@ class NodeUpdateService:
         start = datetime.now()
         logging.info(f"Starting at {start}")
 
+        ## Not filtering to only other nodes with the same id_type and target_id
         query = f"""
         MATCH (e:Concept)
         WHERE e.embedding IS NOT NULL AND size(e.uuid) > 0 AND '{target_id}' IN e.{id_type}

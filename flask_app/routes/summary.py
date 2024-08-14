@@ -128,11 +128,6 @@ class GetSummaryFor(Resource):
             summaries = GraphQueryService.get_summary_for_param(param=param, id=id)
 
             logging.info(f"Summaries: {summaries}")
-            
-            if summaries:
-                r.set(getSummaryKey(id), json.dumps(summaries))
-
-            logging.info(f"Summaries: {summaries}")
             return summaries
         except Exception as e:
             logging.exception(f"Error getting summary for {param} {id}: {str(e)}")
