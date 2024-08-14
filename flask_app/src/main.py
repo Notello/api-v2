@@ -73,7 +73,7 @@ def processing_source(
     
     NodeUpdateService.update_embeddings(noteId=noteId, nodes_data=nodes_data)
 
-    NodeUpdateService.merge_similar_nodes(id_type=NOTEID, target_id=noteId, note_id=noteId)
+    # NodeUpdateService.merge_similar_nodes(id_type=NOTEID, target_id=noteId, note_id=noteId)
 
     NodeUpdateService.update_communities_for_param(id_type=NOTEID, target_id=noteId, note_id=noteId)
     NodeUpdateService.update_page_rank(id_type=NOTEID, target_id=noteId, note_id=noteId)
@@ -90,10 +90,10 @@ def processing_source(
 
     graphAccess.update_source_node(obj_source_node)
 
-    # Course-level operations now use the updated queuing system
-    NodeUpdateService.merge_similar_nodes(id_type=COURSEID, target_id=courseId, note_id=noteId)
-    graphAccess.update_source_node(sourceNode(noteId = noteId, mergeStatus = "complete"))
-    logging.info(f"Setting mergeStatus to complete for course {courseId}")
+    # # Course-level operations now use the updated queuing system
+    # NodeUpdateService.merge_similar_nodes(id_type=COURSEID, target_id=courseId, note_id=noteId)
+    # graphAccess.update_source_node(sourceNode(noteId = noteId, mergeStatus = "complete"))
+    # logging.info(f"Setting mergeStatus to complete for course {courseId}")
 
     NodeUpdateService.update_communities_for_param(id_type=COURSEID, target_id=courseId, note_id=noteId)
     graphAccess.update_source_node(sourceNode(noteId = noteId, comStatus = "complete"))

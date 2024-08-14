@@ -242,6 +242,7 @@ class NodeUpdateService:
         return stats
     
 
+    ## Issue is that for each word in a match group, its doing a merge for each one
     @staticmethod
     @queued_transaction(task_type='merge')
     def merge_similar_nodes(tx, id_type: str, target_id: str, note_id: str, distance: int = 2, embedding_cutoff: float = 0.95) -> None:
@@ -285,6 +286,7 @@ class NodeUpdateService:
 
         # Merge the nodes
         for merge_group in combined_words:
+            logging.info(f"Merging group: {merge_group}")
             for final_label, entities in merge_group.items():
                 primary_node = entities[0]
                 

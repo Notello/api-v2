@@ -109,13 +109,13 @@ class GraphCreationService:
         import_type: str,
         chunks: List[Document],
     ):
-        summary = HelperService.get_document_summary(chunks)
+        # summary = HelperService.get_document_summary(chunks)
 
-        isRelated = SimilarityService.is_related(courseId=courseId, documentSummary=summary)
+        # isRelated = SimilarityService.is_related(courseId=courseId, documentSummary=summary)
 
-        if not isRelated:
-            SupabaseService.update_note(noteId=noteId, key='contentStatus', value='unrelated')
-            return None
+        # if not isRelated:
+        #     SupabaseService.update_note(noteId=noteId, key='contentStatus', value='unrelated')
+        #     return None
 
         obj_source_node = sourceNode(
             file_source=import_type,
@@ -124,7 +124,7 @@ class GraphCreationService:
             userId=userId,
             created_at=datetime.now(),
             noteId=noteId,
-            summary=summary
+            # summary=summary
         )
         
         graphAccess: graphDBdataAccess = graphDBdataAccess()

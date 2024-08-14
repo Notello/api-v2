@@ -125,14 +125,6 @@ class Neo4jQueueManager:
 
         result_queue = Queue()
 
-        # If it's a noteId operation, process it immediately
-        if id_type == NOTEID:
-            try:
-                result = self._execute_transaction(work_func, *args, id_type=id_type, note_id=note_id, **kwargs)
-                return result
-            except Exception as e:
-                raise Exception(f"Error processing noteId transaction: {str(e)}")
-
         # For other operations, use the queue
         with self._lock:
             if task_type in ['community', 'pagerank', 'merge'] and course_id:
