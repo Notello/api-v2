@@ -4,9 +4,11 @@ from uuid import UUID
 from datetime import datetime
 from neo4j.time import DateTime
 from pytube import YouTube
+from langchain.prompts import ChatPromptTemplate
 
-from flask_app.src.document_sources.youtube import get_youtube_transcript
 from flask_app.constants import proxy
+from flask_app.src.shared.common_fn import get_llm
+from flask_app.constants import GPT_4O_MINI
 
 class HelperService:
     @staticmethod
@@ -99,6 +101,19 @@ class HelperService:
             logging.exception(f"Error fetching video duration: {e}")
             raise ValueError("Unable to fetch video duration")
         
+
     @staticmethod
-    def clean_node_id(node_id):
-        return node_id.replace('-', ' ').replace(':', ' ').replace('_', ' ')
+    def get_document_summary(
+        chunks,
+    ):
+        text = "\n".join([chunk['text'] for chunk in chunks])
+
+        llm = get_llm(GPT_4O_MINI)
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", "You are a concise summarizer, you will provide a one to two sentence summary capturing the main idea of the provided text."),
+            ("user", f"Please summarize the following text in a concise and informative manner: {text}"),
+        ])
+
+        result = prompt | llm
+
+        return result.dict()['content']

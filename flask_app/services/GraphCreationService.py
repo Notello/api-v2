@@ -12,7 +12,7 @@ from flask_app.models.Quiz import QuizQuestion
 from flask_app.services.RatelimitService import RatelimitService
 from flask_app.services.SimilarityService import SimilarityService
 from flask_app.services.GraphQueryService import GraphQueryService
-from flask_app.services.SummaryService import SummaryService
+from flask_app.services.HelperService import HelperService
 from flask_app.extensions import r
 
 from flask_app.src.main import processing_source
@@ -109,7 +109,7 @@ class GraphCreationService:
         import_type: str,
         chunks: List[Document],
     ):
-        summary = SummaryService.get_document_summary(chunks)
+        summary = HelperService.get_document_summary(chunks)
 
         isRelated = SimilarityService.is_related(courseId=courseId, documentSummary=summary)
 

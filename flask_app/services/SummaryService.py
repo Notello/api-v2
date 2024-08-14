@@ -361,19 +361,3 @@ class SummaryService():
         content = re.sub(r'\[([^\]]+)\]\(([a-f0-9-]+)\)', process_remaining_concepts, content)
 
         return content
-    
-    @staticmethod
-    def get_document_summary(
-        chunks,
-    ):
-        text = "\n".join([chunk['text'] for chunk in chunks])
-
-        llm = get_llm(GPT_4O_MINI)
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", "You are a concise summarizer, you will provide a one to two sentence summary capturing the main idea of the provided text."),
-            ("user", f"Please summarize the following text in a concise and informative manner: {text}"),
-        ])
-
-        result = prompt | llm
-
-        return result.dict()['content']

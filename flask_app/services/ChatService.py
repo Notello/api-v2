@@ -107,7 +107,8 @@ class ChatService():
             Context:
             {context_str}
 
-            {f'Conversation History:\n{history_str}' if history_str else ''}
+            Conversation History:
+            {history_str}
 
             User Message: {userMessage}
 

@@ -10,7 +10,6 @@ from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain.docstore.document import Document
 from langchain_community.graphs import Neo4jGraph
 from langchain_community.graphs.graph_document import GraphDocument
-from flask_app.services.HelperService import HelperService
 from typing import List
 from langchain_groq import ChatGroq
 from flask_app.src.graphDB_dataAccess import graphDBdataAccess
@@ -109,6 +108,10 @@ def embed_chunk(row, embeddings: OpenAIEmbeddings) -> Tuple[str, List[float]]:
 def clean_chunk_text(chunk_text):
     return chunk_text.replace('\n', ' ').replace('.', ' ')
 
+
+def clean_node_id(node_id):
+    return node_id.replace('-', ' ').replace(':', ' ').replace('_', ' ')
+
 def clean_nodes(docs: List[GraphDocument]):
   node_uuid_map = {}
 
@@ -116,14 +119,14 @@ def clean_nodes(docs: List[GraphDocument]):
     nodes = doc.nodes
     rels = doc.relationships
     for node in nodes:
-      node.id = HelperService.clean_node_id(node.id)
+      node.id = clean_node_id(node.id)
       new_uuid = str(uuid4())
       node_uuid_map[node.id] = new_uuid
       node.properties['uuid'] = new_uuid
     for rel in rels:
-        rel.source.id = HelperService.clean_node_id(rel.source.id)
+        rel.source.id = clean_node_id(rel.source.id)
         rel.source.properties['uuid'] = node_uuid_map.get(rel.source.id)
-        rel.target.id = HelperService.clean_node_id(rel.target.id)
+        rel.target.id = clean_node_id(rel.target.id)
         rel.target.properties['uuid'] = node_uuid_map.get(rel.target.id)
   return docs
 
