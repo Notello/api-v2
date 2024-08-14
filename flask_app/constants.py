@@ -62,7 +62,7 @@ OPENAI_MODELS = [
 ]
 DEFAULT_COMMUNITIES = 3
 
-SUPER_ADMIN_EMAILS = ["gollanstrength@gmail.com"]
+SUPER_ADMIN_EMAILS = ["gollanstrength@gmail.com", "alshaik8@msu.edu", "malshaik.me@gmail.com"]
 
 ALGORITHM = "algorithm"
 PAGERANK = "pagerank"
