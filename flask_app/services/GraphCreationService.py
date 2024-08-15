@@ -138,7 +138,8 @@ class GraphCreationService:
                 chunks=chunks,
                 userId=userId,
                 courseId=courseId,
-                noteId=noteId
+                noteId=noteId,
+                summary=summary
                 )
         except Exception as e:
             logging.exception(f'Exception in create_source_node_graph: {e}')

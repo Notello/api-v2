@@ -640,8 +640,6 @@ class GraphQueryService():
 
         result = graphAccess.execute_query(QUERY, parameters)
 
-        logging.info(f"Result: {result}")
-
         return {
             'summaries': [res.get('s') for res in result if res.get('s') is not None],
             'concept': result[0].get('conceptId') if len(result) > 0 else None

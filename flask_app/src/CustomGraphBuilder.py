@@ -199,32 +199,22 @@ class UnstructuredRelation(BaseModel):
 
 
 def create_unstructured_prompt(
-    node_labels: Optional[List[str]] = None, rel_types: Optional[List[str]] = None
+    node_labels: Optional[List[str]] = None, 
+    rel_types: Optional[List[str]] = None
 ) -> ChatPromptTemplate:
-    node_labels_str = str(node_labels) if node_labels else ""
-    rel_types_str = str(rel_types) if rel_types else ""
     base_string_parts = [
         "You are a top-tier algorithm designed for extracting information in "
-        "structured formats to build a knowledge graph. Your task is to identify "
-        "the entities and relations requested with the user prompt from a given "
-        "text. You must generate the output in a JSON format containing a list "
+        "structured formats to build a detailed knowledge graph. Your task is to identify "
+        "as many concepts and entities in the text and relations between them as possible. "
+        "You will also use the summary of the text provided to you to guide what types of concepts and entities to extract. "
+        "You must generate the output in a JSON format containing a list "
         'with JSON objects. Each object should have the keys: "head", '
-        '"head_type", "relation", "tail", and "tail_type". The "head" '
-        "key must contain the text of the extracted entity with one of the types "
-        "from the provided list in the user prompt.",
-        f'The "head_type" key must contain the type of the extracted head entity, '
-        f"which must be one of the types from {node_labels_str}."
-        if node_labels
-        else "",
+        '"relation", and "tail". The "head" key must contain the text of the extracted entity or concept '
         f'The "relation" key must contain the type of relation between the "head" '
-        f'and the "tail", which must be one of the relations from {rel_types_str}.'
-        if rel_types
-        else "",
-        f'The "tail" key must represent the text of an extracted entity which is '
-        f'the tail of the relation, and the "tail_type" key must contain the type '
-        f"of the tail entity from {node_labels_str}."
-        if node_labels
-        else "",
+        f'and the "tail".'
+        f'The "tail" key must represent the text of an extracted entity or concet which is '
+        f'the tail of the relation.'
+
         "Attempt to extract as many entities and relations as you can. Maintain "
         "Entity Consistency: When extracting entities, it's vital to ensure "
         'consistency. If an entity, such as "John Doe", is mentioned multiple '
@@ -320,38 +310,7 @@ def create_simple_model(
             str,
             Field(..., description="Name or human-readable unique identifier."),
         ),
-        "type": (
-            str,
-            optional_enum_field(
-                node_labels,
-                description="The type or label of the node.",
-                input_type="node",
-                llm_type=llm_type,
-            ),
-        ),
     }
-    if node_properties:
-        if isinstance(node_properties, list) and "id" in node_properties:
-            raise ValueError("The node property 'id' is reserved and cannot be used.")
-        # Map True to empty array
-        node_properties_mapped: List[str] = (
-            [] if node_properties is True else node_properties
-        )
-
-        class Property(BaseModel):
-            """A single property consisting of key and value"""
-
-            key: str = optional_enum_field(
-                node_properties_mapped,
-                description="Property key.",
-                input_type="property",
-            )
-            value: str = Field(..., description="value")
-
-        node_fields["properties"] = (
-            Optional[List[Property]],
-            Field(None, description="List of node properties"),
-        )
     SimpleNode = create_model("SimpleNode", **node_fields)  # type: ignore
 
     relationship_fields: Dict[str, Tuple[Any, Any]] = {
@@ -362,14 +321,6 @@ def create_simple_model(
                 description="Name or human-readable unique identifier of source node",
             ),
         ),
-        "source_node_type": (
-            str,
-            optional_enum_field(
-                node_labels,
-                description="The type or label of the source node.",
-                input_type="node",
-            ),
-        ),
         "target_node_id": (
             str,
             Field(
@@ -377,50 +328,14 @@ def create_simple_model(
                 description="Name or human-readable unique identifier of target node",
             ),
         ),
-        "target_node_type": (
-            str,
-            optional_enum_field(
-                node_labels,
-                description="The type or label of the target node.",
-                input_type="node",
-            ),
-        ),
         "type": (
             str,
             optional_enum_field(
-                rel_types,
                 description="The type of the relationship.",
                 input_type="relationship",
             ),
         ),
     }
-    if relationship_properties:
-        if (
-            isinstance(relationship_properties, list)
-            and "id" in relationship_properties
-        ):
-            raise ValueError(
-                "The relationship property 'id' is reserved and cannot be used."
-            )
-        # Map True to empty array
-        relationship_properties_mapped: List[str] = (
-            [] if relationship_properties is True else relationship_properties
-        )
-
-        class RelationshipProperty(BaseModel):
-            """A single property consisting of key and value"""
-
-            key: str = optional_enum_field(
-                relationship_properties_mapped,
-                description="Property key.",
-                input_type="property",
-            )
-            value: str = Field(..., description="value")
-
-        relationship_fields["properties"] = (
-            Optional[List[RelationshipProperty]],
-            Field(None, description="List of relationship properties"),
-        )
     SimpleRelationship = create_model("SimpleRelationship", **relationship_fields)  # type: ignore
 
     class DynamicGraph(_Graph):

@@ -12,7 +12,7 @@ def merge_relationship_between_chunk_and_entities(nodes_data, chunk_with_id, gra
     unwind_query = f"""
         UNWIND $nodes_data AS node
         MATCH (c:Chunk {{id: '{chunk_with_id.get('id')}'}})
-        MATCH (n:Concept {{uuid: node.uuid}})
+        MATCH (n:Concept {{uuid: node['uuid']}})
         MERGE (c)-[r:REFERENCES {{type: 'HAS_ENTITY'}}]->(n)
     """
     graphAccess.execute_query(unwind_query, {"nodes_data": nodes_data})

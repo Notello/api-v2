@@ -9,6 +9,7 @@ from flask_app.src.graphDB_dataAccess import graphDBdataAccess
 from flask_app.src.shared.common_fn import load_embedding_model, embed_name
 from flask_app.services.GraphQueryService import GraphQueryService
 from flask_app.services.RunpodService import RunpodService
+from flask_app.src.CustomKGBuilder import KnowledgeGraph
 from flask_app.services.Neo4jQueueManager import queued_transaction
 from flask_app.constants import COMMUNITY_DETECTION, COURSEID, LOUVAIN, NOTEID, PAGERANK, USERID
 
@@ -70,34 +71,12 @@ class NodeUpdateService:
     
     @staticmethod
     def update_graph_documents(
-        graph_document_list: List[GraphDocument], 
+        graph_document,
         graphAccess: graphDBdataAccess,
-        noteId: str = None, 
-        courseId: str = None, 
-        userId: str = None
     ):
         try:
-            nodes_data = []
-            relationships_data = []
-
-            for graph_document in graph_document_list:
-                for node in graph_document.nodes:
-                    node_data = {
-                        "id": node.id,
-                        "type": node.type,
-                        'uuid': [node.properties['uuid']],
-                        COURSEID: [courseId],
-                        USERID: [userId],
-                        NOTEID: [noteId]
-                    }
-                    nodes_data.append(node_data)
-
-                for relationship in graph_document.relationships:
-                    relationships_data.append({
-                        "type": relationship.type,
-                        'source_uuid': [relationship.source.properties['uuid']],
-                        'target_uuid': [relationship.target.properties['uuid']],
-                    })
+            nodes = graph_document['nodes']
+            rels = graph_document['relationships']
 
             node_query = """
             UNWIND $nodes AS node
@@ -118,10 +97,10 @@ class NodeUpdateService:
             MERGE (source)-[r:RELATED {type: rel.type}]->(target)
             """
 
-            graphAccess.execute_query(node_query, {"nodes": nodes_data})
-            graphAccess.execute_query(relationship_query, {"relationships": relationships_data})
+            graphAccess.execute_query(node_query, {"nodes": nodes})
+            graphAccess.execute_query(relationship_query, {"relationships": rels})
 
-            return nodes_data
+            return graph_document['nodes']
         except Exception as e:
             logging.exception(f"Error in update_graph_documents: {e}")
             logging.exception("#############################################################################################")

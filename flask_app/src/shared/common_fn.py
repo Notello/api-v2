@@ -9,12 +9,11 @@ from ..document_sources.youtube import create_youtube_url
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain.docstore.document import Document
 from langchain_community.graphs import Neo4jGraph
-from langchain_community.graphs.graph_document import GraphDocument
 from typing import List
 from langchain_groq import ChatGroq
 from flask_app.src.graphDB_dataAccess import graphDBdataAccess
-
-from flask_app.constants import GROQ_MODELS, OPENAI_MODELS
+from flask_app.constants import COURSEID, GROQ_MODELS, NOTEID, OPENAI_MODELS, USERID
+from flask_app.src.entities.KnowledgeGraph import KnowledgeGraph
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -112,23 +111,32 @@ def clean_chunk_text(chunk_text):
 def clean_node_id(node_id):
     return node_id.replace('-', ' ').replace(':', ' ').replace('_', ' ')
 
-def clean_nodes(docs: List[GraphDocument]):
+def clean_nodes(doc: KnowledgeGraph, courseId: str, noteId: str, userId: str):
   node_uuid_map = {}
+  nodes = doc.nodes
+  rels = doc.relationships
 
-  for doc in docs:
-    nodes = doc.nodes
-    rels = doc.relationships
-    for node in nodes:
-      node.id = clean_node_id(node.id)
-      new_uuid = str(uuid4())
-      node_uuid_map[node.id] = new_uuid
-      node.properties['uuid'] = new_uuid
-    for rel in rels:
-        rel.source.id = clean_node_id(rel.source.id)
-        rel.source.properties['uuid'] = node_uuid_map.get(rel.source.id)
-        rel.target.id = clean_node_id(rel.target.id)
-        rel.target.properties['uuid'] = node_uuid_map.get(rel.target.id)
-  return docs
+  output_kg = {"nodes": [], "relationships": []}
+
+  for node in nodes:
+    new_node = {}
+    new_uuid = str(uuid4())
+    new_node['id'] = clean_node_id(node.id)
+    new_node['uuid'] = [new_uuid]
+    new_node[COURSEID] = [courseId]
+    new_node[USERID] = [userId]
+    new_node[NOTEID] = [noteId]
+    node_uuid_map[node.id] = new_uuid
+    output_kg['nodes'].append(new_node)
+
+  for rel in rels:
+    new_rel = {}
+    new_rel['type'] = rel.type
+    new_rel['source_uuid'] = [node_uuid_map.get(clean_node_id(rel.source.id))]
+    new_rel['target_uuid'] = [node_uuid_map.get(clean_node_id(rel.target.id))]
+    output_kg['relationships'].append(new_rel)
+
+  return output_kg
 
 def init_indexes():
   graphAccess = graphDBdataAccess()

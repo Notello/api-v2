@@ -8,6 +8,7 @@ from uuid import uuid4
 from flask_app.src.entities.source_node import sourceNode
 from flask_app.src.graphDB_dataAccess import graphDBdataAccess
 from flask_app.src.make_relationships import create_relation_between_chunks, merge_relationship_between_chunk_and_entities, update_chunk_embedding
+from flask_app.src.shared.common_fn import clean_nodes
 from flask_app.src.openAI_llm import get_graph_from_OpenAI
 from flask_app.services.SupabaseService import SupabaseService
 from flask_app.services.NodeUpdateService import NodeUpdateService
@@ -20,7 +21,8 @@ def processing_source(
       chunks, 
       userId,
       courseId,
-      noteId
+      noteId,
+      summary
       ):
     start_time = datetime.now()
         
@@ -45,6 +47,8 @@ def processing_source(
     futures = []
     nodes_data = []
 
+    logging.info(f"Total chunks: {len(chunks)}")
+
     try:
         with ThreadPoolExecutor(max_workers=200) as executor:
             for i, chunk in enumerate(chunks):
@@ -57,7 +61,8 @@ def processing_source(
                         userId=userId,
                         startI=i,
                         document_name=fileName,
-                        graphAccess=graphAccess
+                        graphAccess=graphAccess,
+                        summary=summary
                     ))
             for i, future in enumerate(concurrent.futures.as_completed(futures)):
                 logging.info(f"Future {i} is done")
@@ -113,7 +118,8 @@ def process_chunks(
     userId,
     startI,
     document_name,
-    graphAccess
+    graphAccess,
+    summary
 ):
     logging.info(f"Starting process_chunks for chunk {startI}")
 
@@ -137,17 +143,21 @@ def process_chunks(
 
 
     # Generates graph documents from chunks
-    graph_documents = get_graph_from_OpenAI(
-      chunk_with_id
+    graph_document = get_graph_from_OpenAI(
+      chunk_with_id=chunk_with_id,
+      summary=summary,
+      courseId=courseId,
+      userId=userId,
+      noteId=noteId
     )
+
+    graph_doc = clean_nodes(doc=graph_document, courseId=courseId, noteId=noteId, userId=userId)
+
 
     # Saves graph documents in Neo4j
     nodes_data = NodeUpdateService.update_graph_documents(
-      graph_document_list=graph_documents,
+      graph_document=graph_doc,
       graphAccess=graphAccess,
-      noteId=noteId,
-      courseId=courseId,
-      userId=userId,
     )
 
     # logging.info(f"Graph documents: {nodes_data}")
