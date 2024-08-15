@@ -1,10 +1,12 @@
 import logging
 import re
+from typing import List
 from uuid import UUID
 from datetime import datetime
 from neo4j.time import DateTime
 from pytube import YouTube
 from langchain.prompts import ChatPromptTemplate
+from langchain.docstore.document import Document
 
 from flask_app.constants import proxy
 from flask_app.src.shared.common_fn import get_llm
@@ -104,9 +106,9 @@ class HelperService:
 
     @staticmethod
     def get_document_summary(
-        chunks,
+        chunks: List[Document],
     ):
-        text = "\n".join([chunk['text'] for chunk in chunks])
+        text = "\n".join([chunk.page_content for chunk in chunks])
 
         llm = get_llm(GPT_4O_MINI)
         prompt = ChatPromptTemplate.from_messages([
@@ -114,6 +116,10 @@ class HelperService:
             ("user", f"Please summarize the following text in a concise and informative manner: {text}"),
         ])
 
-        result = prompt | llm
+        promptable_llm = prompt | llm
 
-        return result.dict()['content']
+        output = promptable_llm.invoke({})
+
+        logging.info(output.dict())
+
+        return output.dict()['content']

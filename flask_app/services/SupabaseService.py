@@ -409,4 +409,8 @@ class SupabaseService:
         if not out:
             return None
 
-        return out[0]['description']
+        return {
+            "description": out[0].get('description'),
+            "courseNumber": out[0].get('courseNumber'),
+            "name": out[0].get('name'),
+        }

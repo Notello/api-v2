@@ -37,13 +37,12 @@ class GraphCreationService:
                 userId=userId,
                 fileName=document_name,
                 import_type=import_type,
-                chunks=chunks
+                chunks=chunks,
+                rateLimitId=rateLimitId
             )
             
         except Exception as e:
             logging.exception(f'Exception in create_source_node_graph_url_youtube: {e}')
-            RatelimitService.remove_rate_limit(rateLimitId)
-            SupabaseService.update_note(noteId=noteId, key='graphStatus', value='error')
 
     @staticmethod
     def create_graph_from_raw_text(  
@@ -57,6 +56,32 @@ class GraphCreationService:
             
         try:
             chunks = ChunkService.get_text_chunks(rawText)
+    
+            GraphCreationService.create_graph(
+                noteId=noteId,
+                courseId=courseId,
+                userId=userId,
+                fileName=fileName,
+                import_type='text',
+                chunks=chunks,
+                rateLimitId=rateLimitId
+            )
+
+            logging.info(f'File {fileName} has been processed successfully')
+        except Exception as e:
+            logging.exception(f'Exception: {e}')
+
+    @staticmethod
+    def create_graph(
+        noteId: str,
+        courseId: str,
+        userId: str,
+        fileName: str,
+        import_type: str,
+        chunks: List[Document],
+        rateLimitId: str
+    ):
+        try:
 
             similarityService = SimilarityService(
                 similarity_threshold=0.98, 
@@ -81,63 +106,44 @@ class GraphCreationService:
                     key='graphStatus', 
                     value='complete'
                     )
+                SupabaseService.update_note(noteId=noteId, key='blockedReason', value='Your note content was detected to be similar to another note in the same course.')
                 RatelimitService.remove_rate_limit(rateLimitId)
                 return
-    
-            GraphCreationService.create_graph(
-                noteId=noteId,
+
+            summary = HelperService.get_document_summary(chunks)
+
+            isRelated = SimilarityService.is_related(courseId=courseId, documentSummary=summary)
+
+            if not isRelated['isRelated']:
+                SupabaseService.update_note(noteId=noteId, key='blockedReason', value=f'Your video was blocked because it was detected to be unrelated to the course content. Reason: {isRelated["reasoning"]}')
+                return None
+
+            obj_source_node = sourceNode(
+                file_source=import_type,
+                model=GPT_4O_MINI,
                 courseId=courseId,
                 userId=userId,
-                fileName=fileName,
-                import_type='text',
-                chunks=chunks
+                created_at=datetime.now(),
+                noteId=noteId,
+                summary=summary
             )
+            
+            graphAccess: graphDBdataAccess = graphDBdataAccess()
 
-            logging.info(f'File {fileName} has been processed successfully')
+            graphAccess.create_source_node(obj_source_node)
+
+            processing_source(
+                graphAccess=graphAccess,
+                fileName=fileName,
+                chunks=chunks,
+                userId=userId,
+                courseId=courseId,
+                noteId=noteId
+                )
         except Exception as e:
-            logging.exception(f'Exception: {e}')
+            logging.exception(f'Exception in create_source_node_graph: {e}')
             RatelimitService.remove_rate_limit(rateLimitId)
             SupabaseService.update_note(noteId=noteId, key='graphStatus', value='error')
-
-    @staticmethod
-    def create_graph(
-        noteId: str,
-        courseId: str,
-        userId: str,
-        fileName: str,
-        import_type: str,
-        chunks: List[Document],
-    ):
-        # summary = HelperService.get_document_summary(chunks)
-
-        # isRelated = SimilarityService.is_related(courseId=courseId, documentSummary=summary)
-
-        # if not isRelated:
-        #     SupabaseService.update_note(noteId=noteId, key='contentStatus', value='unrelated')
-        #     return None
-
-        obj_source_node = sourceNode(
-            file_source=import_type,
-            model=GPT_4O_MINI,
-            courseId=courseId,
-            userId=userId,
-            created_at=datetime.now(),
-            noteId=noteId,
-            # summary=summary
-        )
-        
-        graphAccess: graphDBdataAccess = graphDBdataAccess()
-
-        graphAccess.create_source_node(obj_source_node)
-
-        processing_source(
-            graphAccess=graphAccess,
-            fileName=fileName,
-            chunks=chunks,
-            userId=userId,
-            courseId=courseId,
-            noteId=noteId
-            )
 
     @staticmethod
     def insert_quiz_question(questions: List[QuizQuestion]) -> None:

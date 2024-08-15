@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 from langchain_core.pydantic_v1 import BaseModel, Field
 
 from flask_app.src.shared.common_fn import get_llm, load_embedding_model
@@ -8,6 +9,9 @@ from flask_app.src.graphDB_dataAccess import graphDBdataAccess
 from langchain.prompts import ChatPromptTemplate
 
 class IsRelated(BaseModel):
+    reasoning: Optional[str] = Field(
+        description="A reason for the decision, only required if isRelated is false."
+    )
     isRelated: bool = Field(
         description="A true/false value indicating if the document summary is in the same subject as the course description."
     )
@@ -162,24 +166,50 @@ class SimilarityService:
 
     @staticmethod
     def same_subject(courseId, documentSummary):
-        description = SupabaseService.get_course_description(courseId)
+        course = SupabaseService.get_course_description(courseId)
         
-        if description is None:
+        if course is None:
             return None
         
         llm = get_llm(GPT_4O_MINI).with_structured_output(IsRelated)
         prompt = ChatPromptTemplate.from_messages([
             ("system", """
-             You are a first pass content classifier. 
-             Your job is to generally determine if the provided document summary is related to the course description. 
-             It is ok if they are only tangentially related.
-             """,
-             "user", f"Please classify the following document summary as related to the course description: {documentSummary}"),
+            You are a content classifier with a broad understanding of academic subjects.
+            Your task is to determine if the provided document summary is related to the given course information.
+            Consider a wide range of potential connections between the document and the course.
+            Even if the relationship is not immediately obvious, look for any reasonable links or relevance.
+            Consider interdisciplinary connections and how the document might indirectly relate to the course.
+            If there's any doubt or if you can find even a tenuous connection, lean towards classifying it as related.
+            Only classify as unrelated if there's a clear and significant mismatch between the document and the course.
+            If there is not enough information to make a confident decision, classify it as related.
+            If you determine it's unrelated, provide a brief explanation for your decision.
+            """),
+            ("user", f"""
+            Please classify the following document summary as related or not related to the course description: 
+            Course Name: {course.get('name')}
+            Course Number: {course.get('courseNumber')}
+            Course Description: {course.get('description')}
+
+            Document Summary:
+            {documentSummary}
+            """),
         ])
 
-        result = prompt | llm
+        promptable_llm = prompt | llm
 
-        return result.dict()['isRelated']
+        result: IsRelated = promptable_llm.invoke({})
+
+        logging.info(result.dict())
+
+        if not result.isRelated:
+            return {
+                "isRelated": False,
+                "reasoning": result.reasoning
+            }
+        else:
+            return {
+                "isRelated": True
+            }
     
     @staticmethod
     def is_related(courseId, documentSummary):
