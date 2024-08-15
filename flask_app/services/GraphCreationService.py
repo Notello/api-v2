@@ -144,6 +144,9 @@ class GraphCreationService:
         except Exception as e:
             logging.exception(f'Exception in create_source_node_graph: {e}')
             RatelimitService.remove_rate_limit(rateLimitId)
+            graphAccess.update_source_node(sourceNode(noteId = noteId, mergeStatus = "error"))
+            graphAccess.update_source_node(sourceNode(noteId = noteId, comStatus = "error"))
+            graphAccess.update_source_node(sourceNode(noteId = noteId, pagerankStatus = "error"))
             SupabaseService.update_note(noteId=noteId, key='graphStatus', value='error')
 
     @staticmethod

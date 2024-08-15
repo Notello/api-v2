@@ -12,6 +12,8 @@ from flask_app.services.RunpodService import RunpodService
 from flask_app.src.CustomKGBuilder import KnowledgeGraph
 from flask_app.services.Neo4jQueueManager import queued_transaction
 from flask_app.constants import COMMUNITY_DETECTION, COURSEID, LOUVAIN, NOTEID, PAGERANK, USERID
+from nltk.stem import WordNetLemmatizer
+
 
 class NodeUpdateService:
     @staticmethod
@@ -220,8 +222,6 @@ class NodeUpdateService:
 
         return stats
     
-
-    ## Issue is that for each word in a match group, its doing a merge for each one
     @staticmethod
     @queued_transaction(task_type='merge')
     def merge_similar_nodes(tx, id_type: str, target_id: str, note_id: str, distance: int = 2, embedding_cutoff: float = 0.95) -> None:
@@ -229,105 +229,93 @@ class NodeUpdateService:
         start = datetime.now()
         logging.info(f"Starting at {start}")
 
-        ## Not filtering to only other nodes with the same id_type and target_id
-        query = f"""
-        MATCH (e:Concept)
-        WHERE e.embedding IS NOT NULL AND size(e.uuid) > 0 AND '{target_id}' IN e.{id_type}
-        CALL {{
-        WITH e
-        CALL db.index.vector.queryNodes('concept_embedding', 50, e.embedding)
-        YIELD node, score
-        WITH node, score
-        WHERE score > toFloat($embedding_cutoff) AND size(node.uuid) > 0
-        WITH collect({{id: node.id, uuid: node.uuid[0]}}) AS nodes
-        UNWIND nodes AS n1
-        WITH n1, nodes
-        UNWIND nodes AS n2
-        WITH n1, n2
-        WHERE n1.id <= n2.id
-        WITH n1, n2, apoc.text.levenshteinDistance(n1.id, n2.id) AS dist
-        WHERE dist <= $distance
-        WITH n1, collect(n2) AS similar_nodes
-        RETURN n1.id AS base_word, similar_nodes AS group
-        }}
-        RETURN base_word, group
+        # Step 1: Identify all nodes with the given conditions
+        NODE_QUERY = f"""
+        MATCH (n:Concept)
+        WHERE '{target_id}' IN n.{id_type}
+        WITH n
+        MATCH (other:Concept)
+        WHERE '{target_id}' IN other.{id_type} AND n.uuid <> other.uuid
+        AND (
+            (n.embedding IS NOT NULL AND other.embedding IS NOT NULL AND 
+            gds.similarity.cosine(n.embedding, other.embedding) > {embedding_cutoff}) 
+            OR 
+            apoc.text.levenshteinDistance(n.id, other.id) <= {distance}
+        )
+        RETURN DISTINCT n.id AS id, n.uuid[0] AS uuid
         """
 
-        logging.info(f"Query: {query}")
+        logging.info(f"Query: {NODE_QUERY}")
+        
+        result = tx.run(NODE_QUERY)
+        nodes = [(record["id"], record["uuid"]) for record in result]
 
-        result = tx.run(query, {'distance': distance, 'embedding_cutoff': embedding_cutoff})
+        logging.info(f"Nodes found: {nodes}")
 
-        combined_words = []
-        for record in result:
-            base_word = record['base_word']
-            group = record['group']
-            if len(group) > 1:  # Only include groups with more than one word
-                combined_words.append({base_word: group})
+        # Filter out None values
+        nodes = [(node_id, uuid) for node_id, uuid in nodes if node_id is not None and uuid is not None]
 
-        # Merge the nodes
-        for merge_group in combined_words:
-            logging.info(f"Merging group: {merge_group}")
-            for final_label, entities in merge_group.items():
-                primary_node = entities[0]
-                
-                merge_query = """
-                MATCH (primary:Concept)
-                WHERE $primary_uuid IN primary.uuid
-                UNWIND $other_uuids AS other_uuid
-                MATCH (other:Concept)
-                WHERE other_uuid IN other.uuid AND other <> primary
-                WITH primary, other, 
-                    apoc.map.removeKeys(primary, ['id', 'userId', 'noteId', 'courseId', 'uuid']) AS primary_props,
-                    apoc.map.removeKeys(other, ['id', 'userId', 'noteId', 'courseId', 'uuid']) AS other_props
+        if not nodes:
+            logging.warning(f"No valid nodes found for {id_type}: {target_id}")
+            return
 
-                // Merge list properties
-                WITH primary, other, primary_props, other_props,
-                    CASE WHEN primary.userId IS NULL THEN [] ELSE primary.userId END + 
-                    CASE WHEN other.userId IS NULL THEN [] ELSE other.userId END AS merged_userId,
-                    CASE WHEN primary.noteId IS NULL THEN [] ELSE primary.noteId END + 
-                    CASE WHEN other.noteId IS NULL THEN [] ELSE other.noteId END AS merged_noteId,
-                    CASE WHEN primary.courseId IS NULL THEN [] ELSE primary.courseId END + 
-                    CASE WHEN other.courseId IS NULL THEN [] ELSE other.courseId END AS merged_courseId,
-                    CASE WHEN primary.uuid IS NULL THEN [] ELSE primary.uuid END + 
-                    CASE WHEN other.uuid IS NULL THEN [] ELSE other.uuid END AS merged_uuid
+        # Step 3: Reduce nodes to their lexical root
+        lemmatizer = WordNetLemmatizer()
+        root_map: Dict[str, List[str]] = {}
+        
+        for node_id, uuid in nodes:
+            try:
+                root = lemmatizer.lemmatize(node_id)
+            except AttributeError as e:
+                logging.error(f"Error lemmatizing node_id '{node_id}': {str(e)}")
+                root = node_id  # Use the original node_id if lemmatization fails
+            
+            if root not in root_map:
+                root_map[root] = []
+            root_map[root].append(uuid)
 
-                // Merge other properties
-                WITH primary, other, primary_props, other_props, merged_userId, merged_noteId, merged_courseId, merged_uuid,
-                    apoc.map.mergeList([primary_props, other_props]) AS merged_props
+        logging.info(f"Root map: {root_map}")
 
-                // Set properties on primary node
-                SET primary = merged_props,
-                    primary.id = $final_label,
-                    primary.userId = apoc.coll.toSet(merged_userId),
-                    primary.noteId = apoc.coll.toSet(merged_noteId),
-                    primary.courseId = apoc.coll.toSet(merged_courseId),
-                    primary.uuid = apoc.coll.toSet(merged_uuid)
+        if not root_map:
+            logging.warning("No nodes to merge after processing")
+            return
+        
+        embeddings, dimension = load_embedding_model()
 
-                // Use WITH clause before CALL
-                WITH primary, other
+        futures = []
+        root_embeddings = {}
 
-                // Merge relationships
-                CALL apoc.refactor.mergeNodes([primary, other], {properties: "discard", mergeRels: true})
-                YIELD node
+        with ThreadPoolExecutor(max_workers=200) as executor:
+            for node in root_map.keys():
+                futures.append(
+                    executor.submit(
+                        embed_name,
+                        name=node,
+                        embeddings=embeddings
+                    ))
 
-                RETURN node
-                """
-                
-                merge_params = {
-                    "primary_uuid": primary_node['uuid'],
-                    "other_uuids": [e['uuid'] for e in entities[1:]],
-                    "final_label": final_label
-                }
-                
-                try:
-                    result = tx.run(merge_query, merge_params)
-                    result.consume()  # Ensure the query is executed
-                    
-                except Exception as e:
-                    logging.error(f"Error merging nodes {entities}: {str(e)}")
-                    # Continue with the next merge instead of raising the exception
+            for future in concurrent.futures.as_completed(futures):
+                name, embedding = future.result()
 
-        logging.info("Node merging process completed.")
+                root_embeddings[name] = embedding
+
+        # Step 5: Merge nodes with the same root in a single transaction
+        MERGE_QUERY = """
+        UNWIND $root_map AS root_entry
+        MATCH (n:Concept)
+        WHERE n.uuid[0] IN root_entry.uuids
+        WITH root_entry.root AS new_id, collect(n) AS nodes, root_entry.embedding AS new_embedding
+        CALL apoc.refactor.mergeNodes(nodes, {properties: "combine", mergeRels: true})
+        YIELD node
+        SET node.id = new_id, node.embedding = new_embedding
+        RETURN count(node) AS merged_count
+        """
+        
+        root_map_list = [{"root": root, "uuids": uuids, "embedding": root_embeddings[root]} for root, uuids in root_map.items()]
+        result = tx.run(MERGE_QUERY, root_map=root_map_list)
+        merged_count = result.single()["merged_count"]
+
+        logging.info(f"Node merging process completed. Merged {merged_count} node groups.")
         end = datetime.now()
         logging.info(f"Ending at {end}")
         logging.info(f"Query took: {end - start}")

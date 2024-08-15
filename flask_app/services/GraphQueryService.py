@@ -17,10 +17,10 @@ class GraphQueryService():
 
     @staticmethod
     def get_node_query(node_type: str, key: str, value: str, com_string: str, page_rank_string: str) -> str:
-        base_attributes = "ID(n) AS id, LABELS(n)[0] AS labels"
+        base_attributes = "ID(n) AS id, LABELS(n)[0] AS labels, n.noteId as noteId"
         type_specific_attributes = {
-            "Document": "n.fileName AS fileName, n.noteId as noteId",
-            "Chunk": "n.offset AS offset, n.noteId as noteId",
+            "Document": "n.fileName AS fileName",
+            "Chunk": "n.offset AS offset",
             "Concept": f"n.{page_rank_string} AS pageRank, n.{com_string} AS communityId, n.id AS nodeId, n.uuid[0] AS nodeUuid"
         }
         return f"""
@@ -60,133 +60,6 @@ class GraphQueryService():
             rel_result = graphAccess.execute_query(rel_query, {"value": value})
             for record in rel_result:
                 relationships.append(dict(record))
-
-            return nodes, relationships
-
-        except Exception as e:
-            logging.error(f"Error executing query: {e}")
-            return None, None
-        
-    @staticmethod
-    def get_default_graph_params(communityType: str, communityId: str) -> List[Tuple[str, str]]:
-        com_string = GraphQueryService.get_com_string(communityType=communityType, communityId=communityId)
-        page_rank_string = GraphQueryService.get_page_rank_string(param=communityType, id=communityId)
-
-        return [
-        
-            ("ID(n)", "nodeId"), ("LABELS(n)", "nodeLabels"), 
-            ("n.position", "position"), ("n.fileName", "fileName"), 
-            ("n.id", "conceptId"),
-            (f"n.{com_string}", "communityId"), (f"n.{page_rank_string}", "pageRank"),
-            ("n.uuid[0]", "nodeUuid"), ('n.offset', 'offset'),
-
-
-            ("rel.type", "relType"), 
-            
-            ("ID(r)", "relatedNodeId"), ("LABELS(r)", "relatedNodeLabels"), 
-            ("r.position", "relatedNodePosition"), ("r.fileName", "relatedNodeFileName"),
-
-            ("r.id", "relatedNodeConceptId"),
-            (f"r.{com_string}", "relatedNodeCommunityId"), (f"r.{page_rank_string}", "relatedNodePageRank"),
-            ('r.uuid[0]', 'relatedNodeUuid'), ('r.offset', 'relatedNodeOffset'),
-            ]
-    
-    
-    
-    @staticmethod
-    def old_get_graph_for_param(
-        key: str, 
-        value: str, 
-        return_params: List[Tuple[str, str]] = None
-    ) -> Tuple[Dict[str, List[Dict]], List[Dict[str, Any]]]:
-        try:
-            graphAccess = graphDBdataAccess()
-
-            final_params = return_params if return_params is not None else \
-                GraphQueryService.get_default_graph_params(communityType=key, communityId=value)
-
-            return_clause = ", ".join(f"{param[0]} AS {param[1]}" for param in final_params)
-
-            QUERY = f"""
-            MATCH (n)
-            WHERE n.{key} = $value OR $value IN n.{key}
-            OPTIONAL MATCH (n)-[rel]->(r)
-            WHERE r.{key} = $value or $value IN r.{key}
-            RETURN {return_clause}
-            """
-
-            parameters = {
-                "value": value
-            }
-
-            result = graphAccess.execute_query(QUERY, parameters)
-
-            nodes = {
-                'documents': {},
-                'chunks': {},
-                'concepts': {}
-            }
-            relationships = []
-
-            for record in result:
-                node_data = {}
-                related_node_data = {}
-                rel_type = None
-
-                for param in final_params:
-                    attr_name = param[1]
-                    attr_value = record.get(attr_name)
-                    
-                    if attr_name.startswith("relatedNode"):
-                        related_node_data[attr_name.replace("relatedNode", "")] = attr_value
-                    elif attr_name == "relType":
-                        rel_type = attr_value
-                    else:
-                        node_data[attr_name] = attr_value
-
-                if 'nodeId' in node_data and 'nodeLabels' in node_data:
-                    node_type = next((label for label in ['Document', 'Chunk', 'Concept'] if label in node_data['nodeLabels']), None)
-                    if node_type:
-                        node_info = nodes[node_type.lower() + 's'].get(node_data['nodeId'], {})
-                        node_info['id'] = node_data['nodeId']
-                        if node_type == 'Document':
-                            node_info['fileName'] = node_data.get('fileName')
-                        elif node_type == 'Chunk':
-                            node_info['position'] = node_data.get('position')
-                            node_info['offset'] = node_data.get('offset')
-                        elif node_type == 'Concept':
-                            node_info['conceptId'] = node_data.get('conceptId')
-                            node_info['pageRank'] = node_data.get('pageRank')
-                            node_info['nodeUuid'] = node_data.get('nodeUuid')
-                        
-                        if 'communityId' in node_data and 'communityId' not in node_info:
-                            node_info['communityId'] = node_data['communityId']
-                        
-                        nodes[node_type.lower() + 's'][node_data['nodeId']] = node_info
-
-                if related_node_data.get('Id') is not None and related_node_data.get('Labels') is not None:
-                    related_node_type = next((label for label in ['Document', 'Chunk', 'Concept'] if label in related_node_data['Labels']), None)
-                    if related_node_type:
-                        related_node_info = nodes[related_node_type.lower() + 's'].get(related_node_data['Id'], {})
-                        related_node_info['id'] = related_node_data['Id']
-                        if related_node_type == 'Chunk':
-                            related_node_info['position'] = related_node_data.get('relatedNodePosition')
-                            related_node_info['offset'] = related_node_data.get('relatedNodeOffset')
-                        
-                        if 'relatedNodeCommunityId' in related_node_data and 'communityId' not in related_node_info:
-                            related_node_info['communityId'] = related_node_data['relatedNodeCommunityId']
-                        
-                        nodes[related_node_type.lower() + 's'][related_node_data['Id']] = related_node_info
-
-                if 'nodeId' in node_data and related_node_data.get('Id') is not None and rel_type is not None:
-                    relationships.append({
-                        "start_node_id": node_data['nodeId'], 
-                        "relationship_type": rel_type, 
-                        "end_node_id": related_node_data['Id']
-                    })
-
-            for node_type in nodes:
-                nodes[node_type] = list(nodes[node_type].values())
 
             return nodes, relationships
 
@@ -492,127 +365,66 @@ class GraphQueryService():
         return result
     
     @staticmethod
-    def get_display_topic_graph(uuid: str, courseId: str) -> Tuple[Dict[str, List[Dict]], List[Dict[str, Any]]] | None:
+    def get_display_topic_graph(uuid: str, courseId: str) -> Tuple[List[Dict], List[Dict[str, Any]]] | None:
         try:
             graphAccess = graphDBdataAccess()
 
             com_string = GraphQueryService.get_com_string(communityType='courseId', communityId=courseId)
             page_rank_string = GraphQueryService.get_page_rank_string(param='courseId', id=courseId)
 
-            print(com_string, page_rank_string)
-
-            QUERY = f"""
-            MATCH (c:Concept)
-            WHERE $uuid IN c.uuid
-            OPTIONAL MATCH (c)-[r1]-(chunk:Chunk)
-            OPTIONAL MATCH (c)-[r2]-(doc:Document)
-            OPTIONAL MATCH (c)-[r3]-(relatedConcept:Concept)
-            WHERE relatedConcept <> c
-            OPTIONAL MATCH (relatedConcept)-[r4]-(otherRelatedConcept:Concept)
-            WHERE otherRelatedConcept <> c AND otherRelatedConcept <> relatedConcept
-            RETURN 
-                c.id AS conceptId, ID(c) AS conceptNodeId, c.{com_string} AS conceptCommunityId, 
-                c.uuid[0] AS conceptUuid, c.{page_rank_string} AS conceptPageRank,
-                
-                chunk.id AS chunkId, ID(chunk) AS chunkNodeId, chunk.position AS chunkPosition, 
-                chunk.{com_string} AS chunkCommunityId, chunk.offset AS chunkOffset,
-                
-                doc.id AS docId, ID(doc) AS docNodeId, doc.fileName AS docFileName, 
-                doc.{com_string} AS docCommunityId,
-                
-                relatedConcept.id AS relatedConceptId, ID(relatedConcept) AS relatedConceptNodeId, 
-                relatedConcept.{com_string} AS relatedConceptCommunityId, 
-                relatedConcept.uuid[0] AS relatedConceptUuid, 
-                relatedConcept.{page_rank_string} AS relatedConceptPageRank,
-                
-                otherRelatedConcept.id AS otherRelatedConceptId, 
-                ID(otherRelatedConcept) AS otherRelatedConceptNodeId,
-                
-                r1.type AS chunkRelType, r2.type AS docRelType, r3.type AS conceptRelType,
-                r4.type AS interConceptRelType
+            node_query = f"""
+            MATCH (root:Concept)
+            WHERE $uuid IN root.uuid
+            OPTIONAL MATCH (root)--(n1)
+            WHERE n1:Document OR n1:Chunk OR n1:Concept
+            OPTIONAL MATCH (n1)--(n2)
+            WHERE n2:Document OR n2:Chunk OR n2:Concept
+            WITH root, n1, n2
+            UNWIND [root, n1, n2] AS n
+            WITH n WHERE n IS NOT NULL
+            RETURN DISTINCT
+                CASE
+                    WHEN n:Document THEN {{
+                        id: ID(n),
+                        labels: LABELS(n)[0],
+                        fileName: n.fileName,
+                        noteId: n.noteId
+                    }}
+                    WHEN n:Chunk THEN {{
+                        id: ID(n),
+                        labels: LABELS(n)[0],
+                        offset: n.offset,
+                        noteId: n.noteId
+                    }}
+                    WHEN n:Concept THEN {{
+                        id: ID(n),
+                        labels: LABELS(n)[0],
+                        pageRank: n.{page_rank_string},
+                        communityId: n.{com_string},
+                        nodeId: n.id,
+                        nodeUuid: n.uuid[0],
+                        noteId: n.noteId
+                    }}
+                END AS node
             """
 
-            parameters = {"uuid": uuid}
-            result = graphAccess.execute_query(QUERY, parameters)
+            relationship_query = f"""
+            MATCH (root:Concept)
+            WHERE $uuid IN root.uuid
+            OPTIONAL MATCH (root)-[r1]-(n1)
+            WHERE n1:Document OR n1:Chunk OR n1:Concept
+            OPTIONAL MATCH (n1)-[r2]-(n2)
+            WHERE n2:Document OR n2:Chunk OR n2:Concept
+            UNWIND [r1, r2] AS rel
+            WITH rel WHERE rel IS NOT NULL
+            RETURN DISTINCT ID(startNode(rel)) AS start_node_id, ID(endNode(rel)) AS end_node_id, type(rel) AS relationship_type
+            """
 
-            nodes = {
-                'documents': {},
-                'chunks': {},
-                'concepts': {}
-            }
-            relationships = []
+            node_result = graphAccess.execute_query(node_query, {"uuid": uuid})
+            rel_result = graphAccess.execute_query(relationship_query, {"uuid": uuid})
 
-            for record in result:
-                # Process concept node
-                if record['conceptNodeId'] and record['conceptNodeId'] not in nodes['concepts']:
-                    nodes['concepts'][record['conceptNodeId']] = {
-                        'node_type': 'Concept',
-                        'id': record['conceptNodeId'],
-                        'conceptId': record['conceptId'],
-                        'communityId': record['conceptCommunityId'],
-                        'nodeUuid': record['conceptUuid'],
-                        'pageRank': record['conceptPageRank'],
-                    }
-
-                # Process chunk node
-                if record['chunkNodeId'] and record['chunkNodeId'] not in nodes['chunks']:
-                    nodes['chunks'][record['chunkNodeId']] = {
-                        'node_type': 'Chunk',
-                        'id': record['chunkNodeId'],
-                        'position': record['chunkPosition'],
-                        'communityId': record['chunkCommunityId'],
-                        'offset': record['chunkOffset'],
-                    }
-
-                # Process document node
-                if record['docNodeId'] and record['docNodeId'] not in nodes['documents']:
-                    nodes['documents'][record['docNodeId']] = {
-                        'node_type': 'Document',
-                        'id': record['docNodeId'],
-                        'fileName': record['docFileName'],
-                        'communityId': record['docCommunityId'],
-                    }
-
-                # Process related concept node
-                if record['relatedConceptNodeId'] and record['relatedConceptNodeId'] not in nodes['concepts']:
-                    nodes['concepts'][record['relatedConceptNodeId']] = {
-                        'node_type': 'Concept',
-                        'id': record['relatedConceptNodeId'],
-                        'conceptId': record['relatedConceptId'],
-                        'communityId': record['relatedConceptCommunityId'],
-                        'nodeUuid': record['relatedConceptUuid'],
-                        'pageRank': record['relatedConceptPageRank'],
-                    }
-
-                # Process relationships
-                if record['chunkNodeId']:
-                    relationships.append({
-                        'start_node_id': record['conceptNodeId'],
-                        'end_node_id': record['chunkNodeId'],
-                        'relationship_type': record['chunkRelType']
-                    })
-                if record['docNodeId']:
-                    relationships.append({
-                        'start_node_id': record['conceptNodeId'],
-                        'end_node_id': record['docNodeId'],
-                        'relationship_type': record['docRelType']
-                    })
-                if record['relatedConceptNodeId']:
-                    relationships.append({
-                        'start_node_id': record['conceptNodeId'],
-                        'end_node_id': record['relatedConceptNodeId'],
-                        'relationship_type': record['conceptRelType']
-                    })
-                if record['otherRelatedConceptNodeId'] and record['otherRelatedConceptNodeId'] in nodes['concepts']:
-                    relationships.append({
-                        'start_node_id': record['relatedConceptNodeId'],
-                        'end_node_id': record['otherRelatedConceptNodeId'],
-                        'relationship_type': record['interConceptRelType']
-                    })
-
-            # Convert dictionaries to lists
-            for node_type in nodes:
-                nodes[node_type] = list(nodes[node_type].values())
+            nodes = [dict(record['node']) for record in node_result if record['node'] is not None]
+            relationships = [dict(record) for record in rel_result]
 
             return nodes, relationships
 

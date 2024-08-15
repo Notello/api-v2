@@ -19,6 +19,15 @@ def setup_llm(
         - You will use the summary of the text provided to you to guide what types of concepts and entities to extract. 
         - You should use the summary to correct any typos in the source text based on the context provided.
 
+        # Output Format #
+        You will output the knowledge graph in the following format, it is extremely important that you follow this format:
+        nodes: A list of nodes, where each node is a dictionary with the following keys:
+            id: The unique identifier of the node
+        relationships: A list of relationships, where a relationship is a dictionary with the following keys:
+            source: The unique identifier of the source node, must match a node in the nodes list
+            target: The unique identifier of the target node, must match a node in the nodes list
+            type: The type of the relationship
+
         ## IMPORTANT GUIDELINES ##
         - You should add *AS MANY* relations as possible, you should infer relationships between entities and concepts based on the context if necessary.
         - Maintain Entity Consistency: When extracting entities or concepts, it's vital to ensure consistency. 

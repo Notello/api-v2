@@ -76,7 +76,7 @@ class Neo4jQueueManager:
         MATCH (d:Document)
         WHERE d.courseId = $courseId AND d.noteId <> $noteId
         WITH d.{status_field} AS status
-        WHERE status <> 'complete'
+        WHERE status = 'incomplete'
         RETURN count(status) AS count
         ORDER BY count DESC
         """
@@ -87,7 +87,7 @@ class Neo4jQueueManager:
         out = result[0]['count']
         logging.info(f"out: {out}")
         logging.info("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
-        return out != 0
+        return out > 0
 
     def _execute_transaction(self, work_func, *args, **kwargs):
         max_retries = 5
