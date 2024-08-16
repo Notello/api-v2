@@ -235,14 +235,14 @@ class NodeUpdateService:
         WHERE '{target_id}' IN n.{id_type}
         WITH n
         MATCH (other:Concept)
-        WHERE '{target_id}' IN other.{id_type} AND n.uuid <> other.uuid
+        WHERE '{target_id}' IN other.{id_type} AND n.uuid[0] <> other.uuid[0]
         AND (
             (n.embedding IS NOT NULL AND other.embedding IS NOT NULL AND 
             gds.similarity.cosine(n.embedding, other.embedding) > {embedding_cutoff}) 
             OR 
             apoc.text.levenshteinDistance(n.id, other.id) <= {distance}
         )
-        RETURN DISTINCT n.id AS id, n.uuid[0] AS uuid
+        RETURN DISTINCT n.id AS id, n.uuid AS uuid
         """
 
         logging.info(f"Query: {NODE_QUERY}")
@@ -272,7 +272,7 @@ class NodeUpdateService:
             
             if root not in root_map:
                 root_map[root] = []
-            root_map[root].append(uuid)
+            root_map[root].extend(uuid)  # Extend instead of append to handle uuid as a list
 
         logging.info(f"Root map: {root_map}")
 
@@ -305,7 +305,16 @@ class NodeUpdateService:
         MATCH (n:Concept)
         WHERE n.uuid[0] IN root_entry.uuids
         WITH root_entry.root AS new_id, collect(n) AS nodes, root_entry.embedding AS new_embedding
-        CALL apoc.refactor.mergeNodes(nodes, {properties: "combine", mergeRels: true})
+        CALL apoc.refactor.mergeNodes(nodes, {
+            properties: {
+                noteId: "combine",
+                courseId: "combine",
+                userId: "combine",
+                uuid: "combine",
+                embedding: "discard"
+            },
+            mergeRels: true
+        })
         YIELD node
         SET node.id = new_id, node.embedding = new_embedding
         RETURN count(node) AS merged_count

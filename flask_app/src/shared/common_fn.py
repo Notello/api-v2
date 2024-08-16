@@ -132,8 +132,8 @@ def clean_nodes(doc: KnowledgeGraph, courseId: str, noteId: str, userId: str):
   for rel in rels:
     new_rel = {}
     new_rel['type'] = rel.type
-    new_rel['source_uuid'] = [node_uuid_map.get(clean_node_id(rel.source.id))]
-    new_rel['target_uuid'] = [node_uuid_map.get(clean_node_id(rel.target.id))]
+    new_rel['source_uuid'] = [node_uuid_map.get(clean_node_id(rel.source))]
+    new_rel['target_uuid'] = [node_uuid_map.get(clean_node_id(rel.target))]
     output_kg['relationships'].append(new_rel)
 
   return output_kg

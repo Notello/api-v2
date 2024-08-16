@@ -60,21 +60,22 @@ class CustomKGBuilder:
         summary: str
     ) -> KnowledgeGraph:
         try:
-            logging.info(f"Generating knowledge graph.")
+            logging.info("Generating knowledge graph.")
             
             knowledge_graph = setup_llm(
                 text=text,
                 summary=summary
             )
 
-            result: KnowledgeGraph = knowledge_graph.invoke({})
-
-            logging.info(f"Generated knowledge graph.")
-
-            print(result)
+            try:
+                result: KnowledgeGraph = knowledge_graph.invoke({})
+                logging.info(f"Generated knowledge graph with {len(result.nodes)} nodes and {len(result.relationships)} relationships.")
+            except Exception as e:
+                logging.exception(f"Error generating knowledge graph: {str(e)}")
+                raise
 
             return result
 
         except Exception as e:
-            logging.exception(f"Error generating knowledge graph: {str(e)}")
+            logging.exception(f"Error in create_knowledge_graph: {str(e)}")
             raise

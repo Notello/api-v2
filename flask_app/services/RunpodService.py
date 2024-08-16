@@ -85,6 +85,8 @@ class RunpodService:
 
         endpoint: Endpoint = runpod.Endpoint(os.getenv("RUNPOD_GDS_ENDPOINT_ID"))
 
+        logging.info(f'Running {algorithm_type} {algorithm} on graph: {graph}')
+
         try:
             run_request = endpoint.run(
                 {
@@ -113,7 +115,8 @@ class RunpodService:
                 return None
             else:
                 logging.info(f'Runpod job completed successfully')
-                return output['data']
+                logging.info(f'Runpod job output: {output}')
+                return output.get('data')
         
         except TimeoutError:
             logging.error(f'Runpod job timed out')
