@@ -121,51 +121,54 @@ def process_chunks(
     graphAccess,
     summary
 ):
-    logging.info(f"Starting process_chunks for chunk {startI}")
+    try:
+      logging.info(f"Starting process_chunks for chunk {startI}")
 
-    chunk_with_id = create_relation_between_chunks(
-      noteId=noteId,
-      courseId=courseId,
-      userId=userId,
-      chunk=chunk,
-      startI=startI,
-      document_name=document_name,
-      graphAccess=graphAccess
-    )
+      chunk_with_id = create_relation_between_chunks(
+        noteId=noteId,
+        courseId=courseId,
+        userId=userId,
+        chunk=chunk,
+        startI=startI,
+        document_name=document_name,
+        graphAccess=graphAccess
+      )
 
-    # Create vector index and update chunk node with embedding
-    update_chunk_embedding(
-      chunk=chunk_with_id,
-      graphAccess=graphAccess
-    )
+      # Create vector index and update chunk node with embedding
+      update_chunk_embedding(
+        chunk=chunk_with_id,
+        graphAccess=graphAccess
+      )
 
-    logging.info("Get graph document list from models")
-
-
-    # Generates graph documents from chunks
-    graph_document = get_graph_from_OpenAI(
-      chunk_with_id=chunk_with_id,
-      summary=summary,
-      courseId=courseId,
-      userId=userId,
-      noteId=noteId
-    )
-
-    graph_doc = clean_nodes(doc=graph_document, courseId=courseId, noteId=noteId, userId=userId)
+      logging.info("Get graph document list from models")
 
 
-    # Saves graph documents in Neo4j
-    nodes_data = NodeUpdateService.update_graph_documents(
-      graph_document=graph_doc,
-      graphAccess=graphAccess,
-    )
+      # Generates graph documents from chunks
+      graph_document = get_graph_from_OpenAI(
+        chunk_with_id=chunk_with_id,
+        summary=summary,
+        courseId=courseId,
+        userId=userId,
+        noteId=noteId
+      )
 
-    # logging.info(f"Graph documents: {nodes_data}")
+      graph_doc = clean_nodes(doc=graph_document, courseId=courseId, noteId=noteId, userId=userId)
 
-    merge_relationship_between_chunk_and_entities(
-      chunk_with_id=chunk_with_id,
-      nodes_data=nodes_data,
-      graphAccess=graphAccess
-    )
 
-    return nodes_data
+      # Saves graph documents in Neo4j
+      nodes_data = NodeUpdateService.update_graph_documents(
+        graph_document=graph_doc,
+        graphAccess=graphAccess,
+      )
+
+      # logging.info(f"Graph documents: {nodes_data}")
+
+      merge_relationship_between_chunk_and_entities(
+        chunk_with_id=chunk_with_id,
+        nodes_data=nodes_data,
+        graphAccess=graphAccess
+      )
+
+      return nodes_data
+    except Exception as e:
+      logging.exception(f"Error in process_chunks: {e}")
