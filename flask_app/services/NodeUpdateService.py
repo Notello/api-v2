@@ -6,7 +6,7 @@ import concurrent.futures
 from langchain_community.graphs.graph_document import GraphDocument
 
 from flask_app.src.graphDB_dataAccess import graphDBdataAccess
-from flask_app.src.shared.common_fn import load_embedding_model, embed_name
+from flask_app.src.shared.common_fn import init_indexes, load_embedding_model, embed_name
 from flask_app.services.GraphQueryService import GraphQueryService
 from flask_app.services.RunpodService import RunpodService
 from flask_app.services.HelperService import HelperService
@@ -17,9 +17,7 @@ from nltk.stem import WordNetLemmatizer
 
 class NodeUpdateService:
     @staticmethod
-    def update_embeddings(noteId: str, nodes_data) -> None:
-        embeddings, dimension = load_embedding_model()
-
+    def update_node_embeddings(noteId: str, nodes_data, embeddings) -> None:
         nodes_to_update = []
         futures = []
 
@@ -51,25 +49,12 @@ class NodeUpdateService:
         update_result = graphAccess.execute_query(update_query, {'nodes': nodes_to_update, NOTEID: noteId})
         logging.info(f"Updated nodes: {update_result}")
 
-        return dimension
-
     @staticmethod
-    def create_embedding_index(dimension: int) -> None:
-        index_query = f"""
-        CREATE VECTOR INDEX concept_embedding IF NOT EXISTS
-        FOR (n:Concept)
-        ON (n.embedding)
-        OPTIONS {{indexConfig: {{
-        `vector.dimensions`: {dimension},
-        `vector.similarity_function`: 'cosine'
-        }}}}
-        """
-
-        graphAccess = graphDBdataAccess()
-
-        graphAccess.execute_query(index_query)
-
-        logging.info("Created or updated embedding index")
+    def update_embeddings(noteId: str, nodes_data, graphAccess: graphDBdataAccess) -> None:
+        embeddings, dimension = load_embedding_model()
+        init_indexes(graphAccess=graphAccess, embeddings=embeddings, dimension=dimension)
+        NodeUpdateService.update_node_embeddings(noteId=noteId, nodes_data=nodes_data, embeddings=embeddings)
+        
     
     @staticmethod
     def update_graph_documents(
@@ -233,44 +218,34 @@ class NodeUpdateService:
         NODE_QUERY = f"""
         MATCH (n:Concept)
         WHERE '{target_id}' IN n.{id_type}
-        WITH n
-        MATCH (other:Concept)
-        WHERE '{target_id}' IN other.{id_type} AND n.uuid[0] <> other.uuid[0]
+
+        CALL db.index.vector.queryNodes('concept_embedding', {100}, n.embedding) YIELD node AS other, score
+
+        WHERE '{target_id}' IN other.{id_type}
+        AND n.uuid[0] <> other.uuid[0]
         AND (
-            (n.embedding IS NOT NULL AND other.embedding IS NOT NULL AND 
-            gds.similarity.cosine(n.embedding, other.embedding) > {embedding_cutoff}) 
+            (n.embedding IS NOT NULL AND other.embedding IS NOT NULL AND score > {embedding_cutoff})
             OR 
             apoc.text.levenshteinDistance(n.id, other.id) <= {distance}
         )
+
         RETURN DISTINCT n.id AS id, n.uuid AS uuid
         """
 
         logging.info(f"Query: {NODE_QUERY}")
         
         result = tx.run(NODE_QUERY)
-        nodes = [(record["id"], record["uuid"]) for record in result]
-
-        logging.info(f"Nodes found: {nodes}")
-
-        # Filter out None values
-        nodes = [(node_id, uuid) for node_id, uuid in nodes if node_id is not None and uuid is not None]
-
-        if not nodes:
-            logging.warning(f"No valid nodes found for {id_type}: {target_id}")
-            return
 
         root_map: Dict[str, List[str]] = {}
         
-        for node_id, uuid in nodes:
-            try:
-                root = HelperService.get_cleaned_id(node_id)
-            except AttributeError as e:
-                logging.error(f"Error lemmatizing node_id '{node_id}': {str(e)}")
-                root = node_id
-            
-            if root not in root_map:
-                root_map[root] = []
-            root_map[root].extend(uuid)
+        for record in result:
+            node_id = record["id"]
+            node_uuid = record["uuid"]
+            node_id = HelperService.get_cleaned_id(node_id)
+
+            if node_id not in root_map:
+                root_map[node_id] = []
+            root_map[node_id].extend(node_uuid)
 
         logging.info(f"Root map: {root_map}")
 

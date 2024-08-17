@@ -538,16 +538,16 @@ class GraphQueryService():
 
         topic_embedding = embeddings.embed_query(text=topic_name)
 
-        QUERY = """
-        MATCH (n:Concept)
-        WHERE n.embedding IS NOT NULL
-        WITH n, gds.similarity.cosine(n.embedding, $embedding) AS similarity
-        ORDER BY similarity DESC
-        LIMIT 1
-        RETURN {
+        QUERY = f"""
+        CALL db.index.vector.queryNodes('concept_embedding', 1, {topic_embedding}) YIELD node AS n, score
+
+        // Return the result
+        RETURN {{
             uuid: n.uuid[0],
-            id: n.id
-        } AS result
+            id: n.id,
+            similarity: score
+        }} AS result
+        LIMIT 1
         """
 
         result = graph_access.execute_query(

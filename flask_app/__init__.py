@@ -15,7 +15,6 @@ def create_app():
     cors.init_app(app)
 
     Neo4jConnection.initialize()
-    init_indexes()
 
     app.config['MODEL'] = 'gpt-3.5-turbo-0125'
     app.config['UPDATE_GRAPH_CHUNKS_PROCESSED'] = 10

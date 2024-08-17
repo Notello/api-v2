@@ -102,6 +102,7 @@ class Neo4jQueueManager:
             except (ServiceUnavailable, SessionExpired) as e:
                 logging.warning(f"Transaction failed due to service unavailable (attempt {retry_count + 1}): {str(e)}")
                 if retry_count == max_retries - 1:
+                    logging.exception(f"Transaction failed after maximum retries: {str(e)}")
                     raise
             except TransientError as e:
                 if "deadlock" in str(e).lower():
@@ -109,10 +110,11 @@ class Neo4jQueueManager:
                     logging.warning(f"Deadlock detected (attempt {retry_count + 1}). Retrying in {retry_time:.2f} seconds.")
                     time.sleep(retry_time)
                     if retry_count == max_retries - 1:
+                        logging.exception(f"Transaction failed after maximum retries: {str(e)}")
                         raise
                 else:
                     raise
-        
+
         raise Exception("Transaction failed after maximum retries")
 
     @staticmethod

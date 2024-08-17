@@ -8,12 +8,8 @@ from flask_app.constants import GPT_4O_MINI
 from flask_app.src.entities.KnowledgeGraph import KnowledgeGraph
 
 
-def setup_llm(
-    text: str,
-    summary: str
-):
-    
-    system_prompt = f"""
+def setup_llm(text: str, summary: str):
+    system_prompt = """
         - You are a top-tier algorithm designed for extracting information in structured formats to build a detailed knowledge graph. 
         - Your task is to identify as many concepts and entities in the text and relations between them as possible. 
         - You will use the summary of the text provided to you to guide what types of concepts and entities to extract. 
@@ -45,7 +41,7 @@ def setup_llm(
         {text}
     """
 
-    extraction_llm = get_llm(GPT_4O_MINI).with_structured_output(KnowledgeGraph)
+    extraction_llm = get_llm(GPT_4O_MINI).with_structured_output(KnowledgeGraph, include_raw=True)
     extraction_prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
         ("human", user_template),
@@ -55,28 +51,27 @@ def setup_llm(
 
 class CustomKGBuilder:
     @staticmethod
-    def create_knowledge_graph(
-        text: str,
-        summary: str
-    ) -> KnowledgeGraph:
+    def create_knowledge_graph(text: str, summary: str) -> KnowledgeGraph:
         try:
             logging.info("Generating knowledge graph.")
             
-            knowledge_graph = setup_llm(
-                text=text,
-                summary=summary
-            )
+            llm_chain = setup_llm(text=text, summary=summary)
 
             try:
-                result: KnowledgeGraph = knowledge_graph.invoke({})
+                result = llm_chain.invoke({"text": text, "summary": summary})
+                logging.info(f"LLM output: {result}")
 
-                logging.info(f"result: {result}")
+                final_result = KnowledgeGraph.parse_llm_output(result)
+                logging.info(f"Final result: {final_result}")
+
+                return final_result
+
             except Exception as e:
-                logging.exception(f"Error generating knowledge graph: {str(e)}")
-                raise
-
-            return result
+                logging.exception(f"Error processing LLM output: {str(e)}")
+                # Return an empty KnowledgeGraph if there's an error
+                return KnowledgeGraph(nodes=[], relationships=[])
 
         except Exception as e:
             logging.exception(f"Error in create_knowledge_graph: {str(e)}")
-            raise
+            # Return an empty KnowledgeGraph if there's an error
+            return KnowledgeGraph(nodes=[], relationships=[])

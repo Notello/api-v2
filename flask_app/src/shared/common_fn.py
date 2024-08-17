@@ -138,10 +138,7 @@ def clean_nodes(doc: KnowledgeGraph, courseId: str, noteId: str, userId: str):
 
   return output_kg
 
-def init_indexes():
-  graphAccess = graphDBdataAccess()
-  embeddings, dimension = load_embedding_model()
-
+def init_indexes(graphAccess: graphDBdataAccess, embeddings: OpenAIEmbeddings, dimension: int):
   graphAccess.execute_query(f"""CREATE VECTOR INDEX `vector` if not exists for (c:Chunk) on (c.embedding)
                 OPTIONS {{indexConfig: {{
                 `vector.dimensions`: {dimension},
