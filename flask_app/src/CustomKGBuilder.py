@@ -69,7 +69,8 @@ class CustomKGBuilder:
 
             try:
                 result: KnowledgeGraph = knowledge_graph.invoke({})
-                logging.info(f"Generated knowledge graph with {len(result.nodes)} nodes and {len(result.relationships)} relationships.")
+
+                logging.info(f"result: {result}")
             except Exception as e:
                 logging.exception(f"Error generating knowledge graph: {str(e)}")
                 raise

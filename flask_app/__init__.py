@@ -8,8 +8,6 @@ from flask_app.src.shared.common_fn import init_indexes
 from dotenv import load_dotenv
 load_dotenv()
 
-import nltk
-
 def create_app():
     app = Flask(__name__)
 
@@ -18,7 +16,6 @@ def create_app():
 
     Neo4jConnection.initialize()
     init_indexes()
-    nltk.download('wordnet')
 
     app.config['MODEL'] = 'gpt-3.5-turbo-0125'
     app.config['UPDATE_GRAPH_CHUNKS_PROCESSED'] = 10

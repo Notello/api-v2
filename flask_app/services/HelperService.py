@@ -123,3 +123,36 @@ class HelperService:
         logging.info(output.dict())
 
         return output.dict()['content']
+    
+    @staticmethod
+    def get_cleaned_id(id: str) -> str:
+        # Convert to lowercase
+        id = id.lower()
+        
+        # Define regex patterns
+        patterns = [
+            # Remove leading articles and common prepositions
+            (r'^(the|a|an|in|on|at|to|for|of)\s+', ''),
+            
+            # Handle some common irregular verbs
+            (r'\b(am|is|are|was|were)\b', 'be'),
+            (r'\b(has|had)\b', 'have'),
+            (r'\b(does|did)\b', 'do'),
+            (r'\b(goes|went)\b', 'go'),
+            (r'\b(makes|made)\b', 'make'),
+            
+            # Remove common suffixes
+            (r'(s|es|ed|ing|ly|ment|ness|tion|ism)$', ''),
+            
+            # Remove any remaining non-alphanumeric characters
+            (r'[^a-z0-9\s]', ''),
+            
+            # Remove extra whitespace
+            (r'\s+', ' ')
+        ]
+        
+        # Apply all regex patterns
+        for pattern, replacement in patterns:
+            id = re.sub(pattern, replacement, id)
+        
+        return id.strip()

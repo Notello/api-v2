@@ -9,7 +9,7 @@ from flask_app.src.graphDB_dataAccess import graphDBdataAccess
 from flask_app.src.shared.common_fn import load_embedding_model, embed_name
 from flask_app.services.GraphQueryService import GraphQueryService
 from flask_app.services.RunpodService import RunpodService
-from flask_app.src.CustomKGBuilder import KnowledgeGraph
+from flask_app.services.HelperService import HelperService
 from flask_app.services.Neo4jQueueManager import queued_transaction
 from flask_app.constants import COMMUNITY_DETECTION, COURSEID, LOUVAIN, NOTEID, PAGERANK, USERID
 from nltk.stem import WordNetLemmatizer
@@ -259,20 +259,18 @@ class NodeUpdateService:
             logging.warning(f"No valid nodes found for {id_type}: {target_id}")
             return
 
-        # Step 3: Reduce nodes to their lexical root
-        lemmatizer = WordNetLemmatizer()
         root_map: Dict[str, List[str]] = {}
         
         for node_id, uuid in nodes:
             try:
-                root = lemmatizer.lemmatize(node_id)
+                root = HelperService.get_cleaned_id(node_id)
             except AttributeError as e:
                 logging.error(f"Error lemmatizing node_id '{node_id}': {str(e)}")
-                root = node_id  # Use the original node_id if lemmatization fails
+                root = node_id
             
             if root not in root_map:
                 root_map[root] = []
-            root_map[root].extend(uuid)  # Extend instead of append to handle uuid as a list
+            root_map[root].extend(uuid)
 
         logging.info(f"Root map: {root_map}")
 
@@ -299,30 +297,52 @@ class NodeUpdateService:
 
                 root_embeddings[name] = embedding
 
-        # Step 5: Merge nodes with the same root in a single transaction
         MERGE_QUERY = """
-        UNWIND $root_map AS root_entry
+        UNWIND $root_map AS map
         MATCH (n:Concept)
-        WHERE n.uuid[0] IN root_entry.uuids
-        WITH root_entry.root AS new_id, collect(n) AS nodes, root_entry.embedding AS new_embedding
-        CALL apoc.refactor.mergeNodes(nodes, {
-            properties: {
-                noteId: "combine",
-                courseId: "combine",
-                userId: "combine",
-                uuid: "combine",
-                embedding: "discard"
-            },
-            mergeRels: true
-        })
+        WHERE ANY(uuid IN n.uuid WHERE uuid IN map.uuids)
+        WITH map, COLLECT(n) AS nodes
+
+        // Collect all properties from original nodes before merging
+        WITH map, nodes,
+            [node IN nodes | node.noteId] AS allNoteIds,
+            [node IN nodes | node.userId] AS allUserIds,
+            [node IN nodes | node.courseId] AS allCourseIds,
+            [node IN nodes | node.uuid] AS allUuids
+
+        CALL apoc.merge.node(['Concept'], {id: map.root}, {}) YIELD node AS mergedNode
+
+        WITH map, nodes, mergedNode, allNoteIds, allUserIds, allCourseIds, allUuids
+        CALL apoc.refactor.mergeNodes(nodes + mergedNode, {properties: "combine", mergeRels: true})
         YIELD node
-        SET node.id = new_id, node.embedding = new_embedding
-        RETURN count(node) AS merged_count
+
+        // Set properties on merged node
+        SET node = apoc.map.removeKeys(node, ['id', 'userId', 'noteId', 'courseId', 'uuid', 'embedding']),
+            node.id = map.root,
+            node.userId = apoc.coll.toSet(apoc.coll.flatten(allUserIds)),
+            node.noteId = apoc.coll.toSet(apoc.coll.flatten(allNoteIds)),
+            node.courseId = apoc.coll.toSet(apoc.coll.flatten(allCourseIds)),
+            node.uuid = apoc.coll.toSet(apoc.coll.flatten(allUuids)),
+            node.embedding = map.embedding
+
+        RETURN count(node) AS mergedCount
         """
-        
-        root_map_list = [{"root": root, "uuids": uuids, "embedding": root_embeddings[root]} for root, uuids in root_map.items()]
+
+        root_map_list = [
+            {
+                "root": root[0] if isinstance(root, list) else root, 
+                "uuids": uuids, 
+                "embedding": root_embeddings[root if isinstance(root, str) else root[0]]
+            } 
+            for root, uuids in root_map.items()
+        ]
+
+        for root, uuids in root_map.items():
+            logging.info(f"Merging nodes for root: {root}")
+            logging.info(f"UUIDs: {uuids}")
+
         result = tx.run(MERGE_QUERY, root_map=root_map_list)
-        merged_count = result.single()["merged_count"]
+        merged_count = result.single()["mergedCount"]
 
         logging.info(f"Node merging process completed. Merged {merged_count} node groups.")
         end = datetime.now()
