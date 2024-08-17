@@ -20,7 +20,7 @@ chat_room_parser.add_argument('message', type=str, required=True, help='message'
 chat_room_parser.add_argument('bot_reply', type=str, required=False, help='answer, chat, or None')
 
 @api.expect(chat_room_parser)
-@api.route('/')
+@api.route('/send')
 class Chat(Resource):
     @api.doc(security="jsonWebToken")
     @token_required
