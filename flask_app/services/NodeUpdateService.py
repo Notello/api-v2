@@ -250,29 +250,8 @@ class NodeUpdateService:
             logging.warning("No nodes to merge after processing")
             return
         
-        # embeddings, dimension = load_embedding_model()
-
-        # futures = []
-        # root_embeddings = {}
-
-        # with ThreadPoolExecutor(max_workers=200) as executor:
-        #     for node, keys in root_map.items():
-        #         if keys['count'] > 1:
-        #             logging.info(f"Embedding node: {node} with {keys['count']} uuids")
-        #             futures.append(
-        #                 executor.submit(
-        #                     embed_name,
-        #                     name=node,
-        #                     embeddings=embeddings
-        #                 ))
-
-        #     for future in concurrent.futures.as_completed(futures):
-        #         name, embedding = future.result()
-
-        #         root_embeddings[name] = embedding
-
         MERGE_QUERY = """
-        UNWIND $root_map_list AS map
+        WITH $root_map AS map
         MATCH (n:Concept)
         WHERE ANY(uuid IN n.uuid WHERE uuid IN map.uuids)
         WITH map, COLLECT(n) AS nodes
@@ -284,13 +263,9 @@ class NodeUpdateService:
             [node IN nodes | node.courseId] AS allCourseIds,
             [node IN nodes | node.uuid] AS allUuids
 
-        // Create or match the root node
-        MERGE (mergedNode:Concept {id: map.root})
+        CALL apoc.merge.node(['Concept'], {id: map.root}, {}) YIELD node AS mergedNode
 
         WITH map, nodes, mergedNode, allNoteIds, allUserIds, allCourseIds, allUuids
-        WHERE size(nodes) > 0
-
-        // Merge relationships and properties
         CALL apoc.refactor.mergeNodes(nodes + mergedNode, {properties: "combine", mergeRels: true})
         YIELD node
 
@@ -316,7 +291,10 @@ class NodeUpdateService:
 
         start = datetime.now()
 
-        result = tx.run(MERGE_QUERY, root_map_list=root_map_list)
+        for root_map in root_map_list:
+            logging.info(f"Merging nodes for root: {root_map['root']}")
+            logging.info(f"UUIDs: len: {root_map['count']}")
+            result = tx.run(MERGE_QUERY, root_map=root_map)
 
         end = datetime.now()
         logging.info(f"Root map merging took: {end - start}")
