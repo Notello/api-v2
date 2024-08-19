@@ -147,6 +147,7 @@ class GraphCreationService:
             graphAccess.update_source_node(sourceNode(noteId = noteId, mergeStatus = "error"))
             graphAccess.update_source_node(sourceNode(noteId = noteId, comStatus = "error"))
             graphAccess.update_source_node(sourceNode(noteId = noteId, pagerankStatus = "error"))
+            graphAccess.update_source_node(sourceNode(noteId = noteId, errorMessage = str(e)))
             SupabaseService.update_note(noteId=noteId, key='graphStatus', value='error')
 
     @staticmethod

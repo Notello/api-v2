@@ -50,9 +50,8 @@ class NodeUpdateService:
         logging.info(f"Updated nodes: {update_result}")
 
     @staticmethod
-    def update_embeddings(noteId: str, nodes_data, graphAccess: graphDBdataAccess) -> None:
+    def update_embeddings(noteId: str, nodes_data) -> None:
         embeddings, dimension = load_embedding_model()
-        init_indexes(graphAccess=graphAccess, embeddings=embeddings, dimension=dimension)
         NodeUpdateService.update_node_embeddings(noteId=noteId, nodes_data=nodes_data, embeddings=embeddings)
         
     
@@ -209,71 +208,71 @@ class NodeUpdateService:
     
     @staticmethod
     @queued_transaction(task_type='merge')
-    def merge_similar_nodes(tx, id_type: str, target_id: str, note_id: str, distance: int = 2, embedding_cutoff: float = 0.95) -> None:
+    def merge_similar_nodes(tx, id_type: str, target_id: str, note_id: str, distance: int = 2, embedding_cutoff: float = 0.97) -> None:
         logging.info(f"Merging similar nodes for {id_type}: {target_id}")
-        start = datetime.now()
-        logging.info(f"Starting at {start}")
+        start_total = datetime.now()
+        logging.info(f"Starting at {start_total}")
 
-        # Step 1: Identify all nodes with the given conditions
         NODE_QUERY = f"""
         MATCH (n:Concept)
         WHERE '{target_id}' IN n.{id_type}
-
-        CALL db.index.vector.queryNodes('concept_embedding', {100}, n.embedding) YIELD node AS other, score
-
-        WHERE '{target_id}' IN other.{id_type}
-        AND n.uuid[0] <> other.uuid[0]
-        AND (
-            (n.embedding IS NOT NULL AND other.embedding IS NOT NULL AND score > {embedding_cutoff})
-            OR 
-            apoc.text.levenshteinDistance(n.id, other.id) <= {distance}
-        )
-
-        RETURN DISTINCT n.id AS id, n.uuid AS uuid
+        return n.id as id, n.uuid as uuid
         """
 
         logging.info(f"Query: {NODE_QUERY}")
+        start = datetime.now()
         
         result = tx.run(NODE_QUERY)
 
+        end = datetime.now()
+        logging.info(f"Query took: {end - start}")
+
+        logging.info(f"query done")
+
         root_map: Dict[str, List[str]] = {}
         
+        start = datetime.now()
+
         for record in result:
             node_id = record["id"]
             node_uuid = record["uuid"]
             node_id = HelperService.get_cleaned_id(node_id)
 
             if node_id not in root_map:
-                root_map[node_id] = []
-            root_map[node_id].extend(node_uuid)
+                root_map[node_id] = {"uuids": [], "count": 0}
+            root_map[node_id]['uuids'].extend(node_uuid)
+            root_map[node_id]['count'] += 1
 
-        logging.info(f"Root map: {root_map}")
+        end = datetime.now()
+        logging.info(f"Root map took: {end - start}")
 
         if not root_map:
             logging.warning("No nodes to merge after processing")
             return
         
-        embeddings, dimension = load_embedding_model()
+        # embeddings, dimension = load_embedding_model()
 
-        futures = []
-        root_embeddings = {}
+        # futures = []
+        # root_embeddings = {}
 
-        with ThreadPoolExecutor(max_workers=200) as executor:
-            for node in root_map.keys():
-                futures.append(
-                    executor.submit(
-                        embed_name,
-                        name=node,
-                        embeddings=embeddings
-                    ))
+        # with ThreadPoolExecutor(max_workers=200) as executor:
+        #     for node, keys in root_map.items():
+        #         if keys['count'] > 1:
+        #             logging.info(f"Embedding node: {node} with {keys['count']} uuids")
+        #             futures.append(
+        #                 executor.submit(
+        #                     embed_name,
+        #                     name=node,
+        #                     embeddings=embeddings
+        #                 ))
 
-            for future in concurrent.futures.as_completed(futures):
-                name, embedding = future.result()
+        #     for future in concurrent.futures.as_completed(futures):
+        #         name, embedding = future.result()
 
-                root_embeddings[name] = embedding
+        #         root_embeddings[name] = embedding
 
         MERGE_QUERY = """
-        UNWIND $root_map AS map
+        UNWIND $root_map_list AS map
         MATCH (n:Concept)
         WHERE ANY(uuid IN n.uuid WHERE uuid IN map.uuids)
         WITH map, COLLECT(n) AS nodes
@@ -285,9 +284,13 @@ class NodeUpdateService:
             [node IN nodes | node.courseId] AS allCourseIds,
             [node IN nodes | node.uuid] AS allUuids
 
-        CALL apoc.merge.node(['Concept'], {id: map.root}, {}) YIELD node AS mergedNode
+        // Create or match the root node
+        MERGE (mergedNode:Concept {id: map.root})
 
         WITH map, nodes, mergedNode, allNoteIds, allUserIds, allCourseIds, allUuids
+        WHERE size(nodes) > 0
+
+        // Merge relationships and properties
         CALL apoc.refactor.mergeNodes(nodes + mergedNode, {properties: "combine", mergeRels: true})
         YIELD node
 
@@ -297,8 +300,7 @@ class NodeUpdateService:
             node.userId = apoc.coll.toSet(apoc.coll.flatten(allUserIds)),
             node.noteId = apoc.coll.toSet(apoc.coll.flatten(allNoteIds)),
             node.courseId = apoc.coll.toSet(apoc.coll.flatten(allCourseIds)),
-            node.uuid = apoc.coll.toSet(apoc.coll.flatten(allUuids)),
-            node.embedding = map.embedding
+            node.uuid = apoc.coll.toSet(apoc.coll.flatten(allUuids))
 
         RETURN count(node) AS mergedCount
         """
@@ -306,20 +308,20 @@ class NodeUpdateService:
         root_map_list = [
             {
                 "root": root[0] if isinstance(root, list) else root, 
-                "uuids": uuids, 
-                "embedding": root_embeddings[root if isinstance(root, str) else root[0]]
+                "uuids": keys['uuids'],
+                "count": keys['count'],
             } 
-            for root, uuids in root_map.items()
+            for root, keys in root_map.items() if keys['count'] > 1
         ]
 
-        for root, uuids in root_map.items():
-            logging.info(f"Merging nodes for root: {root}")
-            logging.info(f"UUIDs: {uuids}")
+        start = datetime.now()
 
-        result = tx.run(MERGE_QUERY, root_map=root_map_list)
-        merged_count = result.single()["mergedCount"]
+        result = tx.run(MERGE_QUERY, root_map_list=root_map_list)
 
-        logging.info(f"Node merging process completed. Merged {merged_count} node groups.")
         end = datetime.now()
-        logging.info(f"Ending at {end}")
-        logging.info(f"Query took: {end - start}")
+        logging.info(f"Root map merging took: {end - start}")
+
+        logging.info(f"Node merging process completed.")
+        end_total = datetime.now()
+        logging.info(f"Ending at {end_total}")
+        logging.info(f"Query took: {end_total - start_total}")

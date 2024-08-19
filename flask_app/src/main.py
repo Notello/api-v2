@@ -67,7 +67,7 @@ def processing_source(
             for i, future in enumerate(concurrent.futures.as_completed(futures)):
                 logging.info(f"Future {i} is done")
                 result = future.result()
-                nodes_data.extend(result)
+                nodes_data.extend(result if result is not None else [])
                 SupabaseService.update_note(noteId, 'graphStatus', str(uuid4()))
     except Exception as e:
         logging.exception(f"Error in processing chunks: {e}")
@@ -76,9 +76,9 @@ def processing_source(
     end_time = datetime.now()
     processed_time = end_time - start_time
     
-    NodeUpdateService.update_embeddings(noteId=noteId, nodes_data=nodes_data, graphAccess=graphAccess)
+    # NodeUpdateService.update_embeddings(noteId=noteId, nodes_data=nodes_data)
 
-    NodeUpdateService.merge_similar_nodes(id_type=NOTEID, target_id=noteId, note_id=noteId)
+    # NodeUpdateService.merge_similar_nodes(id_type=NOTEID, target_id=noteId, note_id=noteId)
 
     NodeUpdateService.update_communities_for_param(id_type=NOTEID, target_id=noteId, note_id=noteId)
     NodeUpdateService.update_page_rank(id_type=NOTEID, target_id=noteId, note_id=noteId)
