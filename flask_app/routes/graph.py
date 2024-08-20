@@ -8,8 +8,9 @@ from flask_app.services.HelperService import HelperService
 from flask_app.services.SupabaseService import SupabaseService
 from flask_app.constants import COURSEID
 from flask_app.routes.middleware import token_required
+from flask_app.routes.auth import authorizations
 
-api = Namespace('graph')
+api = Namespace('graph', authorizations=authorizations)
 
 @api.route('/get-graph-for/<string:param>/<string:id>')
 class GetGraphFor(Resource):

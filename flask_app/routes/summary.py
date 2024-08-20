@@ -6,11 +6,11 @@ from flask_app.services.HelperService import HelperService
 from flask_app.services.GraphQueryService import GraphQueryService
 from flask_app.services.SummaryService import SummaryService
 from flask_app.services.RatelimitService import RatelimitService
-
+from flask_app.routes.auth import authorizations
 from flask_app.routes.middleware import token_required
 from flask_app.constants import COURSEID, NOTE_SUMMARY, NOTEID, TOPIC_SUMMARY, USERID, NOTE, getSummaryKey
 
-api = Namespace('summary')
+api = Namespace('summary', authorizations=authorizations)
 
 
 create_topic_summary_parser = api.parser()

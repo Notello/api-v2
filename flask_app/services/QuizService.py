@@ -7,7 +7,6 @@ import numpy as np
 
 from langchain_core.pydantic_v1 import BaseModel, Field
 from langchain_core.prompts import ChatPromptTemplate
-from retry import retry
 
 from flask_app.services.GraphQueryService import GraphQueryService
 from flask_app.services.SupabaseService import SupabaseService
@@ -105,7 +104,6 @@ def setup_llm(
     
     return extraction_prompt | extraction_llm
 
-@retry(tries=3, delay=2)
 def generate_quiz_questions(
     source: str,
     target: str,
@@ -152,7 +150,6 @@ class QuizService():
         
         rateLimitId = RatelimitService.add_rate_limit(userId, QUIZ, numQuestions)
 
-    
         try:
             id = noteId if specifierParam == NOTEID else courseId
 

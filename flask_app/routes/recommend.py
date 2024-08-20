@@ -2,19 +2,10 @@ import logging
 from flask_restx import Namespace, Resource
 from flask import request
 
-from flask_app.services.QuizService import QuizService
-from flask_app.services.HelperService import HelperService
-from flask_app.services.GraphQueryService import GraphQueryService
-from flask_app.services.SupabaseService import SupabaseService
-from flask_app.services.ContextAwareThread import ContextAwareThread
-from flask_app.services.RatelimitService import RatelimitService
-from flask_app.services.AuthService import AuthService
-from flask_app.services.GraphCreationService import GraphCreationService
 from flask_app.services.RecommendationService import RecommendationService
-
 from flask_app.routes.middleware import token_required
 from flask_app.routes.auth import authorizations
-from flask_app.constants import COURSEID, NOTEID, QUIZ, USERID, QUIZID
+from flask_app.constants import COURSEID
 
 logging.basicConfig(format='%(asctime)s - %(message)s', level='INFO')
 

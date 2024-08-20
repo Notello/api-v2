@@ -82,10 +82,9 @@ async def simulate_concurrent_uploads(folder_path, base_url, user_id, course_id,
 # Usage
 base_url = 'https://api.notello.dev'  # Adjust this to your actual base URL
 folder_path = 'bible'
-user_id = '67f6b966-5ca3-4710-a80e-2e6c4fdabbf8'
 course_id = '62ef68a3-7f1d-452c-93d4-136daf5f137b'
 ingest_type = 'create'
 email = 'gollanstrength@gmail.com'
 password = 'password123'  # Replace with actual password
 
-asyncio.run(simulate_concurrent_uploads(folder_path, base_url, user_id, course_id, ingest_type, email, password, num_users=200))
+asyncio.run(simulate_concurrent_uploads(folder_path, base_url, course_id, ingest_type, email, password, num_users=200))

@@ -7,7 +7,7 @@ from typing import Dict, List
 from supabase import Client, create_client
 from flask_app.services.HelperService import HelperService
 
-from flask_app.constants import CHAT_MESSAGE_TABLE_NAME, CHAT_TABLE_NAME, COURSEID, ID, COLLEGE_TABLE_NAME, NOTE_TABLE_NAME, NOTEID, PROFILE_TABLE_NAME, QUIZ_TABLE_NAME, RATE_LIMIT_TABLE_NAME, RATE_LIMIT_VALUES_TABLE_NAME, SUPAID, TOPIC_SUMMARY_TABLE_NAME, USERID, COURSE_TABLE_NAME
+from flask_app.constants import *
 
 supabase: Client = create_client(os.getenv('SUPABASE_URL'), os.getenv('SUPABASE_SERVICE_KEY'))
 
@@ -132,6 +132,7 @@ class SupabaseService:
             COURSEID: courseId,
             USERID: userId,
             'num_questions': numQuestions,
+            'difficulty': difficulty,
         }).execute().data
 
         if len(quiz) == 0:
@@ -142,6 +143,30 @@ class SupabaseService:
         logging.info(f'Quiz created successfully for courseId: {courseId}, userId: {userId}, noteId: {noteId}')
 
         return quizId
+    
+    @staticmethod
+    def create_flashcards(
+        courseId: str, 
+        noteId: str, 
+        userId: str
+    ):
+        if not HelperService.validate_all_uuid4(courseId, userId):
+            logging.error(f'Invalid courseId: {courseId}, userId: {userId}')
+            return None
+
+        flashcard = supabase.table(FLASHCARD_TABLE_NAME).insert({
+            NOTEID: noteId,
+            COURSEID: courseId,
+            USERID: userId,
+        }).execute().data
+
+        if len(flashcard) == 0:
+            return None
+
+        logging.info(f'Flashcard created successfully for courseId: {courseId}, userId: {userId}, noteId: {noteId}')
+
+        return flashcard[0]['id']
+
     
     @staticmethod
     def update_quiz(
@@ -275,7 +300,7 @@ class SupabaseService:
         now = datetime.now(timezone.utc)
 
         result = supabase.table(RATE_LIMIT_TABLE_NAME)\
-            .select('created_at, count')\
+            .select('created_at, count, userType')\
             .eq('type', str(type))\
             .eq('userId', str(userId))\
             .gte('created_at', now - timedelta(days=30))\

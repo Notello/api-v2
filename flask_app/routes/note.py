@@ -9,12 +9,11 @@ from flask_app.services.SupabaseService import SupabaseService
 from flask_app.services.AuthService import AuthService
 from flask_app.services.ValidationService import ValidationService
 from flask_app.services.GraphDeletionService import GraphDeletionService
-
-
 from flask_app.constants import COURSEID, NOTE, NOTEID, USERID
 from flask_app.routes.middleware import token_required
+from flask_app.routes.auth import authorizations
 
-api = Namespace('note')
+api = Namespace('note', authorizations=authorizations)
 
 @api.route('/delete-note/<string:note_id>')
 class Note(Resource):

@@ -18,7 +18,6 @@ class Login(Resource):
     def get(self, email, password):
         try:
             user, session = SupabaseService.get_user(email, password)
-            print(session)
             return session[1].access_token
         except Exception as e:
             return {'message': str(e)}, 500

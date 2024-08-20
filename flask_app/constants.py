@@ -15,6 +15,7 @@ TOPIC_SUMMARY_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_topic_summary"
 RATE_LIMIT_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_rate_limit"
 RATE_LIMIT_VALUES_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_rate_limit_values"
 COLLEGE_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_college"
+FLASHCARD_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_flashcard"
 
 getGraphKey = lambda id: f"graph:{id}"
 getSummaryKey = lambda id: f"summary:{id}"
@@ -64,7 +65,7 @@ OPENAI_MODELS = [
 DEFAULT_COMMUNITIES = 3
 
 SUPER_ADMIN_EMAILS = ["aidangollan42@gmail.com", "gollanstrength@gmail.com", "alshaik8@msu.edu", "malshaik.me@gmail.com"]
-SUPER_ADMIN_USER_IDS = ['cbd639d0-ff29-46ee-9042-2051d3de71fd']
+SUPER_ADMIN_USER_IDS = ['cbd639d0-ff29-46ee-9042-2051d3de71fd', "62ef68a3-7f1d-452c-93d4-136daf5f137b"]
 
 ALGORITHM = "algorithm"
 PAGERANK = "pagerank"
@@ -75,7 +76,7 @@ NODES = "nodes"
 PARAMS = "params"
 
 
-K8S_VER = '2.14'
+K8S_VER = '2.16'
 
 class ProxyRotator:
     def __init__(self):
