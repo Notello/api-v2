@@ -13,6 +13,7 @@ from flask_app.services.RatelimitService import RatelimitService
 from flask_app.services.SimilarityService import SimilarityService
 from flask_app.services.GraphQueryService import GraphQueryService
 from flask_app.services.HelperService import HelperService
+from flask_app.extensions import r
 
 from flask_app.src.main import processing_source
 from flask_app.constants import COURSEID, NOTEID, USERID, GPT_4O_MINI, getGraphKey
@@ -141,6 +142,19 @@ class GraphCreationService:
                 noteId=noteId,
                 summary=summary
                 )
+            
+            nodes, relationships = GraphQueryService.get_graph_for_param(key=NOTEID, value=noteId)
+
+            logging.info(f"Setting graph for noteId: {noteId}")
+
+            r.set(getGraphKey(noteId), json.dumps({'nodes': nodes, 'relationships': relationships}))
+
+            nodes, relationships = GraphQueryService.get_graph_for_param(key=COURSEID, value=courseId)
+
+            logging.info(f"Setting graph for courseId: {courseId}")
+
+            r.set(getGraphKey(courseId), json.dumps({'nodes': nodes, 'relationships': relationships}))
+
         except Exception as e:
             logging.exception(f'Exception in create_source_node_graph: {e}')
             RatelimitService.remove_rate_limit(rateLimitId)

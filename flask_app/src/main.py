@@ -76,7 +76,7 @@ def processing_source(
     end_time = datetime.now()
     processed_time = end_time - start_time
     
-    # NodeUpdateService.update_embeddings(noteId=noteId, nodes_data=nodes_data)
+    NodeUpdateService.update_embeddings(noteId=noteId, nodes_data=nodes_data)
 
     # NodeUpdateService.merge_similar_nodes(id_type=NOTEID, target_id=noteId, note_id=noteId)
 

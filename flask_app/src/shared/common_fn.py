@@ -160,9 +160,4 @@ def init_indexes():
         }}}}
         """)
   
-  graphAccess.execute_query(f"""
-        CREATE FULLTEXT INDEX concept_id_index IF NOT EXISTS
-        FOR (n:Concept) ON EACH [n.id]
-        """)
-  
   logging.info("Created or updated concept embedding index")

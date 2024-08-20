@@ -135,7 +135,7 @@ class GraphQueryService():
         WITH c, rand() AS r
         ORDER BY r
         LIMIT {num_topics}
-        RETURN c.id AS id, c.uuid AS uuid
+        RETURN c.id AS id, c.uuid[0] AS uuid
         """
         
         result = graphAccess.execute_query(query=QUERY)
@@ -157,7 +157,7 @@ class GraphQueryService():
             random_topics = GraphQueryService.get_random_topics(param=param, id=id, num_topics=num_rels)
             if random_topics is None:
                 return None
-            topics = [topic['id'] for topic in random_topics]
+            topics = [topic['uuid'] for topic in random_topics]
         
         logging.info(f"Generating topic graph for topics {topics}")
         

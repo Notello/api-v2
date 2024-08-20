@@ -58,7 +58,10 @@ class GenerateQuiz(Resource):
             difficulty = args.get('difficulty', 3)
             numQuestions = args.get('numQuestions', 5)
             topics = args.get('topics', None)
-            topics = topics.split(',') if topics is not None else []
+
+            logging.info(f"Topics: {topics}")
+
+            topics = topics.split(',') if topics else []
             reqUserId = g.user_id
 
             logging.info(f"Generate quiz for userId: {userId}, courseId: {courseId}, noteId: {noteId}, specifierParam: {specifierParam}, difficulty: {difficulty}, numQuestions: {numQuestions}, topics: {topics}")

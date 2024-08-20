@@ -142,7 +142,7 @@ class HelperService:
             (r'\b(makes|made)\b', 'make'),
             
             # Remove common suffixes
-            (r'(s|es|ed|ing|ly|ment|ness|tion|ism)$', ''),
+            (r'(s|es|ed|ing)$', ''),
             
             # Remove any remaining non-alphanumeric characters
             (r'[^a-z0-9\s]', ''),

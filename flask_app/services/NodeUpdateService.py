@@ -250,6 +250,27 @@ class NodeUpdateService:
             logging.warning("No nodes to merge after processing")
             return
         
+        embeddings, dimension = load_embedding_model()
+
+        futures = []
+        root_embeddings = {}
+
+        with ThreadPoolExecutor(max_workers=200) as executor:
+            for node, keys in root_map.items():
+                if keys['count'] > 1:
+                    logging.info(f"Embedding node: {node} with {keys['count']} uuids")
+                    futures.append(
+                        executor.submit(
+                            embed_name,
+                            name=node,
+                            embeddings=embeddings
+                        ))
+
+            for future in concurrent.futures.as_completed(futures):
+                name, embedding = future.result()
+
+                root_embeddings[name] = embedding
+
         MERGE_QUERY = """
         WITH $root_map AS map
         MATCH (n:Concept)
@@ -275,7 +296,8 @@ class NodeUpdateService:
             node.userId = apoc.coll.toSet(apoc.coll.flatten(allUserIds)),
             node.noteId = apoc.coll.toSet(apoc.coll.flatten(allNoteIds)),
             node.courseId = apoc.coll.toSet(apoc.coll.flatten(allCourseIds)),
-            node.uuid = apoc.coll.toSet(apoc.coll.flatten(allUuids))
+            node.uuid = apoc.coll.toSet(apoc.coll.flatten(allUuids)),
+            node.embedding = map.embedding
 
         RETURN count(node) AS mergedCount
         """
@@ -285,6 +307,7 @@ class NodeUpdateService:
                 "root": root[0] if isinstance(root, list) else root, 
                 "uuids": keys['uuids'],
                 "count": keys['count'],
+                "embedding": root_embeddings[root if isinstance(root, str) else root[0]]
             } 
             for root, keys in root_map.items() if keys['count'] > 1
         ]
