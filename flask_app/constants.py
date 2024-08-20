@@ -73,7 +73,7 @@ NODES = "nodes"
 PARAMS = "params"
 
 
-K8S_VER = '2.12'
+K8S_VER = '2.14'
 
 proxy_info = {
     'host': 'gate.smartproxy.com',
