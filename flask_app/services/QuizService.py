@@ -14,7 +14,7 @@ from flask_app.services.SupabaseService import SupabaseService
 from flask_app.services.GraphCreationService import GraphCreationService
 from flask_app.services.RatelimitService import RatelimitService
 from flask_app.src.shared.common_fn import get_llm
-from flask_app.constants import COURSEID, GPT_4O_MINI, NOTEID, USERID
+from flask_app.constants import COURSEID, GPT_4O_MINI, NOTEID, QUIZ, USERID
 
 logger = logging.getLogger(__name__)
 
@@ -148,9 +148,11 @@ class QuizService():
                       difficulty=None,
                       numQuestions=None,
                       specifierParam=None,
-                      rateLimitId=None
                       ):
         
+        rateLimitId = RatelimitService.add_rate_limit(userId, QUIZ, numQuestions)
+
+    
         try:
             id = noteId if specifierParam == NOTEID else courseId
 

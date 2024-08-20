@@ -16,7 +16,7 @@ from flask_app.services.HelperService import HelperService
 from flask_app.extensions import r
 
 from flask_app.src.main import processing_source
-from flask_app.constants import COURSEID, NOTEID, USERID, GPT_4O_MINI, getGraphKey
+from flask_app.constants import COURSEID, NOTE, NOTEID, USERID, GPT_4O_MINI, getGraphKey
 
 class GraphCreationService:
     @staticmethod
@@ -51,10 +51,11 @@ class GraphCreationService:
         courseId: str,
         userId: str,
         rawText: str,
-        fileName: str,
-        rateLimitId: str
+        fileName: str
     ) -> None:
-            
+        
+        rateLimitId = RatelimitService.add_rate_limit(userId, NOTE, 1)
+
         try:
             chunks = ChunkService.get_text_chunks(rawText)
     

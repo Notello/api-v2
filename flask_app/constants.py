@@ -1,4 +1,5 @@
 import os
+import random
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -63,6 +64,7 @@ OPENAI_MODELS = [
 DEFAULT_COMMUNITIES = 3
 
 SUPER_ADMIN_EMAILS = ["aidangollan42@gmail.com", "gollanstrength@gmail.com", "alshaik8@msu.edu", "malshaik.me@gmail.com"]
+SUPER_ADMIN_USER_IDS = ['cbd639d0-ff29-46ee-9042-2051d3de71fd']
 
 ALGORITHM = "algorithm"
 PAGERANK = "pagerank"
@@ -75,16 +77,27 @@ PARAMS = "params"
 
 K8S_VER = '2.14'
 
-proxy_info = {
-    'host': 'gate.smartproxy.com',
-    'port': 10001,
-    'user': 'spcikaf7mg',
-    'pass': 'yudB6=zIeGSg19glb7'
-}
+class ProxyRotator:
+    def __init__(self):
+        self.base_port = 10000
+        self.current_port_index = random.randint(0, 9)
 
-proxy_url = f"http://{proxy_info['user']}:{proxy_info['pass']}@{proxy_info['host']}:{proxy_info['port']}"
+    def get_proxy_info(self):
+        proxy_port = self.base_port + self.current_port_index
 
-proxy = {
-    'http': proxy_url,
-    'https': proxy_url
-}
+        proxy_info = {
+            'host': 'gate.smartproxy.com',
+            'port': proxy_port,
+            'user': 'spcikaf7mg',
+            'pass': 'yudB6=zIeGSg19glb7'
+        }
+
+        proxy_url = f"http://{proxy_info['user']}:{proxy_info['pass']}@{proxy_info['host']}:{proxy_info['port']}"
+
+        return {
+            'http': proxy_url,
+            'https': proxy_url
+        }
+
+    def rotate_proxy_port(self):
+        self.current_port_index = (self.current_port_index + 1) % 10

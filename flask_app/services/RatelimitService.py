@@ -1,5 +1,7 @@
-from datetime import datetime, timedelta, UTC
+from datetime import datetime, timedelta, timezone
 import logging
+
+from flask import g
 
 from flask_app.services.SupabaseService import SupabaseService
 from flask_app.services.HelperService import HelperService
@@ -8,11 +10,11 @@ from flask_app.services.AuthService import AuthService
 class RatelimitService():
 
     @staticmethod
-    def sort_into_time_buckets(rate_limits):
+    def sort_into_time_buckets(rate_limits, user_type):
         if not rate_limits:
             return {'monthly': 0, 'weekly': 0, 'daily': 0, 'minute': 0}
         
-        now = datetime.now(UTC)
+        now = datetime.now(timezone.utc)
         month_start = now - timedelta(days=30)
         week_start = now - timedelta(days=7)
         day_start = now - timedelta(hours=24)
@@ -24,13 +26,13 @@ class RatelimitService():
         logging.info(f"now: {now}")
 
         for item in rate_limits:
-            item['created_at'] = datetime.fromisoformat(item['created_at']).replace(tzinfo=UTC)
+            item['created_at'] = datetime.fromisoformat(item['created_at']).replace(tzinfo=timezone.utc)
 
         # Calculate counts for each time period
-        monthly_count = sum(item['count'] for item in rate_limits if item['created_at'] >= month_start)
-        weekly_count = sum(item['count'] for item in rate_limits if item['created_at'] >= week_start)
-        daily_count = sum(item['count'] for item in rate_limits if item['created_at'] >= day_start)
-        minute_count = sum(item['count'] for item in rate_limits if item['created_at'] >= minute_start)
+        monthly_count = sum(item['count'] for item in rate_limits if item['created_at'] >= month_start and item['userType'] == user_type)
+        weekly_count = sum(item['count'] for item in rate_limits if item['created_at'] >= week_start and item['userType'] == user_type)
+        daily_count = sum(item['count'] for item in rate_limits if item['created_at'] >= day_start and item['userType'] == user_type)
+        minute_count = sum(item['count'] for item in rate_limits if item['created_at'] >= minute_start and item['userType'] == user_type)
 
         return {
             'monthly': monthly_count,
@@ -47,18 +49,12 @@ class RatelimitService():
         try:
             user_type = SupabaseService.get_user_type(userId=userId)
 
-            current_usage = SupabaseService.get_rate_limit(userId=userId, type=type, userType=user_type)
+            current_usage = SupabaseService.get_rate_limit(userId=userId, type=type)
 
-            usage_dict = RatelimitService.sort_into_time_buckets(rate_limits=current_usage)
+            usage_dict = RatelimitService.sort_into_time_buckets(rate_limits=current_usage, user_type=user_type)
 
-            rate_limits = SupabaseService.get_rate_limit_values(type=type, userType=user_type)
-
-            if not rate_limits:
-                logging.error(f'No rate limits found for userId: {userId}, rate_limits: {rate_limits}')
-                return True
-            
-            rate_limits_dict = rate_limits[0]
-            
+            rate_limits_dict = g.ratelimit[type][user_type]
+                        
             logging.info(f'Usage dict: {usage_dict}')
             logging.info(f'Rate limits: {rate_limits_dict}')
             
@@ -103,3 +99,20 @@ class RatelimitService():
         except Exception as e:
             logging.exception(f'Exception in remove_rate_limit wuth rateLimitId: {rateLimitId}, Exception: {e}')
             return None
+        
+    @staticmethod
+    def construct_rate_limits_dict(rate_limits):
+        rate_limits_dict = {}
+
+        for item in rate_limits:
+            if not rate_limits_dict.get(item['type']):
+                rate_limits_dict[item['type']] = {}
+
+            rate_limits_dict[item['type']][item['userType']] = {
+                'monthly': item['monthly'],
+                'weekly': item['weekly'],
+                'daily': item['daily'],
+                'minute': item['minute']
+            }
+
+        return rate_limits_dict

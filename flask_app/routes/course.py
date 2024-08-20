@@ -1,7 +1,6 @@
 import logging
 from flask_restx import Namespace, Resource
-from flask import g
-
+from flask import request
 from flask_app.services.SupabaseService import SupabaseService
 from flask_app.services.GraphDeletionService import GraphDeletionService
 from flask_app.services.AuthService import AuthService
@@ -16,7 +15,7 @@ class Course(Resource):
     @token_required
     def get(self, course_id):
         try:
-            userId = g.user_id
+            userId = request.user_id
 
             if not AuthService.can_edit_course(userId, course_id):
                 logging.error(f"User {userId} is not authorized to delete course {course_id}")

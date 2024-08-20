@@ -1,6 +1,6 @@
 import logging
 import os
-from flask import request, g
+from flask import request
 from supabase import create_client, Client
 from functools import wraps
 from flask_restx import abort
@@ -11,7 +11,6 @@ env_type = os.getenv('ENV_TYPE')
 def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-
         token = None
         if 'Authorization' in request.headers:
             token = request.headers['Authorization'].split()[1]
@@ -22,7 +21,7 @@ def token_required(f):
         
         try:
             response = supabase.auth.get_user(token)
-            g.user_id = response.user.id
+            request.user_id = response.user.id
         except Exception as e:
             logging.exception(f"Error getting user from token: {str(e)}")
             abort(401, 'Token is invalid')

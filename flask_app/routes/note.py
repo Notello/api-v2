@@ -1,4 +1,5 @@
 import logging
+from flask import request
 from flask_restx import Namespace, Resource
 from werkzeug.datastructures import FileStorage
 
@@ -13,8 +14,6 @@ from flask_app.services.GraphDeletionService import GraphDeletionService
 from flask_app.constants import COURSEID, NOTE, NOTEID, USERID
 from flask_app.routes.middleware import token_required
 
-from flask import g
-
 api = Namespace('note')
 
 @api.route('/delete-note/<string:note_id>')
@@ -23,7 +22,7 @@ class Note(Resource):
     @token_required
     def get(self, note_id: str):
         try:
-            userId = g.user_id
+            userId = request.user_id
 
             if not AuthService.can_edit_note(userId, note_id):
                 logging.error(f"User {userId} is not authorized to delete note {note_id}")
@@ -44,9 +43,6 @@ intake_youtube_parser.add_argument('ingestType', location='form',
 intake_youtube_parser.add_argument('youtubeUrl', location='form',
                         type=str, required=True,
                         help='Youtube url')
-intake_youtube_parser.add_argument(USERID, location='form',
-                        type=str, required=True,
-                        help='Supabase id of the user')
 intake_youtube_parser.add_argument(COURSEID, location='form',
                         type=str, required=True,
                         help='Id of the course to add the note to')
@@ -65,11 +61,10 @@ class YoutubeIntake(Resource):
 
             args = intake_youtube_parser.parse_args()
             youtubeUrl = args.get('youtubeUrl', None)
-            userId = args.get(USERID, None)
             courseId = args.get(COURSEID, None)
             noteId = args.get(NOTEID, None)
             ingestType = NoteService.ingest_to_enum(args.get('ingestType', None))
-            reqUserId = g.user_id
+            userId = request.user_id
 
             logging.info(f"Youtube url: {youtubeUrl}")
 
@@ -77,7 +72,6 @@ class YoutubeIntake(Resource):
                 youtubeUrl=youtubeUrl,
                 courseId=courseId,
                 userId=userId,
-                reqUserId=reqUserId,
                 ingestType=ingestType
                 )
             
@@ -88,7 +82,6 @@ class YoutubeIntake(Resource):
                 courseId=courseId,
                 userId=userId,
                 noteId=noteId,
-                reqUserId=reqUserId,
                 ingestType=ingestType,
                 form=NoteForm.YOUTUBE,
                 sourceUrl=youtubeUrl
@@ -112,9 +105,6 @@ create_audio_note_parser.add_argument('file', location='files',
 create_audio_note_parser.add_argument('ingestType', location='form', 
                         type=str, required=False,
                         help='edit or create')
-create_audio_note_parser.add_argument(USERID, location='form', 
-                        type=str, required=True,
-                        help='Supabase ID of the user')
 create_audio_note_parser.add_argument(COURSEID, location='form', 
                         type=str, required=True,
                         help='Course ID associated with the note')
@@ -130,17 +120,15 @@ class AudioIntake(Resource):
     def post(self):
         try:
             args = create_audio_note_parser.parse_args()
-            userId = args.get(USERID, None)
             courseId = args.get(COURSEID, None)
             noteId = args.get(NOTEID, None)
             audio_file = args.get('file', None)
             ingestType = NoteService.ingest_to_enum(args.get('ingestType', None))
-            reqUserId = g.user_id
+            userId = request.user_id
 
             valid = ValidationService.validate_audio_inputs(
                 audio_file=audio_file,
                 courseId=courseId,
-                reqUserId=reqUserId,
                 userId=userId,
                 ingestType=ingestType
                 )
@@ -152,7 +140,6 @@ class AudioIntake(Resource):
                 courseId=courseId,
                 userId=userId,
                 noteId=noteId,
-                reqUserId=reqUserId,
                 form=NoteForm.AUDIO,
                 ingestType=ingestType,
                 file=audio_file,
@@ -178,9 +165,6 @@ create_text_note_parser.add_argument('ingestType', location='form',
 create_text_note_parser.add_argument('noteName', location='form', 
                         type=str, required=True,
                         help='The name of the note')
-create_text_note_parser.add_argument(USERID, location='form', 
-                        type=str, required=True,
-                        help='Supabase ID of the user')
 create_text_note_parser.add_argument(COURSEID, location='form', 
                         type=str, required=True,
                         help='Course ID associated with the note')
@@ -197,19 +181,17 @@ class TextIntake(Resource):
     def post(self):
         try:
             args = create_text_note_parser.parse_args()
-            userId = args.get(USERID, None)
             courseId = args.get(COURSEID, None)
             noteId = args.get(NOTEID, None)
             rawText = args.get('rawText', None)
             noteName = args.get('noteName', None)
             ingestType = NoteService.ingest_to_enum(args.get('ingestType', None))
-            reqUserId = g.user_id
+            userId = request.user_id
 
             valid = ValidationService.validate_text_inputs(
                 rawText=rawText,
                 noteName=noteName,
                 courseId=courseId,
-                reqUserId=reqUserId,
                 userId=userId,
                 ingestType=ingestType
                 )
@@ -221,7 +203,6 @@ class TextIntake(Resource):
                 courseId=courseId,
                 userId=userId,
                 noteId=noteId,
-                reqUserId=reqUserId,
                 ingestType=ingestType,
                 form=NoteForm.TEXT,
                 rawText=rawText,
@@ -244,9 +225,6 @@ create_text_file_note_parser.add_argument('file', location='files',
 create_text_file_note_parser.add_argument('ingestType', location='form', 
                         type=str, required=True,
                         help='edit or create')
-create_text_file_note_parser.add_argument(USERID, location='form', 
-                        type=str, required=True,
-                        help='Supabase ID of the user')
 create_text_file_note_parser.add_argument(COURSEID, location='form', 
                         type=str, required=True,
                         help='Course ID associated with the note')
@@ -263,17 +241,15 @@ class TextFileIntake(Resource):
     def post(self):
         try:
             args = create_text_file_note_parser.parse_args()
-            userId = args.get(USERID, None)
             courseId = args.get(COURSEID, None)
             noteId = args.get(NOTEID, None)
             file: FileStorage = args.get('file', None)
             ingestType = NoteService.ingest_to_enum(args.get('ingestType', None))
-            reqUserId = g.user_id
+            userId = request.user_id
 
             valid, file_type = ValidationService.validate_text_file_inputs(
                 file=file,
                 courseId=courseId,
-                reqUserId=reqUserId,
                 userId=userId,
                 ingestType=ingestType
                 )
@@ -287,7 +263,6 @@ class TextFileIntake(Resource):
                 courseId=courseId,
                 userId=userId,
                 noteId=noteId,
-                reqUserId=reqUserId,
                 ingestType=ingestType,
                 form=NoteForm.TEXT_FILE,
                 file=file,

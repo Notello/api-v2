@@ -1,7 +1,7 @@
 import json
 import logging
 from flask_restx import Namespace, Resource
-from flask import g
+from flask import request
 
 from flask_app.services.QuizService import QuizService
 from flask_app.services.HelperService import HelperService
@@ -21,9 +21,6 @@ api = Namespace('quiz')
 
 create_quiz_parser = api.parser()
 
-create_quiz_parser.add_argument(USERID, location='form', 
-                        type=str, required=True,
-                        help='Supabase ID of the user')
 create_quiz_parser.add_argument(COURSEID, location='form', 
                         type=str, required=True,
                         help='Course ID associated with the quiz')
@@ -51,7 +48,6 @@ class GenerateQuiz(Resource):
     def post(self):
         try:
             args = create_quiz_parser.parse_args()
-            userId = args.get(USERID, None)
             courseId = args.get(COURSEID, None)
             noteId = args.get(NOTEID, None)
             specifierParam = args.get('specifierParam', None)
@@ -62,7 +58,7 @@ class GenerateQuiz(Resource):
             logging.info(f"Topics: {topics}")
 
             topics = topics.split(',') if topics else []
-            reqUserId = g.user_id
+            userId = request.user_id
 
             logging.info(f"Generate quiz for userId: {userId}, courseId: {courseId}, noteId: {noteId}, specifierParam: {specifierParam}, difficulty: {difficulty}, numQuestions: {numQuestions}, topics: {topics}")
 
@@ -79,16 +75,10 @@ class GenerateQuiz(Resource):
             ):
                 logging.error(f"Invalid userId: {userId}, courseId: {courseId}, noteId: {noteId}, specifierParam: {specifierParam}")
                 return {'message': 'Must have userId, courseId, optionally noteId and a valid specifierParam'}, 400
-            
-            if not AuthService.is_authed_for_userId(reqUserId=reqUserId, user_id_to_auth=userId):
-                logging.error(f"User {userId} is not authorized to create a quiz for user {reqUserId}")
-                return {'message': 'You do not have permission to create a quiz for this user'}, 400
 
             if RatelimitService.is_rate_limited(userId, QUIZ):
-                logging.error(f"User {reqUserId} has exceeded their quiz rate limit")
+                logging.error(f"User {userId} has exceeded their quiz rate limit")
                 return {'message': 'You have exceeded your quiz rate limit'}, 400
-            
-            rateLimitId = RatelimitService.add_rate_limit(userId, QUIZ, numQuestions)
                     
             quizId = SupabaseService.create_quiz(
                 noteId=noteId,
@@ -111,8 +101,7 @@ class GenerateQuiz(Resource):
                         noteId,
                         difficulty,
                         numQuestions,
-                        specifierParam,
-                        rateLimitId
+                        specifierParam
                         )
             ).start()
 
@@ -137,9 +126,6 @@ class GetQuestionsFor(Resource):
             return {'message': str(e)}, 500
 
 complete_quiz_parser = api.parser()
-complete_quiz_parser.add_argument(USERID, location='form', 
-                        type=str, required=True,
-                        help='Supabase ID of the user')
 complete_quiz_parser.add_argument('results', location='form', type=str, required=True,
                         help='Dictionary of UUID to boolean results')
 
@@ -151,22 +137,13 @@ class CompleteQuiz(Resource):
     def post(self, quizId):
         try:
             args = complete_quiz_parser.parse_args()
-            userId = args.get(USERID, None)
             results = args.get('results', None)
-            reqUserId = g.user_id
+            userId = request.user_id
 
             results = json.loads(results)
 
             logging.info(f"Complete quiz for userId: {userId}, quizId: {quizId}, results: {results}")
-            
-            if not AuthService.is_authed_for_userId(reqUserId, userId):
-                logging.error(f"User {userId} is not authorized to complete quiz {quizId}")
-                return {'message': 'You do not have permission to complete this quiz'}, 400
-            
-            if not SupabaseService.param_id_exists(QUIZID, quizId):
-                logging.error(f"Quiz {quizId} does not exist")
-                return {'message': 'Quiz does not exist'}, 400
-            
+
             for uuid, result in results.items():
                 if not isinstance(result, bool) or not HelperService.validate_uuid4(uuid):
                     return {'message': f'Invalid result for UUID {uuid}. Must be a valid UUID boolean mapping'}, 400

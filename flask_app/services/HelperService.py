@@ -8,15 +8,27 @@ from pytube import YouTube
 from langchain.prompts import ChatPromptTemplate
 from langchain.docstore.document import Document
 
-from flask_app.constants import proxy
+from flask_app.constants import ProxyRotator
 from flask_app.src.shared.common_fn import get_llm
 from flask_app.constants import GPT_4O_MINI
 
 class HelperService:
     @staticmethod
     def get_youtube_title(youtube_url: str):
-        
-        return YouTube(youtube_url, proxies=proxy).title
+        return "Youtube Video"
+
+        proxy_rotator = ProxyRotator()
+
+        for _ in range(10):
+            try:
+                proxy = proxy_rotator.get_proxy_info()
+                return YouTube(youtube_url, proxies=proxy).title.strip()
+            except Exception as e:
+                proxy_rotator.rotate_proxy_port()
+                continue
+
+        logging.exception(f"Error fetching youtube title for URL: {youtube_url}")
+        return "Youtube Video"
     
     @staticmethod
     def validate_uuid4(uuid_string) -> bool:
@@ -94,14 +106,21 @@ class HelperService:
             return data.iso_format()
         else:
             return data
-        
+
     @staticmethod
-    def get_video_duration(youtube_url):
-        try:
-            return YouTube(youtube_url, proxies=proxy).length
-        except Exception as e:
-            logging.exception(f"Error fetching video duration: {e}")
-            raise ValueError("Unable to fetch video duration")
+    def get_video_duration(youtube_url: str):
+        proxy_rotator = ProxyRotator()
+
+        for _ in range(10):
+            try:
+                proxy = proxy_rotator.get_proxy_info()
+                return YouTube(youtube_url, proxies=proxy).length
+            except Exception as e:
+                proxy_rotator.rotate_proxy_port()
+                continue
+
+        logging.exception(f"Error fetching video duration for URL: {youtube_url}")
+        return 0
         
 
     @staticmethod

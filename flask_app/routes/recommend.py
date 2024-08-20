@@ -1,7 +1,6 @@
-import json
 import logging
 from flask_restx import Namespace, Resource
-from flask import g
+from flask import request
 
 from flask_app.services.QuizService import QuizService
 from flask_app.services.HelperService import HelperService
@@ -27,25 +26,17 @@ rec_note_for_user_parser.add_argument(COURSEID, location='form',
                         help='Course ID associated with the user')
 
 @api.expect(rec_note_for_user_parser)
-@api.route('/get-notes-for-user/<string:userId>')
+@api.route('/get-notes-for-user')
 class RecommendNotesForUser(Resource):
     @api.doc(security="jsonWebToken")
     @token_required
-    def post(self, userId):
+    def post(self):
         try:
             args = rec_note_for_user_parser.parse_args()
             courseId = args.get(COURSEID, None)
-            reqUserId = g.user_id
+            userId = request.user_id
 
             logging.info(f"Get notes for userId: {userId}, courseId: {courseId}")
-            
-            if not AuthService.is_authed_for_userId(reqUserId, userId):
-                logging.error(f"User {userId} is not authorized to get notes for user {reqUserId}")
-                return {'message': 'You do not have permission to get notes for this user'}, 400
-            
-            if not SupabaseService.param_id_exists(COURSEID, courseId):
-                logging.error(f"Course {courseId} does not exist")
-                return {'message': 'Course does not exist'}, 400
             
             recommendedNotes = RecommendationService.get_recommended_notes_for_user(userId=userId, courseId=courseId)
 
@@ -61,25 +52,17 @@ rec_topic_parser.add_argument(COURSEID, location='form',
                         help='Course ID associated with the user')
   
 @api.expect(rec_topic_parser)
-@api.route('/get-topics-to-study/<string:userId>')
+@api.route('/get-topics-to-study')
 class RecommendTopicsToStudy(Resource):
     @api.doc(security="jsonWebToken")
     @token_required
-    def post(self, userId):
+    def post(self):
         try:
             args = rec_topic_parser.parse_args()
             courseId = args.get(COURSEID, None)
-            reqUserId = g.user_id
+            userId = request.user_id
 
             logging.info(f"Get topics to study for userId: {userId}, courseId: {courseId}")
-            
-            if not AuthService.is_authed_for_userId(reqUserId, userId):
-                logging.error(f"User {userId} is not authorized to get topics to study for user {reqUserId}")
-                return {'message': 'You do not have permission to get topics to study for this user'}, 400
-            
-            if not SupabaseService.param_id_exists(COURSEID, courseId):
-                logging.error(f"Course {courseId} does not exist")
-                return {'message': 'Course does not exist'}, 400
             
             recommendedTopics = RecommendationService.get_recommended_topics_for_user(userId=userId, courseId=courseId)
 

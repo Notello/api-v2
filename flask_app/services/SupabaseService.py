@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, UTC
+from datetime import datetime, timedelta, timezone
 from io import BytesIO
 import json
 import logging
@@ -12,7 +12,6 @@ from flask_app.constants import CHAT_MESSAGE_TABLE_NAME, CHAT_TABLE_NAME, COURSE
 supabase: Client = create_client(os.getenv('SUPABASE_URL'), os.getenv('SUPABASE_SERVICE_KEY'))
 
 class SupabaseService:
-
     @staticmethod
     def add_note(
         courseId: str, 
@@ -268,26 +267,25 @@ class SupabaseService:
         return user[0]['accountType']
     
     @staticmethod
-    def get_rate_limit(userId: str, type: str, userType: str):
+    def get_rate_limit(userId: str, type: str):
         if not HelperService.validate_all_uuid4(userId):
             logging.error(f'Invalid userId: {userId}')
             return {}
 
-        now = datetime.now(UTC)
+        now = datetime.now(timezone.utc)
 
         result = supabase.table(RATE_LIMIT_TABLE_NAME)\
             .select('created_at, count')\
             .eq('type', str(type))\
             .eq('userId', str(userId))\
-            .eq('userType', str(userType))\
             .gte('created_at', now - timedelta(days=30))\
             .execute()
 
         return result.data
 
     @staticmethod
-    def get_rate_limit_values(type: str, userType: str) -> dict:
-        return supabase.table(RATE_LIMIT_VALUES_TABLE_NAME).select('*').eq('type', str(type)).eq('userType', str(userType)).execute().data
+    def get_rate_limit_values() -> dict:
+        return supabase.table(RATE_LIMIT_VALUES_TABLE_NAME).select('*').execute().data
     
     @staticmethod
     def add_rate_limit(userId: str, type: str, count: int, userType: str):

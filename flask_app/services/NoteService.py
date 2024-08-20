@@ -110,7 +110,6 @@ class NoteService:
     def ingest_note(
         courseId: str,
         userId: str,
-        reqUserId: str,
         form: NoteForm,
         ingestType: IngestType,
         sourceUrl: str = '',
@@ -120,19 +119,12 @@ class NoteService:
         file: FileStorage = None,
         noteId: str = None
     ):
-        
-        logging.info(f"noteId at ingest: {noteId}")
-        logging.info(f"form at ingest: {form}")
-        logging.info(f"ingestType at ingest: {ingestType}")
         if ingestType == IngestType.EDIT:
-            print(f"noteId at edit: {noteId}")
-            print(f"form: {form == NoteForm.TEXT_FILE}")
             if form == NoteForm.YOUTUBE:
                 return NoteService.edit_youtube_note(
                     courseId=courseId,
                     userId=userId,
                     youtubeUrl=sourceUrl,
-                    reqUserId=reqUserId,
                     noteId=noteId
                     )
             elif form == NoteForm.AUDIO:
@@ -140,7 +132,6 @@ class NoteService:
                     courseId=courseId,
                     userId=userId,
                     audio_file=file,
-                    reqUserId=reqUserId,
                     noteId=noteId
                     )
             elif form == NoteForm.TEXT:
@@ -149,21 +140,17 @@ class NoteService:
                     userId=userId,
                     rawText=rawText,
                     noteName=title,
-                    reqUserId=reqUserId,
                     noteId=noteId
                     )
             elif form == NoteForm.TEXT_FILE:
-                logging.info(f"noteId at edit: {noteId}")
                 return NoteService.edit_text_file_note(
                     courseId=courseId,
                     userId=userId,
                     file=file,
                     file_type=file_type,
-                    reqUserId=reqUserId,
                     noteId=noteId
                     )
         elif ingestType == IngestType.CREATE:
-            print(f"file at create: {type(file)}")
             if form == NoteForm.YOUTUBE:
                 return NoteService.create_youtube_note(
                     courseId=courseId,
@@ -197,12 +184,11 @@ class NoteService:
         courseId: str,
         userId: str,
         youtubeUrl: str,
-        reqUserId: str,
         noteId: str
     ):
         logging.info(f"Editing youtube note: {youtubeUrl}")
-        if not AuthService.can_edit_note(reqUserId, noteId):
-            logging.error(f"User {reqUserId} is not authorized to edit note {noteId}")
+        if not AuthService.can_edit_note(userId, noteId):
+            logging.error(f"User {userId} is not authorized to edit note {noteId}")
             return False
         
         NoteService.delete_note(noteId)
@@ -223,25 +209,21 @@ class NoteService:
         origionalNoteId: str = None
     ): 
         logging.info(f"Creating youtube note: {youtubeUrl}")
-        title = HelperService.get_youtube_title(youtube_url=youtubeUrl)
-
         noteId = NoteService.create_note(
             courseId=courseId, 
             userId=userId, 
             form=NoteForm.YOUTUBE,
             sourceUrl=youtubeUrl, 
-            title=title if title is not None else "Youtube Video",
+            title="Youtube Video",
             noteId=origionalNoteId
             )
     
         if not HelperService.validate_all_uuid4(noteId):
             return None
 
-        rateLimitId = RatelimitService.add_rate_limit(userId, NOTE, 1)
-
         ContextAwareThread(
             target=NoteService.youtube_video_to_graph,
-            args=(noteId, courseId, userId, youtubeUrl, title, rateLimitId)
+            args=(noteId, courseId, userId, youtubeUrl)
         ).start()
 
         return noteId
@@ -251,12 +233,11 @@ class NoteService:
         courseId: str,
         userId: str,
         audio_file: FileStorage,
-        reqUserId: str,
         noteId: str
     ):
         logging.info(f"Editing audio note: {audio_file}")
-        if not AuthService.can_edit_note(reqUserId, noteId):
-            logging.error(f"User {reqUserId} is not authorized to edit note {noteId}")
+        if not AuthService.can_edit_note(userId, noteId):
+            logging.error(f"User {userId} is not authorized to edit note {noteId}")
             return False
 
         NoteService.delete_note(noteId)
@@ -288,11 +269,9 @@ class NoteService:
         if not HelperService.validate_all_uuid4(noteId):
             return None
         
-        rateLimitId = RatelimitService.add_rate_limit(userId, NOTE, 1)
-
         ContextAwareThread(
                 target=NoteService.audio_file_to_graph,
-                args=(noteId, courseId, userId, audio_file, rateLimitId)
+                args=(noteId, courseId, userId, audio_file)
         ).start()
 
         return noteId
@@ -303,12 +282,11 @@ class NoteService:
         userId: str,
         rawText: str,
         noteName: str,
-        reqUserId: str,
         noteId: str
     ):
         logging.info(f"Editing text note: {noteName}")
-        if not AuthService.can_edit_note(reqUserId, noteId):
-            logging.error(f"User {reqUserId} is not authorized to edit note {noteId}")
+        if not AuthService.can_edit_note(userId, noteId):
+            logging.error(f"User {userId} is not authorized to edit note {noteId}")
             return False
 
         NoteService.delete_note(noteId)
@@ -342,11 +320,9 @@ class NoteService:
         if not HelperService.validate_all_uuid4(noteId):
             return None
         
-        rateLimitId = RatelimitService.add_rate_limit(userId, NOTE, 1)
-
         ContextAwareThread(
                 target=GraphCreationService.create_graph_from_raw_text,
-                args=(noteId, courseId, userId, rawText, noteName, rateLimitId)
+                args=(noteId, courseId, userId, rawText, noteName)
         ).start()
 
         return noteId
@@ -357,12 +333,11 @@ class NoteService:
         userId: str,
         file: FileStorage,
         file_type: str,
-        reqUserId: str,
         noteId: str
     ):
         logging.info(f"Editing text file note: {type(file)}")
-        if not AuthService.can_edit_note(reqUserId, noteId):
-            logging.error(f"User {reqUserId} is not authorized to edit note {noteId}")
+        if not AuthService.can_edit_note(userId, noteId):
+            logging.error(f"User {userId} is not authorized to edit note {noteId}")
             return False
 
         NoteService.delete_note(noteId)
@@ -401,11 +376,9 @@ class NoteService:
         
         file_content = file.read()
 
-        rateLimitId = RatelimitService.add_rate_limit(userId, NOTE, 1)
-
         ContextAwareThread(
                 target=NoteService.pdf_file_to_graph,
-                args=(noteId, courseId, userId, file.filename, file_content, file_type, rateLimitId)
+                args=(noteId, courseId, userId, file.filename, file_content, file_type)
         ).start()
 
         return noteId
@@ -416,9 +389,12 @@ class NoteService:
         courseId: str,
         userId: str,
         youtubeUrl: str,
-        title: str,
-        rateLimitId: str
     ):
+        rateLimitId = RatelimitService.add_rate_limit(userId, NOTE, 1)
+        title = HelperService.get_youtube_title(youtube_url=youtubeUrl)
+
+        SupabaseService.update_note(noteId=noteId, key='title', value=title)
+
         logging.info(f"Creating youtube note: {youtubeUrl}")
         try:
             similar = SimilarityService.check_youtube_similarity(
@@ -456,9 +432,11 @@ class NoteService:
         courseId: str,
         userId: str,
         audio_file: FileStorage,
-        rateLimitId: str
         ):
         logging.info(f"Creating audio note: {audio_file}")
+
+        rateLimitId = RatelimitService.add_rate_limit(userId, NOTE, 1)
+
         try:
             file_content = audio_file.read()
             fileId = SupabaseService.upload_file(
@@ -508,8 +486,10 @@ class NoteService:
         file_name: str,
         file_content: BytesIO,
         file_type: str,
-        rateLimitId: str
         ):
+
+        rateLimitId = RatelimitService.add_rate_limit(userId, NOTE, 1)
+
         logging.info(f"Creating text file note: {file_name}")
         try:
             output = extract_text(file_content, file_name, file_type)

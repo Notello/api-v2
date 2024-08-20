@@ -1,6 +1,6 @@
 import logging
 from flask_restx import Namespace, Resource
-from flask import g
+from flask import request
 
 
 from flask_app.services.AuthService import AuthService
@@ -15,7 +15,6 @@ api = Namespace('chat', authorizations=authorizations)
 
 chat_room_parser = api.parser()
 chat_room_parser.add_argument('room_id', type=str, required=False, help='room id')
-chat_room_parser.add_argument('user_id', type=str, required=True, help='user id')
 chat_room_parser.add_argument('message', type=str, required=True, help='message')
 chat_room_parser.add_argument('bot_reply', type=str, required=False, help='answer, chat, or None')
 
@@ -31,18 +30,18 @@ class Chat(Resource):
         message = args.get('message', None)
         botReply = ChatService.chat_type_to_enum(args.get('bot_reply', None))
 
-        reqUserId = g.user_id
+        userId = request.user_id
 
-        if not HelperService.validate_all_uuid4(userId, reqUserId):
+        if not HelperService.validate_all_uuid4(userId):
             logging.error(f"Invalid userId: {userId}")
             return {'message': 'Must have userId'}, 400
 
-        if not AuthService.is_authed_for_userId(reqUserId, userId) or not AuthService.can_access_chat_room(userId, roomId):
-            logging.error(f"User {userId} is not authorized to create chat room for user {reqUserId}")
+        if not AuthService.can_access_chat_room(userId, roomId):
+            logging.error(f"User {userId} is not authorized to create chat room for user {userId}")
             return {'message': 'You do not have permission to create a chat room for this user'}, 400
         
         if RatelimitService.is_rate_limited(userId, CHAT) and botReply is not None:
-            logging.error(f"User {reqUserId} has exceeded their chat room rate limit")
+            logging.error(f"User {userId} has exceeded their chat room rate limit")
             return {'message': 'You have exceeded your chat room rate limit'}, 400
         
         roomId = ChatService.handle_chat(userId=userId, message=message, botReply=botReply, roomId=roomId)

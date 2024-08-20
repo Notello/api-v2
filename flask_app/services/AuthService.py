@@ -3,7 +3,7 @@ import os
 from supabase import Client, create_client
 
 from flask_app.services.HelperService import HelperService
-from flask_app.constants import NOTE_TABLE_NAME, USER_CLASS_TABLE_NAME, SUPER_ADMIN_EMAILS, CHAT_TABLE_NAME
+from flask_app.constants import NOTE_TABLE_NAME, USER_CLASS_TABLE_NAME, SUPER_ADMIN_EMAILS, CHAT_TABLE_NAME, SUPER_ADMIN_USER_IDS
 
 
 supabase: Client = create_client(os.getenv('SUPABASE_URL'), os.getenv('SUPABASE_SERVICE_KEY'))
@@ -13,14 +13,7 @@ class AuthService():
 
     @staticmethod
     def is_super_admin(user_id):
-        try:
-            user = supabase.auth.admin.get_user_by_id(user_id).user
-            print(f"user: {user.email}")
-            print(f"SUPER_ADMIN_EMAILS: {SUPER_ADMIN_EMAILS}")
-            return user.email in SUPER_ADMIN_EMAILS
-        except Exception as e:
-            print(f"Error fetching user data: {e}")
-            return False
+        return user_id in SUPER_ADMIN_USER_IDS
 
     @staticmethod
     def can_edit_course(user_id, course_id):

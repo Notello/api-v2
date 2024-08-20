@@ -1,14 +1,10 @@
-import json
 import logging
 from flask_restx import Namespace, Resource
-from flask import g
+from flask import request
 
 from flask_app.services.HelperService import HelperService
 from flask_app.services.GraphQueryService import GraphQueryService
-from flask_app.services.SupabaseService import SupabaseService
-from flask_app.services.ContextAwareThread import ContextAwareThread
 from flask_app.services.SummaryService import SummaryService
-from flask_app.services.AuthService import AuthService
 from flask_app.services.RatelimitService import RatelimitService
 
 from flask_app.routes.middleware import token_required
@@ -19,9 +15,6 @@ api = Namespace('summary')
 
 create_topic_summary_parser = api.parser()
 
-create_topic_summary_parser.add_argument(USERID, location='form',
-                        type=str, required=True,
-                        help='Supabase ID of the user')
 create_topic_summary_parser.add_argument(COURSEID, location='form',
                         type=str, required=True,
                         help='Course ID associated with the summary')
@@ -33,43 +26,29 @@ class GenerateTopicSummary(Resource):
     @token_required
     def post(self, topicId):
         args = create_topic_summary_parser.parse_args()
-        userId = args.get(USERID, None)
         courseId = args.get(COURSEID, None)
-        reqUserId = g.user_id
+        userId = request.user_id
 
         logging.info(f"Generate topic summary for topicId: {topicId}, userId: {userId}, courseId: {courseId}")
 
-        if (not HelperService.validate_all_uuid4(userId, courseId, topicId, reqUserId)
-            or not SupabaseService.param_id_exists('courseId', courseId)
-            or not SupabaseService.param_id_exists('userId', userId)
-        ):
+        if not HelperService.validate_all_uuid4(userId, courseId, topicId):
             logging.error(f"Invalid userId: {userId}, courseId: {courseId}, topicId: {topicId}")
             return {'message': 'Must have userId, courseId, and topicId'}, 400
-        
-        if not AuthService.is_authed_for_userId(reqUserId=reqUserId, user_id_to_auth=userId):
-            logging.error(f"User {userId} is not authorized to create a summary for user {reqUserId}")
-            return {'message': 'You do not have permission to create a summary for this user'}, 400
-        
+
         if RatelimitService.is_rate_limited(userId, TOPIC_SUMMARY):
-            logging.error(f"User {reqUserId} has exceeded their topic summary rate limit")
+            logging.error(f"User {userId} has exceeded their topic summary rate limit")
             return {'message': 'You have exceeded your topic summary rate limit'}, 400
-        
-        rateLimitId = RatelimitService.add_rate_limit(userId, TOPIC_SUMMARY, 1)
-        
+                
         SummaryService.generate_topic_summary(
             userId=userId, 
             courseId=courseId,
             topicId=topicId,
-            rateLimitId=rateLimitId
             )
         
         return {'message': 'Summary generating'}, 200
 
 create_note_summary_parser = api.parser()
 
-create_note_summary_parser.add_argument(USERID, location='form',
-                        type=str, required=True,
-                        help='Supabase ID of the user')
 create_note_summary_parser.add_argument(COURSEID, location='form',
                         type=str, required=True,
                         help='Course ID associated with the summary')  
@@ -82,26 +61,19 @@ class GenerateNoteSummary(Resource):
     def post(self, noteId):
         try:
             args = create_note_summary_parser.parse_args()
-            userId = args.get(USERID, None)
             courseId = args.get(COURSEID, None)
-            reqUserId = g.user_id
+            userId = request.user_id
 
             if (
-                not HelperService.validate_all_uuid4(userId, courseId, noteId, reqUserId)
+                not HelperService.validate_all_uuid4(userId, courseId, noteId)
             ):
                 logging.error(f"Invalid userId: {userId}, courseId: {courseId}, noteId: {noteId}")
                 return {'message': 'Must have userId, courseId, and noteId'}, 400
-            
-            if not AuthService.is_authed_for_userId(reqUserId=reqUserId, user_id_to_auth=userId):
-                logging.error(f"User {userId} is not authorized to create a summary for user {reqUserId}")
-                return {'message': 'You do not have permission to create a summary for this user'}, 400
-            
+
             if RatelimitService.is_rate_limited(userId, NOTE_SUMMARY):
-                logging.error(f"User {reqUserId} has exceeded their note summary rate limit")
+                logging.error(f"User {userId} has exceeded their note summary rate limit")
                 return {'message': 'You have exceeded your note summary rate limit'}, 400
             
-            rateLimitId = RatelimitService.add_rate_limit(userId, NOTE_SUMMARY, 1)
-
             logging.info(f"Generated note summary for userId: {userId}, courseId: {courseId}, noteId: {noteId}, specifierParam: {NOTEID}")
             
             SummaryService.generate_note_summary(
@@ -109,7 +81,6 @@ class GenerateNoteSummary(Resource):
                 courseId=courseId,
                 noteId=noteId,
                 specifierParam=NOTEID,
-                rateLimitId=rateLimitId
                 )
             
             logging.info(f"Generated note summary for userId: {userId}, courseId: {courseId}, noteId: {noteId}, specifierParam: {NOTEID}")
