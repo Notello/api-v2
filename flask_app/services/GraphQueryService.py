@@ -17,11 +17,11 @@ class GraphQueryService():
 
     @staticmethod
     def get_node_query(node_type: str, key: str, value: str, com_string: str, page_rank_string: str) -> str:
-        base_attributes = f"ID(n) AS id, LABELS(n)[0] AS labels, n.noteId as noteId, n.{com_string} AS communityId"
+        base_attributes = f"ID(n) AS id, LABELS(n)[0] AS labels, n.{com_string} AS communityId"
         type_specific_attributes = {
-            "Document": "n.fileName AS fileName",
-            "Chunk": "n.offset AS offset",
-            "Concept": f"n.{page_rank_string} AS pageRank, n.id AS nodeId, n.uuid[0] AS nodeUuid"
+            "Document": "n.fileName AS fileName, [n.noteId] AS noteId",
+            "Chunk": "n.offset AS offset, n.document_name AS noteName, [n.noteId] AS noteId",
+            "Concept": f"n.{page_rank_string} AS pageRank, n.id AS nodeId, n.uuid[0] AS nodeUuid, n.noteId as noteId"
         }
         return f"""
         MATCH (n:{node_type})

@@ -16,11 +16,6 @@ def create_app():
 
     Neo4jConnection.initialize()
     init_indexes()
-
-
-    app.config['MODEL'] = 'gpt-3.5-turbo-0125'
-    app.config['UPDATE_GRAPH_CHUNKS_PROCESSED'] = 10
-    app.config['NUMBER_OF_CHUNKS_TO_COMBINE'] = 1
     
     with app.app_context():
         init_api(api)
