@@ -26,8 +26,7 @@ class GraphCreationService:
         document_name: str,
         noteId: str,
         courseId: str,
-        userId: str,
-        rateLimitId: str
+        userId: str
     ) -> None:
         try:
             chunks = ChunkService.get_timestamp_chunks(transcript=timestamps)
@@ -38,8 +37,7 @@ class GraphCreationService:
                 userId=userId,
                 fileName=document_name,
                 import_type=import_type,
-                chunks=chunks,
-                rateLimitId=rateLimitId
+                chunks=chunks
             )
             
         except Exception as e:
@@ -53,9 +51,6 @@ class GraphCreationService:
         rawText: str,
         fileName: str
     ) -> None:
-        
-        rateLimitId = RatelimitService.add_rate_limit(userId, NOTE, 1)
-
         try:
             chunks = ChunkService.get_text_chunks(rawText)
     
@@ -65,8 +60,7 @@ class GraphCreationService:
                 userId=userId,
                 fileName=fileName,
                 import_type='text',
-                chunks=chunks,
-                rateLimitId=rateLimitId
+                chunks=chunks
             )
 
             logging.info(f'File {fileName} has been processed successfully')
@@ -81,10 +75,9 @@ class GraphCreationService:
         fileName: str,
         import_type: str,
         chunks: List[Document],
-        rateLimitId: str
     ):
+        rateLimitId = RatelimitService.add_rate_limit(userId, NOTE, 1)
         try:
-
             similarityService = SimilarityService(
                 similarity_threshold=0.98, 
                 word_edit_distance=5
@@ -158,12 +151,12 @@ class GraphCreationService:
 
         except Exception as e:
             logging.exception(f'Exception in create_source_node_graph: {e}')
-            RatelimitService.remove_rate_limit(rateLimitId)
             graphAccess.update_source_node(sourceNode(noteId = noteId, mergeStatus = "error"))
             graphAccess.update_source_node(sourceNode(noteId = noteId, comStatus = "error"))
             graphAccess.update_source_node(sourceNode(noteId = noteId, pagerankStatus = "error"))
             graphAccess.update_source_node(sourceNode(noteId = noteId, errorMessage = str(e)))
             SupabaseService.update_note(noteId=noteId, key='graphStatus', value='error')
+            RatelimitService.remove_rate_limit(rateLimitId)
 
     @staticmethod
     def insert_quiz_question(questions: List[QuizQuestion]) -> None:

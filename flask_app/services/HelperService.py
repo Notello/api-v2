@@ -10,13 +10,11 @@ from langchain.docstore.document import Document
 
 from flask_app.constants import ProxyRotator
 from flask_app.src.shared.common_fn import get_llm
-from flask_app.constants import GPT_4O_MINI
+from flask_app.constants import LLAMA_8_MODEL
 
 class HelperService:
     @staticmethod
     def get_youtube_title(youtube_url: str):
-        return "Youtube Video"
-
         proxy_rotator = ProxyRotator()
 
         for _ in range(10):
@@ -129,19 +127,25 @@ class HelperService:
     ):
         text = "\n".join([chunk.page_content for chunk in chunks])
 
-        llm = get_llm(GPT_4O_MINI)
+        llm = get_llm(LLAMA_8_MODEL)
         prompt = ChatPromptTemplate.from_messages([
-            ("system", "You are a concise summarizer, you will provide a one to two sentence summary capturing the main idea of the provided text."),
+            ("system", 
+             """
+             You are a concise summarizer, you will provide a one to two sentence summary capturing the main idea of the provided text.
+             You will not add any preamble to the summary or tell me you are giving me a summary, you will simply provide the summary of the provided text.
+             """
+             ),
             ("user", f"Please summarize the following text in a concise and informative manner: {text}"),
+            ("ai", f"Summary: ")
         ])
 
         promptable_llm = prompt | llm
 
         output = promptable_llm.invoke({})
 
-        logging.info(output.dict())
+        logging.info(f"Summary: {output.dict()}")
 
-        return output.dict()['content']
+        return output.dict()['content'].strip()
     
     @staticmethod
     def get_cleaned_id(id: str) -> str:

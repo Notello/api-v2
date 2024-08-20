@@ -3,7 +3,7 @@ from typing import Optional
 from langchain_core.pydantic_v1 import BaseModel, Field
 
 from flask_app.src.shared.common_fn import get_llm, load_embedding_model
-from flask_app.constants import COURSEID, GPT_4O_MINI, NOTEID
+from flask_app.constants import COURSEID, GPT_4O_MINI, LLAMA_8_MODEL, NOTEID
 from flask_app.services.SupabaseService import SupabaseService
 from flask_app.src.graphDB_dataAccess import graphDBdataAccess
 from langchain.prompts import ChatPromptTemplate
@@ -174,15 +174,10 @@ class SimilarityService:
         llm = get_llm(GPT_4O_MINI).with_structured_output(IsRelated)
         prompt = ChatPromptTemplate.from_messages([
             ("system", """
-            You are a content classifier with a broad understanding of academic subjects.
-            Your task is to determine if the provided document summary is related to the given course information.
-            Consider a wide range of potential connections between the document and the course.
-            Even if the relationship is not immediately obvious, look for any reasonable links or relevance.
-            Consider interdisciplinary connections and how the document might indirectly relate to the course.
-            If there's any doubt or if you can find even a tenuous connection, lean towards classifying it as related.
-            Only classify as unrelated if there's a clear and significant mismatch between the document and the course.
-            If there is not enough information to make a confident decision, classify it as related.
-            If you determine it's unrelated, provide a brief explanation for your decision.
+            You are a content classifier who will determine if uploaded content is plausibly to a college course.
+            You will be provided with a description of the course and a summary of the content being uploaded.
+            It is ok if the subject of the content is not directly related the course, but it should be related at least tennatively.
+            If you are uncertain, please classify the content as related.
             """),
             ("user", f"""
             Please classify the following document summary as related or not related to the course description: 

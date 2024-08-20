@@ -10,7 +10,6 @@ from flask_app.services.GraphCreationService import GraphCreationService
 from flask_app.services.SimilarityService import SimilarityService
 from flask_app.services.TimestampService import TimestampService
 from flask_app.services.HelperService import HelperService
-from flask_app.services.RatelimitService import RatelimitService
 from flask_app.services.ContextAwareThread import ContextAwareThread
 from flask_app.services.AuthService import AuthService
 from flask_app.services.GraphDeletionService import GraphDeletionService
@@ -390,7 +389,6 @@ class NoteService:
         userId: str,
         youtubeUrl: str,
     ):
-        rateLimitId = RatelimitService.add_rate_limit(userId, NOTE, 1)
         title = HelperService.get_youtube_title(youtube_url=youtubeUrl)
 
         SupabaseService.update_note(noteId=noteId, key='title', value=title)
@@ -405,7 +403,6 @@ class NoteService:
 
             if similar:
                 logging.info(f"Youtube video similar to existing note: {youtubeUrl}")
-                RatelimitService.remove_rate_limit(rateLimitId)
                 return None
                 
             timestamps = TimestampService.get_youtube_timestamps(youtube_url=youtubeUrl)
@@ -419,12 +416,10 @@ class NoteService:
                 document_name=title,
                 noteId=noteId,
                 courseId=courseId,
-                userId=userId,
-                rateLimitId=rateLimitId
+                userId=userId
                 )
         except Exception as e:
             logging.exception(f'Exception Stack trace: {e}')
-            RatelimitService.remove_rate_limit(rateLimitId)
 
     @staticmethod
     def audio_file_to_graph(
@@ -434,8 +429,6 @@ class NoteService:
         audio_file: FileStorage,
         ):
         logging.info(f"Creating audio note: {audio_file}")
-
-        rateLimitId = RatelimitService.add_rate_limit(userId, NOTE, 1)
 
         try:
             file_content = audio_file.read()
@@ -447,7 +440,6 @@ class NoteService:
                 )
 
             if fileId is None:
-                RatelimitService.remove_rate_limit(rateLimitId)
                 logging.exception(f"Failed to upload file for note {noteId}")
                 return
 
@@ -456,7 +448,6 @@ class NoteService:
                 )
 
             if output is None or 'data' not in output:
-                RatelimitService.remove_rate_limit(rateLimitId)
                 logging.exception(f"Failed to transcribe file for note {noteId}")
                 return
             
@@ -466,14 +457,12 @@ class NoteService:
                 document_name=audio_file.filename,
                 noteId=noteId,
                 courseId=courseId,
-                userId=userId,
-                rateLimitId=rateLimitId
+                userId=userId
             )
             
             logging.info(f"File uploaded successfully for note {noteId}")
 
         except Exception as e:
-            RatelimitService.remove_rate_limit(rateLimitId)
             SupabaseService.update_note(noteId=noteId, key='graphStatus', value='error')
             logging.exception(f'Exception Stack trace: {e}')
 
@@ -488,14 +477,11 @@ class NoteService:
         file_type: str,
         ):
 
-        rateLimitId = RatelimitService.add_rate_limit(userId, NOTE, 1)
-
         logging.info(f"Creating text file note: {file_name}")
         try:
             output = extract_text(file_content, file_name, file_type)
 
             if output is None:
-                RatelimitService.remove_rate_limit(rateLimitId)
                 logging.exception(f"Failed to transcribe file for note {noteId}")
                 return
 
@@ -507,7 +493,6 @@ class NoteService:
                 )
 
             if fileId is None:
-                RatelimitService.remove_rate_limit(rateLimitId)
                 logging.exception(f"Failed to upload file for note {noteId}")
                 return
                         
@@ -517,13 +502,11 @@ class NoteService:
                 courseId=courseId, 
                 userId=userId,
                 fileName=file_name,
-                rateLimitId=rateLimitId
                 )
             
             logging.info(f"File uploaded successfully for note {noteId}")
 
         except Exception as e:
-            RatelimitService.remove_rate_limit(rateLimitId)
             SupabaseService.update_note(noteId=noteId, key='contentStatus', value='error')
             SupabaseService.update_note(noteId=noteId, key='graphStatus', value='error')
             logging.exception(f'Exception Stack trace: {e}')
