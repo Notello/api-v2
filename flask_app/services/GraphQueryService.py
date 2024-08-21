@@ -570,17 +570,17 @@ class GraphQueryService():
         ):
         graphAccess = graphDBdataAccess()
 
-        QUERY = """
+        QUERY = f"""
         MATCH (n:Concept)
-        WHERE $id IN n.$param
+        WHERE '{id}' IN n.{param}
         OPTIONAL MATCH (n)-[r:HAS_FLASHCARD]->(f:Flashcard)
-        WHERE $userId NOT IN f.userId AND $id IN f.$param
+        WHERE NOT '{userId}' IN f.userId AND '{id}' IN n.{param}
         WITH n, f, 
             CASE WHEN f IS NOT NULL THEN 1 ELSE 0 END AS hasFlashcard
         ORDER BY hasFlashcard DESC, rand()
-        WITH COLLECT({concept: n, flashcard: f, hasFlashcard: hasFlashcard}) AS allConcepts, 
+        WITH COLLECT({{concept: n, flashcard: f, hasFlashcard: hasFlashcard}}) AS allConcepts, 
             COUNT(*) AS totalCount
-        UNWIND allConcepts[0..$num_pairs] AS conceptData
+        UNWIND allConcepts[0..{num_pairs}] AS conceptData
         WITH conceptData.concept AS n, conceptData.flashcard AS f, conceptData.hasFlashcard AS hasFlashcard,
             totalCount, SIZE(allConcepts) AS returnedCount
         OPTIONAL MATCH (c:Chunk)-[:REFERENCES]->(n)

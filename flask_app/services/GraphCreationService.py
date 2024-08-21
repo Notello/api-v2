@@ -77,6 +77,8 @@ class GraphCreationService:
         chunks: List[Document],
     ):
         rateLimitId = RatelimitService.add_rate_limit(userId, NOTE, 1)
+        graphAccess: graphDBdataAccess = graphDBdataAccess()
+
         try:
             similarityService = SimilarityService(
                 similarity_threshold=0.98, 
@@ -88,6 +90,7 @@ class GraphCreationService:
                 noteId=noteId,
                 documents=chunks
             )
+            
 
             if similar:
                 logging.info(f"File: {fileName} is similar to {similar}")
@@ -101,6 +104,7 @@ class GraphCreationService:
                     key='graphStatus', 
                     value='complete'
                     )
+                graphAccess.update_source_node(sourceNode(noteId=noteId, blockedReason = 'Your note content was detected to be similar to another note in the same course.'))
                 SupabaseService.update_note(noteId=noteId, key='blockedReason', value='Your note content was detected to be similar to another note in the same course.')
                 RatelimitService.remove_rate_limit(rateLimitId)
                 return
@@ -110,6 +114,7 @@ class GraphCreationService:
             isRelated = SimilarityService.is_related(courseId=courseId, documentSummary=summary)
 
             if not isRelated['isRelated']:
+                graphAccess.update_source_node(sourceNode(noteId=noteId, blockedReason = f'Your video was blocked because it was detected to be unrelated to the course content. Reason: {isRelated["reasoning"]}'))
                 SupabaseService.update_note(noteId=noteId, key='blockedReason', value=f'Your video was blocked because it was detected to be unrelated to the course content. Reason: {isRelated["reasoning"]}')
                 return None
 
@@ -123,8 +128,6 @@ class GraphCreationService:
                 summary=summary
             )
             
-            graphAccess: graphDBdataAccess = graphDBdataAccess()
-
             graphAccess.create_source_node(obj_source_node)
 
             processing_source(

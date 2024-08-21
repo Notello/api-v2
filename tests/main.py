@@ -38,53 +38,69 @@ async def upload_pdf(session, api_url, file_path, course_id, ingest_type, header
             return False
 
 async def simulate_concurrent_uploads(folder_path, base_url, course_id, ingest_type, email, password, num_users=500):
-    if not os.path.exists(folder_path):
-        print(f"Error: Folder '{folder_path}' does not exist.")
-        return
-
-    pdf_files = [f for f in os.listdir(folder_path) if f.endswith('.pdf')]
-
-    if not pdf_files:
-        print(f"No PDF files found in '{folder_path}'.")
-        return
-
-    pdf_files.sort()
-
-    connector = TCPConnector(limit=0)  # Remove limit to allow maximum concurrent connections
-    async with ClientSession(connector=connector) as session:
-        bearer_token = await login(session, base_url, email, password)
-        if not bearer_token:
-            print("Login failed. Unable to proceed with uploads.")
+    print(f"testing")
+    try:
+        if not os.path.exists(folder_path):
+            print(f"Error: Folder '{folder_path}' does not exist.")
             return
 
-        headers = {
-            'Authorization': f'Bearer {bearer_token}'
-        }
+        pdf_files = [f for f in os.listdir(folder_path) if f.endswith('.pdf')]
 
-        api_url = f"{base_url}/note/create-text-file-note"
-        
-        # Create a list of tasks for concurrent execution
-        tasks = []
-        for _ in range(num_users):
-            # If there are fewer PDF files than users, cycle through the files
-            file_index = _ % len(pdf_files)
-            file_path = os.path.join(folder_path, pdf_files[file_index])
-            task = upload_pdf(session, api_url, file_path, course_id, ingest_type, headers)
-            tasks.append(task)
+        if not pdf_files:
+            print(f"No PDF files found in '{folder_path}'.")
+            return
 
-        # Execute all tasks concurrently
-        results = await asyncio.gather(*tasks)
+        pdf_files.sort()
 
-    successful_uploads = sum(results)
-    print(f"Simulation complete. Successfully uploaded {successful_uploads} out of {num_users} requests.")
+        connector = TCPConnector(limit=0)  # Remove limit to allow maximum concurrent connections
+        async with ClientSession(connector=connector) as session:
+            bearer_token = await login(session, base_url, email, password)
+            if not bearer_token:
+                print("Login failed. Unable to proceed with uploads.")
+                return
+
+            headers = {
+                'Authorization': f'Bearer {bearer_token}'
+            }
+
+            api_url = f"{base_url}/note/create-text-file-note"
+
+            print(api_url)
+            
+            # Create a list of tasks for concurrent execution
+            tasks = []
+            for _ in range(num_users):
+                # If there are fewer PDF files than users, cycle through the files
+                file_index = _ % len(pdf_files)
+                file_path = os.path.join(folder_path, pdf_files[file_index])
+                task = upload_pdf(session, api_url, file_path, course_id, ingest_type, headers)
+                tasks.append(task)
+
+            # Execute all tasks concurrently
+            results = await asyncio.gather(*tasks)
+
+        successful_uploads = sum(results)
+        print(f"Simulation complete. Successfully uploaded {successful_uploads} out of {num_users} requests.")
+    except Exception as e:
+        print(f"Error: {str(e)}")
 
 # Usage
+
+local=True
 base_url = 'https://api.notello.dev'  # Adjust this to your actual base URL
 local_url = 'http://localhost:5000'
 folder_path = 'bible'
 course_id = '62ef68a3-7f1d-452c-93d4-136daf5f137b'
+local_course_id = '37095609-eb18-4ccc-b104-43df97586782'
 ingest_type = 'create'
+local_email = 'aidangollan42@gmail.com'  # Replace with actual email
+local_password = 'password'  # Replace with actual password
 email = 'gollanstrength@gmail.com'  # Replace with actual email
 password = 'password123'  # Replace with actual password
 
-asyncio.run(simulate_concurrent_uploads(folder_path, local_url, course_id, ingest_type, email, password, num_users=1))
+if not local:
+    print("Running on server")
+    asyncio.run(simulate_concurrent_uploads(folder_path, base_url, course_id, ingest_type, email, password, num_users=2))
+else:
+    print("Running locally")
+    asyncio.run(simulate_concurrent_uploads(folder_path, local_url, local_course_id, ingest_type, local_email, local_password, num_users=2))

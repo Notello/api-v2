@@ -159,18 +159,22 @@ class FlashcardService:
             specifierId: str,
             flashcardId: str
         ):
-        try:
-            ratelimitId = RatelimitService.add_rate_limit(userId=userId, type=FLASHCARD, count=1)
+        batch_size = 20
 
+        ratelimitId = RatelimitService.add_rate_limit(userId=userId, type=FLASHCARD, value=batch_size)
+        try:
             if ratelimitId is None:
                 return None
-            
-            batch_size = 20
-
-            topic_pairs = GraphQueryService.get_new_topic_flashcard_pairs_for_param()
+        
+            topic_pairs = GraphQueryService.get_new_topic_flashcard_pairs_for_param(
+                param=param,
+                id=specifierId,
+                userId=userId,
+                num_pairs=batch_size
+            )
             
             logging.info(f"Topic pairs: {topic_pairs}")
         except Exception as e:
             logging.error(f"Error generating flashcards: {str(e)}")
-            SupabaseService.delete_rate_limit(ratelimitId=ratelimitId)
+            SupabaseService.delete_rate_limit(rateLimitId=ratelimitId)
             return None

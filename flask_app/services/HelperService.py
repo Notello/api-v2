@@ -8,9 +8,8 @@ from pytube import YouTube
 from langchain.prompts import ChatPromptTemplate
 from langchain.docstore.document import Document
 
-from flask_app.constants import ProxyRotator
+from flask_app.constants import GPT_4O_MINI, ProxyRotator
 from flask_app.src.shared.common_fn import get_llm
-from flask_app.constants import LLAMA_8_MODEL
 
 class HelperService:
     @staticmethod
@@ -127,7 +126,7 @@ class HelperService:
     ):
         text = "\n".join([chunk.page_content for chunk in chunks])[:5000]
 
-        llm = get_llm(LLAMA_8_MODEL)
+        llm = get_llm(GPT_4O_MINI)
         prompt = ChatPromptTemplate.from_messages([
             ("system", 
              """

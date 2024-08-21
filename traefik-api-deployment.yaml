@@ -18,7 +18,7 @@ spec:
         dedicated: api
       containers:
       - name: flask-restx-api
-        image: registry.digitalocean.com/notello/api-dev:v2.16
+        image: registry.digitalocean.com/notello/api-dev:v2.18
         ports:
         - containerPort: 8080
         resources:
@@ -49,6 +49,21 @@ spec:
               key: password
         - name: NEO4J_DATABASE
           value: "neo4j"
+        - name: REDIS_HOST
+          valueFrom:
+            secretKeyRef:
+              name: redis
+              key: host
+        - name: REDIS_PORT
+          valueFrom:
+            secretKeyRef:
+              name: redis
+              key: port
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: redis
+              key: password
         - name: SUPABASE_URL
           valueFrom:
             secretKeyRef:

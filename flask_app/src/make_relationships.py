@@ -84,4 +84,3 @@ def create_relation_between_chunks(
     except Exception as e:
         logging.error(f"Error in create_relation_between_chunks: {e}")
         raise e
-
