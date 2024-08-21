@@ -19,11 +19,12 @@ def create_app():
 
     Neo4jConnection.initialize()
     init_indexes()
+
+    ratelimit = SupabaseService.get_rate_limit_values()
+    ratelimitdict = RatelimitService.construct_rate_limits_dict(rate_limits=ratelimit)
+
+    app.config['ratelimit'] = ratelimitdict
     
     with app.app_context():
-        ratelimit = SupabaseService.get_rate_limit_values()
-        ratelimitdict = RatelimitService.construct_rate_limits_dict(rate_limits=ratelimit)
-        g.ratelimit = ratelimitdict
-        logging.info(f"Ratelimit: {ratelimitdict}")
         init_api(api)
         return app

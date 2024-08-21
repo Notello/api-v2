@@ -560,3 +560,53 @@ class GraphQueryService():
             return result[0]["result"]
         else:
             return None
+        
+    @staticmethod
+    def get_new_topic_flashcard_pairs_for_param(
+        param: str, 
+        id: str,
+        userId: str,
+        num_pairs: int = 20
+        ):
+        graphAccess = graphDBdataAccess()
+
+        QUERY = """
+        MATCH (n:Concept)
+        WHERE $id IN n.$param
+        OPTIONAL MATCH (n)-[r:HAS_FLASHCARD]->(f:Flashcard)
+        WHERE $userId NOT IN f.userId AND $id IN f.$param
+        WITH n, f, 
+            CASE WHEN f IS NOT NULL THEN 1 ELSE 0 END AS hasFlashcard
+        ORDER BY hasFlashcard DESC, rand()
+        WITH COLLECT({concept: n, flashcard: f, hasFlashcard: hasFlashcard}) AS allConcepts, 
+            COUNT(*) AS totalCount
+        UNWIND allConcepts[0..$num_pairs] AS conceptData
+        WITH conceptData.concept AS n, conceptData.flashcard AS f, conceptData.hasFlashcard AS hasFlashcard,
+            totalCount, SIZE(allConcepts) AS returnedCount
+        OPTIONAL MATCH (c:Chunk)-[:REFERENCES]->(n)
+        WHERE hasFlashcard = 0
+        WITH n, f, hasFlashcard, totalCount, returnedCount,
+            CASE WHEN hasFlashcard = 0 
+                THEN c 
+                ELSE NULL 
+            END AS relatedChunk
+        ORDER BY hasFlashcard DESC, n.id, relatedChunk.relevance DESC
+        WITH n, f, hasFlashcard, totalCount, returnedCount,
+            COLLECT(relatedChunk)[0..3] AS topRelatedChunks
+        RETURN n.id AS conceptId, 
+            n.uuid[0] AS conceptUuid, 
+            f.label AS flashcardLabel,
+            hasFlashcard,
+            [chunk IN topRelatedChunks WHERE chunk IS NOT NULL | chunk.id] AS relatedChunkIds,
+            totalCount > returnedCount AS hasMoreConcepts
+        """
+
+        params = {
+            "param": param,
+            "id": id,
+            "userId": userId,
+            "num_pairs": num_pairs
+        }
+
+        result = graphAccess.execute_query(QUERY, params)
+        return result

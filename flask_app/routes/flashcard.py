@@ -19,9 +19,12 @@ create_flashcard_parser.add_argument('courseId', location='form',
 create_flashcard_parser.add_argument('noteId', location='form', 
                         type=str, required=False,
                         help='Note ID associated with the flashcard')
+create_flashcard_parser.add_argument('flashcardId', location='form', 
+                        type=str, required=False,
+                        help='Flashcard ID associated with the flashcard')
 
 @api.expect(create_flashcard_parser)
-@api.route('/generate-flashcards')
+@api.route('/get-new-flashcards')
 class Flashcard(Resource):
     @api.doc(security="jsonWebToken")
     @token_required
@@ -30,6 +33,7 @@ class Flashcard(Resource):
             args = create_flashcard_parser.parse_args()
             courseId = args.get('courseId', None)
             noteId = args.get('noteId', None)
+            flashcardId = args.get('flashcardId', None)
             user_id = request.user_id
             logging.info(f"Create flashcards for {courseId}, {noteId}")
 
@@ -37,7 +41,7 @@ class Flashcard(Resource):
                 logging.info(f"Invalid courseId or noteId: {courseId}")
                 return {f'message': 'Invalid courseId or noteId'}, 400
             
-            flashcardId = FlashcardService.ingest_flashcard(courseId=courseId, noteId=noteId, user_id=user_id)
+            flashcardId = FlashcardService.ingest_flashcard(courseId=courseId, noteId=noteId, user_id=user_id, flashcardId=flashcardId)
 
             return {'flashcardId': flashcardId}, 200
 

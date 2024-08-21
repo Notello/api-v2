@@ -121,16 +121,18 @@ class FlashcardService:
     def ingest_flashcard(
         courseId, 
         noteId, 
-        user_id
+        user_id,
+        flashcardId = None
     ):
         specifierParam = NOTEID if noteId else COURSEID
         specifierId = noteId if specifierParam == NOTEID else courseId
 
-        fladshcardId = SupabaseService.create_flashcards(
-            courseId=courseId,
-            noteId=noteId,
-            userId=user_id
-        )
+        if not flashcardId:
+            fladshcardId = SupabaseService.create_flashcards(
+                courseId=courseId,
+                noteId=noteId,
+                userId=user_id
+            )
 
         if not fladshcardId:
             return None
@@ -142,7 +144,8 @@ class FlashcardService:
                 noteId, 
                 user_id,
                 specifierParam,
-                specifierId
+                specifierId,
+                flashcardId
                 )
         ).start()
 
@@ -153,16 +156,17 @@ class FlashcardService:
             noteId: str, 
             userId: str,
             param: str,
-            specifierId: str
+            specifierId: str,
+            flashcardId: str
         ):
         ratelimitId = RatelimitService.add_rate_limit(userId=userId, type=FLASHCARD, count=1)
 
         if ratelimitId is None:
             return None
         
-        topics = GraphQueryService.get_topics_for_param(param=param, id=specifierId)
+        batch_size = 20
 
-        chunks = []
+        topic_pairs = get_new_topic_flashcard_pairs_for_param()
         
         flashcards = generate_flashcards(
             topics=topics,

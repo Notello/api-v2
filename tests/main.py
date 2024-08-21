@@ -15,12 +15,11 @@ async def login(session, base_url, email, password):
             print(f"Response content: {await response.text()}")
             return None
 
-async def upload_pdf(session, api_url, file_path, user_id, course_id, ingest_type, headers):
+async def upload_pdf(session, api_url, file_path, course_id, ingest_type, headers):
     async with aopen(file_path, 'rb') as file:
         pdf_file = os.path.basename(file_path)
         form_data = aiohttp.FormData()
         form_data.add_field('file', await file.read(), filename=pdf_file, content_type='application/pdf')
-        form_data.add_field('userId', user_id)
         form_data.add_field('courseId', course_id)
         form_data.add_field('ingestType', ingest_type)
 
@@ -38,7 +37,7 @@ async def upload_pdf(session, api_url, file_path, user_id, course_id, ingest_typ
             print(f"Error uploading {pdf_file}: {str(e)}")
             return False
 
-async def simulate_concurrent_uploads(folder_path, base_url, user_id, course_id, ingest_type, email, password, num_users=500):
+async def simulate_concurrent_uploads(folder_path, base_url, course_id, ingest_type, email, password, num_users=500):
     if not os.path.exists(folder_path):
         print(f"Error: Folder '{folder_path}' does not exist.")
         return
@@ -70,7 +69,7 @@ async def simulate_concurrent_uploads(folder_path, base_url, user_id, course_id,
             # If there are fewer PDF files than users, cycle through the files
             file_index = _ % len(pdf_files)
             file_path = os.path.join(folder_path, pdf_files[file_index])
-            task = upload_pdf(session, api_url, file_path, user_id, course_id, ingest_type, headers)
+            task = upload_pdf(session, api_url, file_path, course_id, ingest_type, headers)
             tasks.append(task)
 
         # Execute all tasks concurrently
@@ -81,10 +80,11 @@ async def simulate_concurrent_uploads(folder_path, base_url, user_id, course_id,
 
 # Usage
 base_url = 'https://api.notello.dev'  # Adjust this to your actual base URL
+local_url = 'http://localhost:5000'
 folder_path = 'bible'
 course_id = '62ef68a3-7f1d-452c-93d4-136daf5f137b'
 ingest_type = 'create'
-email = 'gollanstrength@gmail.com'
+email = 'gollanstrength@gmail.com'  # Replace with actual email
 password = 'password123'  # Replace with actual password
 
-asyncio.run(simulate_concurrent_uploads(folder_path, base_url, course_id, ingest_type, email, password, num_users=200))
+asyncio.run(simulate_concurrent_uploads(folder_path, local_url, course_id, ingest_type, email, password, num_users=1))

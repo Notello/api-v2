@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta, timezone
+from dateutil import parser
 import logging
 
-from flask import g
+from flask import current_app
 
 from flask_app.services.SupabaseService import SupabaseService
 from flask_app.services.HelperService import HelperService
@@ -26,7 +27,7 @@ class RatelimitService():
         logging.info(f"now: {now}")
 
         for item in rate_limits:
-            item['created_at'] = datetime.fromisoformat(item['created_at']).replace(tzinfo=timezone.utc)
+            item['created_at'] = parser.isoparse(item['created_at']).replace(tzinfo=timezone.utc)
 
         # Calculate counts for each time period
         monthly_count = sum(item['count'] for item in rate_limits if item['created_at'] >= month_start and item['userType'] == user_type)
@@ -53,10 +54,7 @@ class RatelimitService():
 
             usage_dict = RatelimitService.sort_into_time_buckets(rate_limits=current_usage, user_type=user_type)
 
-            rate_limits_dict = g.ratelimit[type][user_type]
-                        
-            logging.info(f'Usage dict: {usage_dict}')
-            logging.info(f'Rate limits: {rate_limits_dict}')
+            rate_limits_dict = current_app.config['ratelimit'][type][user_type]
             
             return (
                 usage_dict['monthly'] >= rate_limits_dict['monthly'] or

@@ -65,7 +65,7 @@ OPENAI_MODELS = [
 DEFAULT_COMMUNITIES = 3
 
 SUPER_ADMIN_EMAILS = ["aidangollan42@gmail.com", "gollanstrength@gmail.com", "alshaik8@msu.edu", "malshaik.me@gmail.com"]
-SUPER_ADMIN_USER_IDS = ['cbd639d0-ff29-46ee-9042-2051d3de71fd', "62ef68a3-7f1d-452c-93d4-136daf5f137b"]
+SUPER_ADMIN_USER_IDS = ['cbd639d0-ff29-46ee-9042-2051d3de71fd', "62ef68a3-7f1d-452c-93d4-136daf5f137b", "67f6b966-5ca3-4710-a80e-2e6c4fdabbf8"]
 
 ALGORITHM = "algorithm"
 PAGERANK = "pagerank"
