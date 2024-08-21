@@ -150,6 +150,7 @@ class GraphCreationService:
             r.set(getGraphKey(courseId), json.dumps({'nodes': nodes, 'relationships': relationships}))
 
         except Exception as e:
+            graphAccess: graphDBdataAccess = graphDBdataAccess()
             logging.exception(f'Exception in create_source_node_graph: {e}')
             graphAccess.update_source_node(sourceNode(noteId = noteId, mergeStatus = "error"))
             graphAccess.update_source_node(sourceNode(noteId = noteId, comStatus = "error"))

@@ -125,7 +125,7 @@ class HelperService:
     def get_document_summary(
         chunks: List[Document],
     ):
-        text = "\n".join([chunk.page_content for chunk in chunks])
+        text = "\n".join([chunk.page_content for chunk in chunks])[:5000]
 
         llm = get_llm(LLAMA_8_MODEL)
         prompt = ChatPromptTemplate.from_messages([
