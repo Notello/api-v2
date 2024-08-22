@@ -6,9 +6,11 @@ from datetime import datetime
 from flask_app.services.GraphQueryService import GraphQueryService
 from flask_app.services.HelperService import HelperService
 from flask_app.services.SupabaseService import SupabaseService
-from flask_app.constants import COURSEID
+
 from flask_app.routes.middleware import token_required
 from flask_app.routes.auth import authorizations
+
+from flask_app.constants import COURSEID
 
 api = Namespace('graph', authorizations=authorizations)
 

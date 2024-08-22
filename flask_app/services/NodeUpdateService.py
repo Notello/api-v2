@@ -11,13 +11,15 @@ from flask_app.services.GraphQueryService import GraphQueryService
 from flask_app.services.RunpodService import RunpodService
 from flask_app.services.HelperService import HelperService
 from flask_app.services.Neo4jQueueManager import queued_transaction
-from flask_app.constants import COMMUNITY_DETECTION, COURSEID, LOUVAIN, NOTEID, PAGERANK, USERID
+from flask_app.constants import COMMUNITY_DETECTION, COURSEID, LOUVAIN, NOTE, NOTEID, PAGERANK, USERID
 from nltk.stem import WordNetLemmatizer
 
 
 class NodeUpdateService:
-    @staticmethod
-    def update_node_embeddings(noteId: str, nodes_data, embeddings) -> None:
+
+    @queued_transaction(task_type='embed')
+    def update_embeddings(tx, id_type: str, target_id: str, note_id: str, nodes_data) -> None:
+        embeddings, dimension = load_embedding_model()
         nodes_to_update = []
         futures = []
 
@@ -36,23 +38,16 @@ class NodeUpdateService:
 
                 nodes_to_update.append({'id': name, 'embedding': embedding})
 
-        update_query = """
+        update_query = f"""
         UNWIND $nodes AS node
         MATCH (n:Concept)
-        WHERE $noteId IN n.noteId AND n.id = node.id
+        WHERE '{target_id}' IN n.{id_type} AND n.id = node.id
         SET n.embedding = node.embedding
         RETURN count(n) as updatedCount
         """
 
-        graphAccess = graphDBdataAccess()
-
-        update_result = graphAccess.execute_query(update_query, {'nodes': nodes_to_update, NOTEID: noteId})
+        update_result = tx.run(update_query, {'nodes': nodes_to_update})
         logging.info(f"Updated nodes: {update_result}")
-
-    @staticmethod
-    def update_embeddings(noteId: str, nodes_data) -> None:
-        embeddings, dimension = load_embedding_model()
-        NodeUpdateService.update_node_embeddings(noteId=noteId, nodes_data=nodes_data, embeddings=embeddings)
         
     
     @staticmethod
@@ -210,6 +205,14 @@ class NodeUpdateService:
     @queued_transaction(task_type='merge')
     def merge_similar_nodes(tx, id_type: str, target_id: str, note_id: str, distance: int = 2, embedding_cutoff: float = 0.97) -> None:
         logging.info(f"Merging similar nodes for {id_type}: {target_id}")
+        course_com_string = GraphQueryService.get_com_string(communityType=COURSEID, communityId=target_id)
+        course_pagerank_string = GraphQueryService.get_page_rank_string(param=COURSEID, id=target_id)
+        note_com_string = GraphQueryService.get_com_string(communityType=NOTEID, communityId=note_id)
+        note_pagerank_string = GraphQueryService.get_page_rank_string(param=NOTEID, id=note_id)
+        logging.info(f"course pagerank_string: {course_com_string}")
+        logging.info(f"course com_string: {course_pagerank_string}")
+        logging.info(f"note pagerank_string: {note_com_string}")
+        logging.info(f"note com_string: {note_pagerank_string}")
         start_total = datetime.now()
         logging.info(f"Starting at {start_total}")
 
@@ -243,6 +246,7 @@ class NodeUpdateService:
             root_map[node_id]['uuids'].extend(node_uuid)
             root_map[node_id]['count'] += 1
 
+
         end = datetime.now()
         logging.info(f"Root map took: {end - start}")
 
@@ -271,7 +275,7 @@ class NodeUpdateService:
 
                 root_embeddings[name] = embedding
 
-        MERGE_QUERY = """
+        MERGE_QUERY = f"""
         WITH $root_map AS map
         MATCH (n:Concept)
         WHERE ANY(uuid IN n.uuid WHERE uuid IN map.uuids)
@@ -282,22 +286,30 @@ class NodeUpdateService:
             [node IN nodes | node.noteId] AS allNoteIds,
             [node IN nodes | node.userId] AS allUserIds,
             [node IN nodes | node.courseId] AS allCourseIds,
-            [node IN nodes | node.uuid] AS allUuids
+            [node IN nodes | node.uuid] AS allUuids,
+            [node IN nodes | node.{course_pagerank_string}] AS allCoursePageRanks,
+            [node IN nodes | node.{course_com_string}] AS allCourseCommunities,
+            [node IN nodes | node.{note_pagerank_string}] AS allNotePageRanks,
+            [node IN nodes | node.{note_com_string}] AS allNoteCommunities
 
-        CALL apoc.merge.node(['Concept'], {id: map.root}, {}) YIELD node AS mergedNode
+        CALL apoc.merge.node(['Concept'], {{id: map.root}}, {{}}) YIELD node AS mergedNode
 
-        WITH map, nodes, mergedNode, allNoteIds, allUserIds, allCourseIds, allUuids
-        CALL apoc.refactor.mergeNodes(nodes + mergedNode, {properties: "combine", mergeRels: true})
+        WITH map, nodes, mergedNode, allNoteIds, allUserIds, allCourseIds, allUuids, allCoursePageRanks, allCourseCommunities, allNotePageRanks, allNoteCommunities
+        CALL apoc.refactor.mergeNodes(nodes + mergedNode, {{properties: "combine", mergeRels: true}})
         YIELD node
 
         // Set properties on merged node
-        SET node = apoc.map.removeKeys(node, ['id', 'userId', 'noteId', 'courseId', 'uuid', 'embedding']),
+        SET node = apoc.map.removeKeys(node, ['id', 'userId', 'noteId', 'courseId', 'uuid', 'embedding', '{course_pagerank_string}', '{course_com_string}', '{note_pagerank_string}', '{note_com_string}']),
             node.id = map.root,
             node.userId = apoc.coll.toSet(apoc.coll.flatten(allUserIds)),
             node.noteId = apoc.coll.toSet(apoc.coll.flatten(allNoteIds)),
             node.courseId = apoc.coll.toSet(apoc.coll.flatten(allCourseIds)),
             node.uuid = apoc.coll.toSet(apoc.coll.flatten(allUuids)),
-            node.embedding = map.embedding
+            node.embedding = map.embedding,
+            node.{course_pagerank_string} = allCoursePageRanks[0],
+            node.{course_com_string} = allCourseCommunities[0],
+            node.{note_pagerank_string} = allNotePageRanks[0],
+            node.{note_com_string} = allNoteCommunities[0]
 
         RETURN count(node) AS mergedCount
         """

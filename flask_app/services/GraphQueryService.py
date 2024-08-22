@@ -568,45 +568,87 @@ class GraphQueryService():
         userId: str,
         num_pairs: int = 20
         ):
-        graphAccess = graphDBdataAccess()
+        try:
+            graphAccess = graphDBdataAccess()
 
-        QUERY = f"""
-        MATCH (n:Concept)
-        WHERE '{id}' IN n.{param}
-        OPTIONAL MATCH (n)-[r:HAS_FLASHCARD]->(f:Flashcard)
-        WHERE NOT '{userId}' IN f.userId AND '{id}' IN n.{param}
-        WITH n, f, 
-            CASE WHEN f IS NOT NULL THEN 1 ELSE 0 END AS hasFlashcard
-        ORDER BY hasFlashcard DESC, rand()
-        WITH COLLECT({{concept: n, flashcard: f, hasFlashcard: hasFlashcard}}) AS allConcepts, 
-            COUNT(*) AS totalCount
-        UNWIND allConcepts[0..{num_pairs}] AS conceptData
-        WITH conceptData.concept AS n, conceptData.flashcard AS f, conceptData.hasFlashcard AS hasFlashcard,
-            totalCount, SIZE(allConcepts) AS returnedCount
-        OPTIONAL MATCH (c:Chunk)-[:REFERENCES]->(n)
-        WHERE hasFlashcard = 0
-        WITH n, f, hasFlashcard, totalCount, returnedCount,
-            CASE WHEN hasFlashcard = 0 
-                THEN c 
-                ELSE NULL 
-            END AS relatedChunk
-        ORDER BY hasFlashcard DESC, n.id, relatedChunk.relevance DESC
-        WITH n, f, hasFlashcard, totalCount, returnedCount,
-            COLLECT(relatedChunk)[0..3] AS topRelatedChunks
-        RETURN n.id AS conceptId, 
-            n.uuid[0] AS conceptUuid, 
-            f.label AS flashcardLabel,
-            hasFlashcard,
-            [chunk IN topRelatedChunks WHERE chunk IS NOT NULL | chunk.id] AS relatedChunkIds,
-            totalCount > returnedCount AS hasMoreConcepts
-        """
+            QUERY1 = f"""
+            MATCH (n:Concept)
+            WHERE {id} IN n.{param}
+            MATCH (n)-[r:HAS_FLASHCARD]->(f:Flashcard)
+            WHERE NOT {userId} IN f.userId
+            WITH n, f
+            ORDER BY rand()
+            LIMIT {num_pairs}
+            RETURN COLLECT({{
+                conceptId: n.id,
+                conceptUuid: n.uuid[0],
+                flashcardLabel: f.label,
+                flashcardId: f.id,
+                hasFlashcard: 1
+            }}) AS concept_pairs
+            """
 
-        params = {
-            "param": param,
-            "id": id,
-            "userId": userId,
-            "num_pairs": num_pairs
-        }
+            params1 = {
+                "param": param,
+                "id": id,
+                "userId": userId,
+                "num_pairs": num_pairs
+            }
 
-        result = graphAccess.execute_query(QUERY, params)
-        return result
+            result1 = graphAccess.execute_query(QUERY1, params1)
+            concept_pairs = result1[0]['concept_pairs'] if result1 else []
+
+            remaining_pairs = num_pairs - len(concept_pairs)
+
+            if remaining_pairs > 0:
+                QUERY2 = f"""
+                MATCH (n:Concept)
+                WHERE {id} IN n.{param}
+                AND NOT EXISTS((n)-[:HAS_FLASHCARD]->(:Flashcard))
+                WITH n
+                ORDER BY rand()
+                LIMIT {remaining_pairs}
+                WITH COLLECT({{
+                    conceptId: n.id,
+                    conceptUuid: n.uuid[0],
+                    hasFlashcard: 0
+                }}) AS concept_pairs, COUNT(*) AS found_concepts
+                OPTIONAL MATCH (c:Chunk)-[:REFERENCES]->(n:Concept)
+                WHERE n.id IN [pair IN concept_pairs | pair.conceptId]
+                WITH concept_pairs, found_concepts, collect(c) AS relatedChunks
+                WITH concept_pairs, found_concepts,
+                    [chunk IN relatedChunks | {{id: chunk.id, text: chunk.text, offset: chunk.offset, noteId: chunk.noteId}}][..3] AS topRelatedChunks
+                RETURN {{
+                    concept_pairs: concept_pairs,
+                    hasMoreConcepts: found_concepts > {remaining_pairs},
+                    relatedChunks: topRelatedChunks
+                }} AS result
+                """
+
+                params2 = {
+                    "param": param,
+                    "id": id,
+                    "remaining_pairs": remaining_pairs
+                }
+
+                result2 = graphAccess.execute_query(QUERY2, params2)
+
+                if result2:
+                    concept_pairs.extend(result2[0]['result']['concept_pairs'])
+                    has_more_concepts = result2[0]['result']['hasMoreConcepts']
+                    related_chunks = result2[0]['result']['relatedChunks']
+                else:
+                    has_more_concepts = False
+                    related_chunks = []
+            else:
+                has_more_concepts = True
+                related_chunks = []
+
+            return {
+                'concept_pairs': concept_pairs,
+                'hasMoreConcepts': has_more_concepts,
+                'relatedChunks': related_chunks
+            }
+        except Exception as e:
+            logging.error(f"Error getting flashcard pairs: {str(e)}")
+            return None

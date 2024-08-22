@@ -3,15 +3,16 @@ from flask import request
 from flask_restx import Namespace, Resource
 from werkzeug.datastructures import FileStorage
 
-
 from flask_app.services.NoteService import NoteForm, NoteService, IngestType
 from flask_app.services.SupabaseService import SupabaseService
 from flask_app.services.AuthService import AuthService
 from flask_app.services.ValidationService import ValidationService
 from flask_app.services.GraphDeletionService import GraphDeletionService
-from flask_app.constants import COURSEID, NOTE, NOTEID, USERID
+
 from flask_app.routes.middleware import token_required
 from flask_app.routes.auth import authorizations
+
+from flask_app.constants import COURSEID, NOTEID
 
 api = Namespace('note', authorizations=authorizations)
 
@@ -55,15 +56,15 @@ class YoutubeIntake(Resource):
     @api.doc(security="jsonWebToken")
     @token_required
     def post(self):
+        args = intake_youtube_parser.parse_args()
+        youtubeUrl = args.get('youtubeUrl', None)
+        courseId = args.get(COURSEID, None)
+        noteId = args.get(NOTEID, None)
+        ingestType = NoteService.ingest_to_enum(args.get('ingestType', None))
+        userId = request.user_id
+
         try:
             logging.info('In youtube intake post')
-
-            args = intake_youtube_parser.parse_args()
-            youtubeUrl = args.get('youtubeUrl', None)
-            courseId = args.get(COURSEID, None)
-            noteId = args.get(NOTEID, None)
-            ingestType = NoteService.ingest_to_enum(args.get('ingestType', None))
-            userId = request.user_id
 
             logging.info(f"Youtube url: {youtubeUrl}")
 
@@ -117,14 +118,14 @@ class AudioIntake(Resource):
     @api.doc(security="jsonWebToken")
     @token_required
     def post(self):
-        try:
-            args = create_audio_note_parser.parse_args()
-            courseId = args.get(COURSEID, None)
-            noteId = args.get(NOTEID, None)
-            audio_file = args.get('file', None)
-            ingestType = NoteService.ingest_to_enum(args.get('ingestType', None))
-            userId = request.user_id
+        args = create_audio_note_parser.parse_args()
+        courseId = args.get(COURSEID, None)
+        noteId = args.get(NOTEID, None)
+        audio_file = args.get('file', None)
+        ingestType = NoteService.ingest_to_enum(args.get('ingestType', None))
+        userId = request.user_id
 
+        try:
             valid = ValidationService.validate_audio_inputs(
                 audio_file=audio_file,
                 courseId=courseId,
@@ -178,14 +179,15 @@ class TextIntake(Resource):
     @api.doc(security="jsonWebToken")
     @token_required
     def post(self):
+        args = create_text_note_parser.parse_args()
+        courseId = args.get(COURSEID, None)
+        noteId = args.get(NOTEID, None)
+        rawText = args.get('rawText', None)
+        noteName = args.get('noteName', None)
+        ingestType = NoteService.ingest_to_enum(args.get('ingestType', None))
+        userId = request.user_id
+
         try:
-            args = create_text_note_parser.parse_args()
-            courseId = args.get(COURSEID, None)
-            noteId = args.get(NOTEID, None)
-            rawText = args.get('rawText', None)
-            noteName = args.get('noteName', None)
-            ingestType = NoteService.ingest_to_enum(args.get('ingestType', None))
-            userId = request.user_id
 
             valid = ValidationService.validate_text_inputs(
                 rawText=rawText,
@@ -238,14 +240,14 @@ class TextFileIntake(Resource):
     @api.doc(security="jsonWebToken")
     @token_required
     def post(self):
-        try:
-            args = create_text_file_note_parser.parse_args()
-            courseId = args.get(COURSEID, None)
-            noteId = args.get(NOTEID, None)
-            file: FileStorage = args.get('file', None)
-            ingestType = NoteService.ingest_to_enum(args.get('ingestType', None))
-            userId = request.user_id
+        args = create_text_file_note_parser.parse_args()
+        courseId = args.get(COURSEID, None)
+        noteId = args.get(NOTEID, None)
+        file: FileStorage = args.get('file', None)
+        ingestType = NoteService.ingest_to_enum(args.get('ingestType', None))
+        userId = request.user_id
 
+        try:
             valid, file_type = ValidationService.validate_text_file_inputs(
                 file=file,
                 courseId=courseId,

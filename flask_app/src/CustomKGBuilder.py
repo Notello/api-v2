@@ -12,6 +12,7 @@ def setup_llm(text: str, summary: str):
     system_prompt = """
         - You are a top-tier algorithm designed for extracting information in structured formats to build a detailed knowledge graph. 
         - Your task is to identify as many concepts and entities in the text and relations between them as possible. 
+        - You will also provide descriptions for each node as they would appear on a flashcard.
         - You will use the summary of the text provided to you to guide what types of concepts and entities to extract. 
         - You should use the summary to correct any typos in the source text based on the context provided.
 
@@ -19,6 +20,7 @@ def setup_llm(text: str, summary: str):
         You will output the knowledge graph in the following format, it is extremely important that you follow this format:
         nodes: A list of nodes, where each node is a dictionary with the following keys:
             id: The unique identifier of the node
+            description: The description of the node as would be read on a flashcard.
         relationships: A list of relationships, where a relationship is a dictionary with the following keys:
             source: The unique identifier of the source node, must match a node in the nodes list
             target: The unique identifier of the target node, must match a node in the nodes list
@@ -33,6 +35,7 @@ def setup_llm(text: str, summary: str):
 
     user_template = f"""
         Based on the following text and summary, extract *AS MANY* entities/concepts and relationships between them as possible.
+        Please remember to provide a description for each node as it would appear on a flashcard.
 
         Summary of document:
         {summary}

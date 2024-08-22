@@ -17,4 +17,4 @@ COPY . .
 EXPOSE 8080
 
 # Command to run the application with Gunicorn
-CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "13", "--threads", "2", "--worker-class", "gthread", "--max-requests", "1000", "--max-requests-jitter", "50", "app:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "6", "--threads", "4", "--worker-class", "gthread", "--max-requests", "1000", "--max-requests-jitter", "50", "app:app"]

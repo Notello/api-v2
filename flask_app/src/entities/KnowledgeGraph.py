@@ -5,6 +5,7 @@ from langchain_core.pydantic_v1 import BaseModel, Field, validator
 
 class Node(BaseModel):
     id: str = Field(description="Name or human-readable unique identifier.")
+    description: str = Field(description="Description of the node as would be read on a flashcard.")
 
 class Relationship(BaseModel):
     source: str = Field(description="Name or human-readable unique identifier of source node, must match a node in the nodes list")
@@ -29,10 +30,11 @@ class KnowledgeGraph(BaseModel):
             knowledge_graph = KnowledgeGraph(nodes=[], relationships=[])
 
             for node in argument_json["nodes"]:
-                if not node.get("id"):  # Id is mandatory, skip this node
+                if not node.get("id") and not node.get("description"):
                     continue
                 knowledge_graph.nodes.append(Node(
-                    id=node["id"]
+                    id=node["id"],
+                    description=node["description"]
                 ))
 
             for relationship in argument_json["relationships"]:

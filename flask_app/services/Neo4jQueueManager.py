@@ -67,7 +67,8 @@ class Neo4jQueueManager:
         status_field = {
             'merge': 'mergeStatus',
             'community': 'comStatus',
-            'pagerank': 'pagerankStatus'
+            'pagerank': 'pagerankStatus',
+            'embed': 'embedStatus'
         }.get(task_type, 'status')
 
         logging.info(f"status_field: {status_field}")
@@ -130,6 +131,7 @@ class Neo4jQueueManager:
         # If it's a noteId operation, process it immediately
         if id_type == NOTEID:
             try:
+                logging.info(f"Processing noteId transaction: {work_func.__name__} for note {note_id}")
                 result = self._execute_transaction(work_func, *args, id_type=id_type, note_id=note_id, **kwargs)
                 return result
             except Exception as e:

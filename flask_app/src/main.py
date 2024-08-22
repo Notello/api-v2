@@ -33,6 +33,7 @@ def processing_source(
         comStatus = "incomplete",
         pagerankStatus = "incomplete",
         mergeStatus = "incomplete",
+        embedStatus = "incomplete",
         fileName = fileName,
         noteId = noteId,
         total_chunks = len(chunks),
@@ -76,8 +77,6 @@ def processing_source(
     end_time = datetime.now()
     processed_time = end_time - start_time
     
-    NodeUpdateService.update_embeddings(noteId=noteId, nodes_data=nodes_data)
-
     # NodeUpdateService.merge_similar_nodes(id_type=NOTEID, target_id=noteId, note_id=noteId)
 
     NodeUpdateService.update_communities_for_param(id_type=NOTEID, target_id=noteId, note_id=noteId)
@@ -99,6 +98,9 @@ def processing_source(
     NodeUpdateService.merge_similar_nodes(id_type=COURSEID, target_id=courseId, note_id=noteId)
     graphAccess.update_source_node(sourceNode(noteId = noteId, mergeStatus = "complete"))
     logging.info(f"Setting mergeStatus to complete for course {courseId}")
+
+    NodeUpdateService.update_embeddings(id_type=COURSEID, target_id=courseId, note_id=noteId, nodes_data=nodes_data)
+    graphAccess.update_source_node(sourceNode(noteId = noteId, embedStatus = "complete"))
 
     NodeUpdateService.update_communities_for_param(id_type=COURSEID, target_id=courseId, note_id=noteId)
     graphAccess.update_source_node(sourceNode(noteId = noteId, comStatus = "complete"))

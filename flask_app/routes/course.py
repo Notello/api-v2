@@ -1,9 +1,11 @@
 import logging
 from flask_restx import Namespace, Resource
 from flask import request
+
 from flask_app.services.SupabaseService import SupabaseService
 from flask_app.services.GraphDeletionService import GraphDeletionService
 from flask_app.services.AuthService import AuthService
+
 from flask_app.routes.auth import authorizations
 from flask_app.routes.middleware import token_required
 

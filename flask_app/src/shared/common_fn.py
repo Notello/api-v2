@@ -122,6 +122,7 @@ def clean_nodes(doc: KnowledgeGraph, courseId: str, noteId: str, userId: str):
     new_node = {}
     new_uuid = str(uuid4())
     new_node['id'] = clean_node_id(node.id)
+    new_node['description'] = node.description
     new_node['uuid'] = [new_uuid]
     new_node[COURSEID] = [courseId]
     new_node[USERID] = [userId]

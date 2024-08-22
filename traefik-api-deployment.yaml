@@ -18,16 +18,16 @@ spec:
         dedicated: api
       containers:
       - name: flask-restx-api
-        image: registry.digitalocean.com/notello/api-dev:v2.18
+        image: registry.digitalocean.com/notello/api-dev:v2.20
         ports:
         - containerPort: 8080
         resources:
           requests:
-            cpu: "6000m"
-            memory: "10Gi"
+            cpu: "6500m"
+            memory: "11Gi"
           limits:
-            cpu: "6000m"
-            memory: "10Gi"
+            cpu: "6500m"
+            memory: "11Gi"
         env:
         - name: FLASK_ENV
           value: "production"

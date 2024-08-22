@@ -1,9 +1,9 @@
 import os
 from flask_restx import Namespace, Resource
 
-from flask_app.constants import K8S_VER
-
 from flask_app.src.graphDB_dataAccess import graphDBdataAccess
+
+from flask_app.constants import K8S_VER
 
 
 api = Namespace('health')

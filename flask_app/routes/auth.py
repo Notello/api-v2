@@ -2,7 +2,6 @@ from flask_restx import Namespace, Resource
 
 from flask_app.services.SupabaseService import SupabaseService
 
-
 authorizations = {
     "jsonWebToken": {
         "type": "apiKey",
