@@ -2,8 +2,8 @@ import logging
 from flask import request
 from flask_restx import Namespace, Resource
 
-from flask_app.services.FlashcardService import FlashcardService
 from flask_app.services.HelperService import HelperService
+from flask_app.services.GraphQueryService import GraphQueryService
 
 from flask_app.routes.auth import authorizations
 from flask_app.routes.middleware import token_required
@@ -16,7 +16,7 @@ api = Namespace('flashcard', authorizations=authorizations)
 class Flashcard(Resource):
     @api.doc(security="jsonWebToken")
     @token_required
-    def post(self):
+    def post(self, param, id):
         try:
             user_id = request.user_id
 
@@ -24,7 +24,10 @@ class Flashcard(Resource):
                 logging.info(f"Invalid user_id: {user_id}")
                 return {f'message': 'Invalid user_id'}, 400
             
-            flashcardId = FlashcardService.ingest_flashcard()
+            flashcardId = GraphQueryService.get_topic_descriptions_for_param(
+                param=param,
+                id=id
+            )
 
             return {'flashcardId': flashcardId}, 200
 

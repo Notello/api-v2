@@ -562,93 +562,19 @@ class GraphQueryService():
             return None
         
     @staticmethod
-    def get_new_topic_flashcard_pairs_for_param(
-        param: str, 
-        id: str,
-        userId: str,
-        num_pairs: int = 20
-        ):
-        try:
-            graphAccess = graphDBdataAccess()
+    def get_topic_descriptions_for_param(param: str, id: str) -> List[Dict] | None:
+        graphAccess = graphDBdataAccess()
+        
+        QUERY = f"""
+        MATCH (c:Chunk)-[r:REFERENCES]->(n:Concept)
+        WHERE '{id}' IN n.{param}
+        WITH n.noteId AS noteId, n.id AS conceptId, n.uuid[0] AS conceptUuid,
+            COLLECT(DISTINCT r.description) AS descriptions
+        UNWIND descriptions AS description
+        RETURN noteId, conceptId, conceptUuid, description
+        ORDER BY noteId, conceptId, description
+        """
 
-            QUERY1 = f"""
-            MATCH (n:Concept)
-            WHERE {id} IN n.{param}
-            MATCH (n)-[r:HAS_FLASHCARD]->(f:Flashcard)
-            WHERE NOT {userId} IN f.userId
-            WITH n, f
-            ORDER BY rand()
-            LIMIT {num_pairs}
-            RETURN COLLECT({{
-                conceptId: n.id,
-                conceptUuid: n.uuid[0],
-                flashcardLabel: f.label,
-                flashcardId: f.id,
-                hasFlashcard: 1
-            }}) AS concept_pairs
-            """
+        result = graphAccess.execute_query(QUERY)
 
-            params1 = {
-                "param": param,
-                "id": id,
-                "userId": userId,
-                "num_pairs": num_pairs
-            }
-
-            result1 = graphAccess.execute_query(QUERY1, params1)
-            concept_pairs = result1[0]['concept_pairs'] if result1 else []
-
-            remaining_pairs = num_pairs - len(concept_pairs)
-
-            if remaining_pairs > 0:
-                QUERY2 = f"""
-                MATCH (n:Concept)
-                WHERE {id} IN n.{param}
-                AND NOT EXISTS((n)-[:HAS_FLASHCARD]->(:Flashcard))
-                WITH n
-                ORDER BY rand()
-                LIMIT {remaining_pairs}
-                WITH COLLECT({{
-                    conceptId: n.id,
-                    conceptUuid: n.uuid[0],
-                    hasFlashcard: 0
-                }}) AS concept_pairs, COUNT(*) AS found_concepts
-                OPTIONAL MATCH (c:Chunk)-[:REFERENCES]->(n:Concept)
-                WHERE n.id IN [pair IN concept_pairs | pair.conceptId]
-                WITH concept_pairs, found_concepts, collect(c) AS relatedChunks
-                WITH concept_pairs, found_concepts,
-                    [chunk IN relatedChunks | {{id: chunk.id, text: chunk.text, offset: chunk.offset, noteId: chunk.noteId}}][..3] AS topRelatedChunks
-                RETURN {{
-                    concept_pairs: concept_pairs,
-                    hasMoreConcepts: found_concepts > {remaining_pairs},
-                    relatedChunks: topRelatedChunks
-                }} AS result
-                """
-
-                params2 = {
-                    "param": param,
-                    "id": id,
-                    "remaining_pairs": remaining_pairs
-                }
-
-                result2 = graphAccess.execute_query(QUERY2, params2)
-
-                if result2:
-                    concept_pairs.extend(result2[0]['result']['concept_pairs'])
-                    has_more_concepts = result2[0]['result']['hasMoreConcepts']
-                    related_chunks = result2[0]['result']['relatedChunks']
-                else:
-                    has_more_concepts = False
-                    related_chunks = []
-            else:
-                has_more_concepts = True
-                related_chunks = []
-
-            return {
-                'concept_pairs': concept_pairs,
-                'hasMoreConcepts': has_more_concepts,
-                'relatedChunks': related_chunks
-            }
-        except Exception as e:
-            logging.error(f"Error getting flashcard pairs: {str(e)}")
-            return None
+        return result
