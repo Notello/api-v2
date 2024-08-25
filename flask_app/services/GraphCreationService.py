@@ -158,7 +158,6 @@ class GraphCreationService:
             logging.exception(f'Exception in create_source_node_graph: {e}')
             graphAccess.update_source_node(sourceNode(noteId = noteId, mergeStatus = "error"))
             graphAccess.update_source_node(sourceNode(noteId = noteId, comStatus = "error"))
-            graphAccess.update_source_node(sourceNode(noteId = noteId, pagerankStatus = "error"))
             graphAccess.update_source_node(sourceNode(noteId = noteId, errorMessage = str(e)))
             SupabaseService.update_note(noteId=noteId, key='graphStatus', value='error')
             RatelimitService.remove_rate_limit(rateLimitId)
@@ -282,46 +281,25 @@ class GraphCreationService:
         graphAccess.execute_query(query, params)
 
     @staticmethod
-    def insert_flashcards(flashcards, noteId, courseId, userId) -> None:
+    def associate_flashcards(flashcardId, param, id) -> None:
         graphAccess = graphDBdataAccess()
 
-        logging.info(f"Inserting flashcards: {flashcards}")
+        logging.info(f"Inserting flashcards for flashcardId: {flashcardId}")
 
         query = f"""
-        UNWIND $flashcards AS f
-        MATCH (n:Concept) WHERE f.conceptUuid IN n.uuid
-        MERGE (flashcard:Flashcard {{id: CASE WHEN f.flashcardId IS NULL THEN randomUUID() ELSE f.flashcardId END}})
-        ON CREATE SET
-            flashcard.topic = f.conceptId,
-            flashcard.description = f.flashcardLabel,
-            flashcard.userId = ['{userId}'],
-            flashcard.courseId = ['{courseId}']
-            {f", flashcard.noteId = ['{noteId}']" if noteId is not None else ""}
-        ON MATCH SET
-            flashcard.topic = f.conceptId,
-            flashcard.description = f.flashcardLabel,
-            flashcard.userId = CASE 
-                WHEN NOT '{userId}' IN flashcard.userId 
-                THEN flashcard.userId + '{userId}'
-                ELSE flashcard.userId 
-            END,
-            flashcard.courseId = CASE 
-                WHEN NOT '{courseId}' IN flashcard.courseId 
-                THEN flashcard.courseId + '{courseId}'
-                ELSE flashcard.courseId 
-            END
-            {f'''
-            ,flashcard.noteId = CASE 
-                WHEN NOT '{noteId}' IN flashcard.noteId 
-                THEN CASE
-                    WHEN flashcard.noteId IS NULL THEN ['{noteId}']
-                    ELSE flashcard.noteId + '{noteId}'
-                END
-                ELSE flashcard.noteId 
-            END
-            ''' if noteId is not None else ""}
-        MERGE (n)-[:HAS_FLASHCARD]->(flashcard)
-        RETURN flashcard
+        MATCH (c:Chunk)-[r:REFERENCES]->(n:Concept)
+        WHERE '{id}' IN c.{param}
+
+        WITH c, n, r, rand() AS random
+        ORDER BY random
+        WITH c, n, COLLECT(r)[0] AS r
+
+        FOREACH (ignoreMe IN CASE WHEN r.flashcardId IS NULL THEN [1] ELSE [] END |
+            SET r.flashcardId = [{flashcardId}]
+        )
+        FOREACH (ignoreMe IN CASE WHEN r.flashcardId IS NOT NULL THEN [1] ELSE [] END |
+            SET r.flashcardId = r.flashcardId + [{flashcardId}]
+        )
         """
 
-        graphAccess.execute_query(query, {'flashcards': flashcards})
+        graphAccess.execute_query(query)

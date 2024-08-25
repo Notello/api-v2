@@ -76,7 +76,7 @@ NODES = "nodes"
 PARAMS = "params"
 
 
-K8S_VER = '2.20'
+K8S_VER = '2.21'
 
 class ProxyRotator:
     def __init__(self):

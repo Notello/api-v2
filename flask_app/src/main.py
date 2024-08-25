@@ -31,7 +31,6 @@ def processing_source(
     obj_source_node = sourceNode(
         status = "processing",
         comStatus = "incomplete",
-        pagerankStatus = "incomplete",
         mergeStatus = "incomplete",
         embedStatus = "incomplete",
         fileName = fileName,
@@ -77,10 +76,7 @@ def processing_source(
     end_time = datetime.now()
     processed_time = end_time - start_time
     
-    # NodeUpdateService.merge_similar_nodes(id_type=NOTEID, target_id=noteId, note_id=noteId)
-
     NodeUpdateService.update_communities_for_param(id_type=NOTEID, target_id=noteId, note_id=noteId)
-    NodeUpdateService.update_page_rank(id_type=NOTEID, target_id=noteId, note_id=noteId)
 
     SupabaseService.update_note(noteId=noteId, key='graphStatus', value='complete')
 
@@ -105,10 +101,6 @@ def processing_source(
     NodeUpdateService.update_communities_for_param(id_type=COURSEID, target_id=courseId, note_id=noteId)
     graphAccess.update_source_node(sourceNode(noteId = noteId, comStatus = "complete"))
     logging.info(f"Setting comStatus to complete for course {courseId}")
-
-    NodeUpdateService.update_page_rank(id_type=COURSEID, target_id=courseId, note_id=noteId)
-    graphAccess.update_source_node(sourceNode(noteId = noteId, pagerankStatus = "complete"))
-    logging.info(f"Setting pagerankStatus to complete for course {courseId}")
     
     logging.info('Updated the nodeCount and relCount properties in Document node')
     logging.info(f'File: {fileName} extraction has been completed')

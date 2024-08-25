@@ -20,7 +20,7 @@ class RecommendationService():
 
         WITH otherNote, count(DISTINCT concept) AS sharedConcepts
 
-        RETURN {{noteId: otherNote.noteId, documentName: otherNote.fileName, createdAt: otherNote.created_at}} as otherNote, sharedConcepts
+        RETURN {{noteId: otherNote.noteId, documentName: otherNote.fileName}} as otherNote, sharedConcepts
         ORDER BY sharedConcepts DESC
         LIMIT 10
         """

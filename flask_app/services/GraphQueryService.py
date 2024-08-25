@@ -12,16 +12,12 @@ class GraphQueryService():
         return f"{communityType}_{communityId}_community".replace("-", "_")
 
     @staticmethod
-    def get_page_rank_string(param: str, id: str) -> str:
-        return f"{param}_{id}_pagerank".replace("-", "_")
-
-    @staticmethod
     def get_node_query(node_type: str, key: str, value: str, com_string: str, page_rank_string: str) -> str:
         base_attributes = f"ID(n) AS id, LABELS(n)[0] AS labels, n.{com_string} AS communityId"
         type_specific_attributes = {
             "Document": "n.fileName AS fileName, [n.noteId] AS noteId",
             "Chunk": "n.offset AS offset, n.document_name AS noteName, [n.noteId] AS noteId",
-            "Concept": f"n.{page_rank_string} AS pageRank, n.id AS nodeId, n.uuid[0] AS nodeUuid, n.noteId as noteId"
+            "Concept": "n.id AS nodeId, n.uuid[0] AS nodeUuid, n.noteId as noteId"
         }
         return f"""
         MATCH (n:{node_type})
@@ -231,29 +227,27 @@ class GraphQueryService():
     @staticmethod
     def get_importance_graph_by_param(param: str, id: str) -> str | None:
         graphAccess = graphDBdataAccess()
-        pagerank_string = GraphQueryService.get_page_rank_string(param=param, id=id)
 
         QUERY = f"""
-        // Calculate importance scores for all nodes
         MATCH (c:Concept)
-        WHERE $id IN c.{param} AND c[$pagerank_string] IS NOT NULL
-        WITH c, $pagerank_string AS prString
-        WITH c, prString, COUNT {{ (c)-[:RELATED]-() }} AS connectionCount
-        WITH c, prString, connectionCount, c[prString] * log(1 + connectionCount) AS importanceScore
+        WHERE $id IN c.{param}
+        OPTIONAL MATCH (c)-[:RELATED]->(relatedConcept:Concept)
+        WITH c, COUNT(relatedConcept) AS connectionCount
+        WITH c, connectionCount, connectionCount * log(1 + connectionCount) AS importanceScore
         ORDER BY importanceScore DESC
         LIMIT 10
 
-        // Find immediate neighbors of important nodes
+        // Find immediate concept neighbors of important nodes
         MATCH (c)-[:RELATED]-(neighbor:Concept)
         WHERE $id IN neighbor.{param}
 
         // Find related chunks
-        WITH c, c[prString] AS pageRank, connectionCount, importanceScore, collect(neighbor) AS neighbors
+        WITH c, connectionCount, importanceScore, collect(neighbor) AS neighbors
         MATCH (chunk:Chunk)-[:REFERENCES]->(relatedConcept:Concept)
         WHERE relatedConcept = c OR relatedConcept IN neighbors
-        WITH c, pageRank, connectionCount, importanceScore, neighbors, chunk, count(DISTINCT relatedConcept) AS relevanceScore
+        WITH c, connectionCount, importanceScore, neighbors, chunk, count(DISTINCT relatedConcept) AS relevanceScore
         ORDER BY relevanceScore DESC
-        WITH c, pageRank, connectionCount, importanceScore, neighbors,
+        WITH c, connectionCount, importanceScore, neighbors,
             COLLECT({{
                 id: chunk.id,
                 text: chunk.text, 
@@ -262,54 +256,38 @@ class GraphQueryService():
                 noteId: chunk.noteId
             }})[0..3] AS topChunks
 
+        // Calculate connection counts for neighbors
+        UNWIND neighbors AS neighbor
+        OPTIONAL MATCH (neighbor)-[:RELATED]->(neighborRelated:Concept)
+        WITH c, connectionCount, importanceScore, neighbor, COUNT(neighborRelated) AS neighborConnectionCount, topChunks
+        
         // Return the results
         RETURN DISTINCT
             c.id AS conceptId,
             c.uuid[0] as conceptUuid,
-            pageRank AS conceptPageRank,
             connectionCount,
             importanceScore,
-            [neighbor IN neighbors | {{id: neighbor.id, uuid: neighbor.uuid[0], pageRank: neighbor[$pagerank_string]}}] AS relatedConcepts,
+            COLLECT({{
+                id: neighbor.id, 
+                uuid: neighbor.uuid[0], 
+                connectionCount: neighborConnectionCount
+            }}) AS relatedConcepts,
             topChunks
         ORDER BY importanceScore DESC
         """
 
         parameters = {
-            "id": id,
-            "pagerank_string": pagerank_string
+            "id": id
         }
 
         try:
             result = graphAccess.execute_query(QUERY, parameters)   
+            logging.info(f"Query: {QUERY}")
+            logging.info(f"result: {result}")
             return result
         except Exception as e:
-            logging.error(f"Error executing query: {e}")
+            logging.error(f"Error executing query: {{e}}")
             return None
-        
-    @staticmethod
-    def get_quiz_questions_by_id(quizId: str):
-        graphAccess = graphDBdataAccess()
-
-        QUERY = f"""
-        MATCH (q:QuizQuestion)
-        WHERE $quizId in q.quizId
-        RETURN q
-        """
-
-        parameters = {
-            "quizId": quizId
-        }
-
-        result = graphAccess.execute_query(QUERY, parameters)
-
-        out = []
-
-        for record in result:
-            question = record.get('q')
-            question['answers'] = json.loads(question.get('answers'))
-            out.append(question)
-
-        return out
 
     @staticmethod
     def get_topic_graph_for_topic_uuid(
@@ -562,17 +540,13 @@ class GraphQueryService():
             return None
         
     @staticmethod
-    def get_topic_descriptions_for_param(param: str, id: str) -> List[Dict] | None:
+    def get_flashcards(flashcardId: str) -> List[Dict] | None:
         graphAccess = graphDBdataAccess()
         
-        QUERY = f"""
+        QUERY = f"""    
         MATCH (c:Chunk)-[r:REFERENCES]->(n:Concept)
-        WHERE '{id}' IN n.{param}
-        WITH n.noteId AS noteId, n.id AS conceptId, n.uuid[0] AS conceptUuid,
-            COLLECT(DISTINCT r.description) AS descriptions
-        UNWIND descriptions AS description
-        RETURN noteId, conceptId, conceptUuid, description
-        ORDER BY noteId, conceptId, description
+        WHERE '{flashcardId}' in r.flashcardId
+        RETURN n.id as conceptId, n.uuid[0] as conceptUuid, r.description as description
         """
 
         result = graphAccess.execute_query(QUERY)

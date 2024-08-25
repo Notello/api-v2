@@ -437,3 +437,16 @@ class SupabaseService:
             "courseNumber": out[0].get('courseNumber'),
             "name": out[0].get('name'),
         }
+    
+    @staticmethod
+    def user_has_flashcard(userId: str, param: str, id: str) -> bool:
+        if not HelperService.validate_all_uuid4(userId, id):
+            logging.error(f'Invalid userId: {userId}, param: {param}, id: {id}')
+            return False
+
+        out = supabase.table(FLASHCARD_TABLE_NAME).select('*').eq(USERID, str(userId)).eq(param, str(id)).execute().data
+
+        if not out:
+            return False
+
+        return True
