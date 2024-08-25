@@ -42,7 +42,7 @@ class RecommendationService():
             SUM(CASE WHEN r.relationship = 'RIGHT' THEN 1 ELSE -1 END) AS score
         ORDER BY score ASC
         LIMIT 10
-        RETURN concept.id AS conceptName, concept.uuid[0] as conceptUuid score
+        RETURN concept.id AS conceptName, concept.uuid[0] as conceptUuid, score
         """
 
         logging.info(f"Query: {query}")
