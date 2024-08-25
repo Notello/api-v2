@@ -12,7 +12,7 @@ class GraphQueryService():
         return f"{communityType}_{communityId}_community".replace("-", "_")
 
     @staticmethod
-    def get_node_query(node_type: str, key: str, value: str, com_string: str, page_rank_string: str) -> str:
+    def get_node_query(node_type: str, key: str, value: str, com_string: str) -> str:
         base_attributes = f"ID(n) AS id, LABELS(n)[0] AS labels, n.{com_string} AS communityId"
         type_specific_attributes = {
             "Document": "n.fileName AS fileName, [n.noteId] AS noteId",
@@ -38,14 +38,13 @@ class GraphQueryService():
         try:
             graphAccess = graphDBdataAccess()
             com_string = GraphQueryService.get_com_string(communityType=key, communityId=value)
-            page_rank_string = GraphQueryService.get_page_rank_string(param=key, id=value)
 
             nodes = []
             relationships = []
 
             # Execute queries for each node type
             for node_type in ["Document", "Chunk", "Concept"]:
-                query = GraphQueryService.get_node_query(node_type, key, value, com_string, page_rank_string)
+                query = GraphQueryService.get_node_query(node_type, key, value, com_string)
                 result = graphAccess.execute_query(query, {"value": value})
                 for record in result:
                     node_info = dict(record)
@@ -265,15 +264,11 @@ class GraphQueryService():
         RETURN DISTINCT
             c.id AS conceptId,
             c.uuid[0] as conceptUuid,
-            connectionCount,
-            importanceScore,
             COLLECT({{
                 id: neighbor.id, 
-                uuid: neighbor.uuid[0], 
-                connectionCount: neighborConnectionCount
+                uuid: neighbor.uuid[0]
             }}) AS relatedConcepts,
             topChunks
-        ORDER BY importanceScore DESC
         """
 
         parameters = {
@@ -348,7 +343,6 @@ class GraphQueryService():
             graphAccess = graphDBdataAccess()
 
             com_string = GraphQueryService.get_com_string(communityType='courseId', communityId=courseId)
-            page_rank_string = GraphQueryService.get_page_rank_string(param='courseId', id=courseId)
 
             node_query = f"""
             MATCH (root:Concept)
@@ -377,7 +371,6 @@ class GraphQueryService():
                     WHEN n:Concept THEN {{
                         id: ID(n),
                         labels: LABELS(n)[0],
-                        pageRank: n.{page_rank_string},
                         communityId: n.{com_string},
                         nodeId: n.id,
                         nodeUuid: n.uuid[0],

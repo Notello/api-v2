@@ -200,7 +200,6 @@ class SummaryService():
                         futures.append(
                             executor.submit(
                                 SummaryService.get_individual_summary,
-                                importance=graph['conceptPageRank'],
                                 main_concept=graph['conceptId'],
                                 main_concept_uuid=graph['conceptUuid'],
                                 related_concepts=graph['relatedConcepts'],
