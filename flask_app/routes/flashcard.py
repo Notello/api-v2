@@ -15,11 +15,11 @@ from flask_app.constants import COURSEID, FLASHCARD, NOTEID
 api = Namespace('flashcard', authorizations=authorizations)
 
 
-@api.route('/get-flashcards-for/<string:param>/<string:id>')
+@api.route('/get-flashcards-for/<string:flashcardId>')
 class Flashcard(Resource):
     @api.doc(security="jsonWebToken")
     @token_required
-    def post(self, param, id):
+    def post(self, flashcardId):
         try:
             user_id = request.user_id
 
@@ -31,10 +31,8 @@ class Flashcard(Resource):
                 logging.error(f"User {user_id} has exceeded their flashcard upload rate limit")
                 return {'message': 'You have exceeded your flashcard upload rate limit'}, 400
             
-            flashcards = FlashcardService.get_flashcard_for_param(
-                param=param,
-                id=id,
-                userId=user_id
+            flashcards = GraphQueryService.get_flashcards(
+                flashcardId=flashcardId
             )
 
             return {'flashcards': flashcards}, 200
@@ -54,17 +52,18 @@ associate_flashcard_parser.add_argument(NOTEID, location='form',
                         help='Note ID associated with the flashcards')
 
 @api.expect(associate_flashcard_parser)
-@api.route('/associate-flashcards-for/<string:param>')
+@api.route('/associate-flashcards')
 class GenerateFlashcardsFor(Resource):
     @api.doc(security="jsonWebToken")
     @token_required
-    def post(self, param, id):
+    def post(self):
         try:
             args = associate_flashcard_parser.parse_args()
             courseId = args.get(COURSEID, None)
             noteId = args.get(NOTEID, None)
 
-            param, id = NOTEID, noteId if noteId is not None else COURSEID, courseId
+            param = NOTEID if noteId is not None else COURSEID
+            id = noteId if noteId is not None else courseId
 
             user_id = request.user_id
 

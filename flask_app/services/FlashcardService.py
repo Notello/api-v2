@@ -5,14 +5,7 @@ from flask_app.services.HelperService import HelperService
 from flask_app.services.SupabaseService import SupabaseService
 from flask_app.services.GraphCreationService import GraphCreationService
 
-class FlashcardService():
-    @staticmethod
-    def get_flashcard_for_param(param: str, id: str, userId: str):
-        return GraphQueryService.get_flashcards(
-            param=param,
-            id=id
-        )
-    
+class FlashcardService():    
     @staticmethod
     def associate_flashcards(
         param: str, 

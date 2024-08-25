@@ -223,7 +223,7 @@ class NodeUpdateService:
             [node IN nodes | node.userId] AS allUserIds,
             [node IN nodes | node.courseId] AS allCourseIds,
             [node IN nodes | node.uuid] AS allUuids,
-=            [node IN nodes | node.{course_com_string}] AS allCourseCommunities,
+            [node IN nodes | node.{course_com_string}] AS allCourseCommunities,
             [node IN nodes | node.{note_com_string}] AS allNoteCommunities
 
         CALL apoc.merge.node(['Concept'], {{id: map.root}}, {{}}) YIELD node AS mergedNode

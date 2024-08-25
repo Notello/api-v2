@@ -37,11 +37,12 @@ class RecommendationService():
         MATCH (user:User {{id: '{userId}'}})
         MATCH (user)-[r:ANSWERED]->(question:QuizQuestion)
         MATCH (concept:Concept)-[:HAS_QUESTION]->(question)
+        WHERE '{courseId}' in question.courseId
         WITH concept, 
             SUM(CASE WHEN r.relationship = 'RIGHT' THEN 1 ELSE -1 END) AS score
         ORDER BY score ASC
         LIMIT 10
-        RETURN concept.id AS conceptName, score
+        RETURN concept.id AS conceptName, concept.uuid[0] as conceptUuid score
         """
 
         logging.info(f"Query: {query}")
