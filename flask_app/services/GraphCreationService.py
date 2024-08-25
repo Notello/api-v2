@@ -294,11 +294,11 @@ class GraphCreationService:
         ORDER BY random
         WITH c, n, COLLECT(r)[0] AS r
 
-        FOREACH (ignoreMe IN CASE WHEN r.flashcardId IS NULL THEN [1] ELSE [] END |
-            SET r.flashcardId = ['{flashcardId}']
-        )
         FOREACH (ignoreMe IN CASE WHEN r.flashcardId IS NOT NULL THEN [1] ELSE [] END |
             SET r.flashcardId = r.flashcardId + ['{flashcardId}']
+        )
+        FOREACH (ignoreMe IN CASE WHEN r.flashcardId IS NULL THEN [1] ELSE [] END |
+            SET r.flashcardId = ['{flashcardId}']
         )
         """
 
