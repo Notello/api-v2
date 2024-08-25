@@ -56,7 +56,7 @@ class Neo4jQueueManager:
                 result_queue.put(('error', str(e)))
             finally:
                 self.queue.task_done()
-                if task_type in ['community', 'pagerank', 'merge'] and course_id:
+                if task_type in ['community', 'merge'] and course_id:
                     with self._lock:
                         if course_id in self.course_tasks:
                             self.course_tasks[course_id].pop(task_type, None)
@@ -67,7 +67,6 @@ class Neo4jQueueManager:
         status_field = {
             'merge': 'mergeStatus',
             'community': 'comStatus',
-            'pagerank': 'pagerankStatus',
             'embed': 'embedStatus'
         }.get(task_type, 'status')
 
@@ -139,7 +138,7 @@ class Neo4jQueueManager:
 
         # For other operations, use the queue
         with self._lock:
-            if task_type in ['community', 'pagerank', 'merge'] and course_id:
+            if task_type in ['community', 'merge'] and course_id:
                 if course_id not in self.course_tasks:
                     self.course_tasks[course_id] = {}
                 

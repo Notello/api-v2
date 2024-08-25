@@ -4,7 +4,7 @@ from runpod import Endpoint
 import logging
 
 from .SupabaseService import SupabaseService
-from flask_app.constants import ALGORITHM, COMMUNITY_DETECTION, NODES, PAGERANK, PARAMS
+from flask_app.constants import ALGORITHM, COMMUNITY_DETECTION, NODES, PARAMS
 
 class RunpodService:
     @staticmethod
@@ -66,10 +66,6 @@ class RunpodService:
         return out.strip()
     
     @staticmethod
-    def run_pagerank(graph):
-        logging.info(f'Running Pagerank on graph: {graph}')
-    
-    @staticmethod
     def run_community_detection(graph):
         logging.info(f'Running Community Detection on graph')
 
@@ -77,7 +73,7 @@ class RunpodService:
     @staticmethod
     def run_gds(graph, algorithm_type, algorithm):
         
-        if algorithm_type != PAGERANK and algorithm_type != COMMUNITY_DETECTION:
+        if algorithm_type != COMMUNITY_DETECTION:
             logging.error(f'Invalid algorithm: {algorithm}')
             return None
         
@@ -101,8 +97,6 @@ class RunpodService:
             logging.info(f'Runpod job id: {run_request.job_id}')
 
             output = run_request.output(timeout=600)
-
-            logging.info(f'Pagerank fin')
 
             runpod_status = run_request.status()
 
