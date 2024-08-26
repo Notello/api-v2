@@ -178,3 +178,35 @@ class HelperService:
             id = re.sub(pattern, replacement, id)
         
         return id.strip()
+    
+    @staticmethod
+    def clean_chunks(chunks: List[Document]) -> List[Document]:
+        for chunk in chunks:
+            chunk.page_content = chunk.page_content.replace("\n", " ")
+            chunk.page_content = chunk.page_content.replace("\t", " ")
+            chunk.page_content = chunk.page_content.replace("\r", " ")
+            chunk.page_content = chunk.page_content.replace("\xa0", " ")
+            chunk.page_content = chunk.page_content.replace("’", "'")
+            chunk.page_content = chunk.page_content.replace("‘", "'")
+            chunk.page_content = chunk.page_content.replace("“", '"')
+            chunk.page_content = chunk.page_content.replace("”", '"')
+            chunk.page_content = chunk.page_content.replace("…", "...")
+            chunk.page_content = chunk.page_content.replace("–", "-")
+            chunk.page_content = chunk.page_content.replace("—", "-")
+            chunk.page_content = chunk.page_content.replace("´", "'")
+            chunk.page_content = chunk.page_content.replace("`", "'")
+            chunk.page_content = chunk.page_content.replace("--", "—")
+            chunk.page_content = chunk.page_content.replace("---", "—")
+            chunk.page_content = chunk.page_content.replace("...", "…")
+            chunk.page_content = chunk.page_content.replace("..", "…")
+            chunk.page_content = chunk.page_content.replace("''", '"')
+            chunk.page_content = chunk.page_content.replace("'", "’")
+            chunk.page_content = chunk.page_content.replace('"', '“')
+            chunk.page_content = chunk.page_content.replace('…', '...')
+            chunk.page_content = chunk.page_content.replace('—', '-')
+            chunk.page_content = chunk.page_content.replace('–', '-')
+            chunk.page_content = chunk.page_content.replace('´', "'")
+            chunk.page_content = chunk.page_content.replace('`', "'")
+            chunk.page_content = chunk.page_content.replace('/', ' ')
+            chunk.page_content = chunk.page_content.replace('\'', ' ')
+        return chunks

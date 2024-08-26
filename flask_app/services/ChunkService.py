@@ -3,6 +3,7 @@ from typing import Dict, List
 import tiktoken
 from langchain.docstore.document import Document
 from pytube import YouTube
+from flask_app.services.HelperService import HelperService
 
 class ChunkService:
     @staticmethod

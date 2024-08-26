@@ -12,6 +12,7 @@ class FlashcardService():
         id: str, 
         userId: str,
         courseId: str,
+        topics: list,
         noteId: str = None
         ):
         if not HelperService.validate_all_uuid4(userId, id):
@@ -29,6 +30,7 @@ class FlashcardService():
         
         flashcards = GraphCreationService.associate_flashcards(
             flashcardId=flashcardId,
+            topic_uuids=topics,
             param=param,
             id=id
         )

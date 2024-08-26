@@ -131,6 +131,8 @@ class GraphCreationService:
             
             graphAccess.create_source_node(obj_source_node)
 
+            chunks = HelperService.clean_chunks(chunks)
+
             processing_source(
                 graphAccess=graphAccess,
                 fileName=fileName,
@@ -281,25 +283,30 @@ class GraphCreationService:
         graphAccess.execute_query(query, params)
 
     @staticmethod
-    def associate_flashcards(flashcardId, param, id) -> None:
+    def associate_flashcards(
+        flashcardId, 
+        param, 
+        id,
+        topic_uuids=None
+    ) -> List[Dict[str, str]]:
         graphAccess = graphDBdataAccess()
 
         logging.info(f"Inserting flashcards for flashcardId: {flashcardId}")
 
+        topic_uuids_list = "[]" if not topic_uuids else "[" + ", ".join(f"'{uuid}'" for uuid in topic_uuids) + "]"
+
         query = f"""
         MATCH (c:Chunk)-[r:REFERENCES]->(n:Concept)
         WHERE '{id}' IN c.{param}
-
-        WITH c, n, r, rand() AS random
-        ORDER BY random
-        WITH c, n, COLLECT(r)[0] AS r
-
-        FOREACH (ignoreMe IN CASE WHEN r.flashcardId IS NOT NULL THEN [1] ELSE [] END |
-            SET r.flashcardId = r.flashcardId + ['{flashcardId}']
-        )
-        FOREACH (ignoreMe IN CASE WHEN r.flashcardId IS NULL THEN [1] ELSE [] END |
-            SET r.flashcardId = ['{flashcardId}']
-        )
+        AND (size({topic_uuids_list}) = 0 OR ANY(uuid IN {topic_uuids_list} WHERE uuid IN n.uuid))
+        WITH n, c, r, rand() AS random
+        ORDER BY n.id, random
+        WITH n, COLLECT({{chunk: c, rel: r}})[0] AS pair
+        SET pair.rel.flashcardId = CASE
+            WHEN pair.rel.flashcardId IS NOT NULL THEN pair.rel.flashcardId + ['{flashcardId}']
+            ELSE ['{flashcardId}']
+        END
+        RETURN pair.rel.description AS description, n.id AS id
         """
 
-        graphAccess.execute_query(query)
+        return graphAccess.execute_query(query)
