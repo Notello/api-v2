@@ -312,3 +312,19 @@ class GraphCreationService:
         """
 
         return graphAccess.execute_query(query)
+    
+    @staticmethod
+    def update_note_title(
+        noteId: str,
+        title: str
+    ):
+        graphAccess = graphDBdataAccess()
+
+        query = f"""
+        MATCH (n:Document)-[:HAS_DOCUMENT]->(c:Chunk)
+        WHERE '{noteId}' = n.noteId
+        SET n.fileName = '{title}'
+        SET c.document_name = '{title}'
+        """
+
+        graphAccess.execute_query(query)

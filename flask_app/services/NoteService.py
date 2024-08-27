@@ -69,6 +69,19 @@ class NoteService:
 
         SupabaseService.delete_note(noteId=noteId, bucketName=bucketName)
         GraphDeletionService.delete_node_for_param(param=NOTEID, id=noteId)
+    
+    @staticmethod
+    def edit_note(
+        noteId: str,
+        title: str
+    ): 
+        if not HelperService.validate_all_uuid4(noteId):
+            logging.error(f'Invalid ids: noteId: {noteId}')
+            return None
+
+        SupabaseService.update_note(noteId=noteId, key='title', value=title)
+
+        GraphCreationService.update_note_title(noteId=noteId, title=title)
 
     @staticmethod
     def create_note(

@@ -11,7 +11,7 @@ spec:
         spec:
           containers:
           - name: neo4j-backup
-            image: registry.digitalocean.com/notello/neo4j-backup:v1
+            image: registry.digitalocean.com/notello/neo4j-backup:v6
             volumeMounts:
             - name: backup-storage
               mountPath: /backups

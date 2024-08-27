@@ -35,6 +35,37 @@ class Note(Resource):
         except Exception as e:
             logging.exception(f"Error deleting note {note_id}: {str(e)}")
             return {'message': str(e)}, 500
+        
+edit_note_parser = api.parser()
+edit_note_parser.add_argument('title', location='form',
+                        type=str, required=True,
+                        help='The new title of the note')
+
+@api.expect(edit_note_parser)
+@api.route('/edit-title/<string:note_id>')
+class EditNote(Resource):
+    @api.doc(security="jsonWebToken")
+    @token_required
+    def post(self, note_id: str):
+        try:
+            args = edit_note_parser.parse_args()
+            title = args.get('title', None)
+            userId = request.user_id
+            
+            if not AuthService.can_edit_note(userId, note_id):
+                logging.error(f"User {userId} is not authorized to edit note {note_id}")
+                api.abort(403, f"You do not have permission to edit this note")
+            
+            NoteService.edit_note(
+                noteId=note_id, 
+                title=title
+                )
+            
+            return {"message": "edit note"}, 200
+        except Exception as e:
+            logging.exception(f"Error getting note {note_id}: {str(e)}")
+            return {'message': str(e)}, 500
+
 
 intake_youtube_parser = api.parser()
 intake_youtube_parser.add_argument('ingestType', location='form',
