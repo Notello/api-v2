@@ -174,10 +174,11 @@ class SimilarityService:
         llm = get_llm(GPT_4O_MINI).with_structured_output(IsRelated)
         prompt = ChatPromptTemplate.from_messages([
             ("system", """
-            You are a content classifier who will determine if uploaded content is plausibly to a college course.
+            You are a content classifier who will determine if uploaded content is plausibly related to a college course.
             You will be provided with a description of the course and a summary of the content being uploaded.
             It is ok if the subject of the content is not directly related the course, but it should be related at least tennatively.
             If you are uncertain, please classify the content as related.
+            If content is about the course itself, or the structure of the course, classify it as related.
             """),
             ("user", f"""
             Please classify the following document summary as related or not related to the course description: 
@@ -211,6 +212,8 @@ class SimilarityService:
         isPrivate = SupabaseService.isCollegePrivate(courseId=courseId)
 
         if isPrivate:
-            return True
+            return {
+                "isRelated": True
+            }
         
         return SimilarityService.same_subject(courseId=courseId, documentSummary=documentSummary)

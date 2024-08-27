@@ -155,6 +155,8 @@ class GraphCreationService:
 
             r.set(getGraphKey(courseId), json.dumps({'nodes': nodes, 'relationships': relationships}))
 
+            SupabaseService.update_note(noteId=noteId, key='updatedAt', value=datetime.now())
+
         except Exception as e:
             graphAccess: graphDBdataAccess = graphDBdataAccess()
             logging.exception(f'Exception in create_source_node_graph: {e}')

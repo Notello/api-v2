@@ -93,12 +93,14 @@ def processing_source(
     # Course-level operations now use the updated queuing system
     NodeUpdateService.merge_similar_nodes(id_type=COURSEID, target_id=courseId, note_id=noteId)
     graphAccess.update_source_node(sourceNode(noteId = noteId, mergeStatus = "complete"))
+    SupabaseService.update_note(noteId=noteId, key='updatedAt', value=datetime.now())
     logging.info(f"Setting mergeStatus to complete for course {courseId}")
 
     NodeUpdateService.update_embeddings(id_type=COURSEID, target_id=courseId, note_id=noteId, nodes_data=nodes_data)
     graphAccess.update_source_node(sourceNode(noteId = noteId, embedStatus = "complete"))
 
     NodeUpdateService.update_communities_for_param(id_type=COURSEID, target_id=courseId, note_id=noteId)
+    SupabaseService.update_note(noteId=noteId, key='updatedAt', value=datetime.now())
     graphAccess.update_source_node(sourceNode(noteId = noteId, comStatus = "complete"))
     logging.info(f"Setting comStatus to complete for course {courseId}")
     
@@ -154,8 +156,6 @@ def process_chunks(
         graph_document=graph_doc,
         graphAccess=graphAccess,
       )
-
-      # logging.info(f"Graph documents: {nodes_data}")
 
       merge_relationship_between_chunk_and_entities(
         chunk_with_id=chunk_with_id,
