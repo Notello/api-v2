@@ -18,7 +18,7 @@ class ChunkService:
         overlap=100,
     ):
         chunks = []
-        current_chunk = {"text": "", "start": None, "end": None, "tokens": 0}
+        current_chunk = {"text": "", "start": None, "tokens": 0}
         
         for entry in transcript:
             text = entry['text']

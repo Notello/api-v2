@@ -79,6 +79,11 @@ spec:
             secretKeyRef:
               name: api-keys
               key: openai
+        - name: FAL_KEY
+          valueFrom:
+            secretKeyRef:
+              name: api-keys
+              key: fal
         - name: GROQ_KEY
           valueFrom:
             secretKeyRef:

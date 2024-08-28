@@ -19,6 +19,7 @@ config:
   dbms.security.procedures.allowlist: "gds.*,apoc.*"
   server.bolt.thread_pool_max_size: "10000"
   db.transaction.concurrent.maximum: "10000"
+  db.backup.enabled: "true"
 
 volumes:
   data:

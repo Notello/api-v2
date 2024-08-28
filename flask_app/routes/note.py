@@ -16,19 +16,27 @@ from flask_app.constants import COURSEID, NOTEID
 
 api = Namespace('note', authorizations=authorizations)
 
+delete_note_parser = api.parser()
+delete_note_parser.add_argument(COURSEID, location='form',
+                        type=str, required=True,
+                        help='courseId of the note to delete')
+
+@api.expect(delete_note_parser)
 @api.route('/delete-note/<string:note_id>')
 class Note(Resource):
     @api.doc(security="jsonWebToken")
     @token_required
-    def get(self, note_id: str):
+    def post(self, note_id: str):
         try:
+            args = delete_note_parser.parse_args()
+            courseId = args.get(COURSEID, None)
             userId = request.user_id
 
             if not AuthService.can_edit_note(userId, note_id):
                 logging.error(f"User {userId} is not authorized to delete note {note_id}")
                 api.abort(403, f"You do not have permission to delete this note")
 
-            NoteService.delete_note(note_id)
+            NoteService.delete_note(note_id, courseId)
             GraphDeletionService.delete_node_for_param('noteId', note_id)
             logging.info(f"Note {note_id} deleted successfully")
             return {'message': 'delete note'}, 200

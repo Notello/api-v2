@@ -1,5 +1,7 @@
 from enum import Enum
 from io import BytesIO
+import os
+import tempfile
 from werkzeug.datastructures import FileStorage
 import logging
 from datetime import datetime
@@ -13,6 +15,11 @@ from flask_app.services.HelperService import HelperService
 from flask_app.services.ContextAwareThread import ContextAwareThread
 from flask_app.services.AuthService import AuthService
 from flask_app.services.GraphDeletionService import GraphDeletionService
+from flask_app.services.GraphQueryService import GraphQueryService
+from flask_app.services.RedisService import RedisService
+from flask_app.services.FalService import FalService
+from flask_app.constants import COURSEID, getGraphKey
+from flask_app.extensions import r
 
 from flask_app.src.document_sources.pdf_loader import extract_text
 from flask_app.constants import NOTE, NOTEID
@@ -59,7 +66,7 @@ class NoteService:
         return None
     
     @staticmethod
-    def delete_note(noteId: str):
+    def delete_note(noteId: str, courseId: str):
         if not HelperService.validate_all_uuid4(noteId):
             logging.error(f'Invalid noteId: {noteId}')
             return None
@@ -69,7 +76,9 @@ class NoteService:
 
         SupabaseService.delete_note(noteId=noteId, bucketName=bucketName)
         GraphDeletionService.delete_node_for_param(param=NOTEID, id=noteId)
-    
+
+        RedisService.setGraph(key=COURSEID, id=courseId)
+
     @staticmethod
     def edit_note(
         noteId: str,
@@ -203,7 +212,7 @@ class NoteService:
             logging.error(f"User {userId} is not authorized to edit note {noteId}")
             return False
         
-        NoteService.delete_note(noteId)
+        NoteService.delete_note(noteId, courseId)
         GraphDeletionService.delete_node_for_param(NOTEID, noteId)
 
         return NoteService.create_youtube_note(
@@ -252,7 +261,7 @@ class NoteService:
             logging.error(f"User {userId} is not authorized to edit note {noteId}")
             return False
 
-        NoteService.delete_note(noteId)
+        NoteService.delete_note(noteId, courseId)
         GraphDeletionService.delete_node_for_param(NOTEID, noteId)
 
         return NoteService.create_audio_note(
@@ -267,24 +276,38 @@ class NoteService:
         courseId: str,
         userId: str,
         audio_file: FileStorage,
-        origionalNoteId: str = None
+        originalNoteId: str = None
     ):
-        logging.info(f"Creating audio note: {audio_file}")
+        logging.info(f"Creating audio note: {audio_file.filename}")
         noteId = NoteService.create_note(
             courseId=courseId,
             userId=userId,
             form=NoteForm.AUDIO,
             title=f"Audio File: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-            noteId=origionalNoteId
+            noteId=originalNoteId
         )
 
         if not HelperService.validate_all_uuid4(noteId):
             return None
         
-        ContextAwareThread(
+        # Save the audio file to a temporary file
+        temp_file_path = None
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as temp_file:
+                audio_file.save(temp_file)
+                temp_file_path = temp_file.name
+
+            # Start the processing in a new thread
+            ContextAwareThread(
                 target=NoteService.audio_file_to_graph,
-                args=(noteId, courseId, userId, audio_file)
-        ).start()
+                args=(noteId, courseId, userId, temp_file_path, audio_file.filename)
+            ).start()
+
+        except Exception as e:
+            logging.exception(f"Error saving audio file: {str(e)}")
+            if temp_file_path and os.path.exists(temp_file_path):
+                os.unlink(temp_file_path)
+            return None
 
         return noteId
     
@@ -301,7 +324,7 @@ class NoteService:
             logging.error(f"User {userId} is not authorized to edit note {noteId}")
             return False
 
-        NoteService.delete_note(noteId)
+        NoteService.delete_note(noteId, courseId)
         GraphDeletionService.delete_node_for_param(NOTEID, noteId)
 
         return NoteService.create_text_note(
@@ -352,7 +375,7 @@ class NoteService:
             logging.error(f"User {userId} is not authorized to edit note {noteId}")
             return False
 
-        NoteService.delete_note(noteId)
+        NoteService.delete_note(noteId, courseId)
         GraphDeletionService.delete_node_for_param(NOTEID, noteId)
 
         print(f"noteId at edit: {noteId}")
@@ -373,7 +396,6 @@ class NoteService:
         file: FileStorage = None,
         origionalNoteId: str = None
     ):
-        print(f"file at sSHSHSHStart: {type(file)}")
 
         noteId = NoteService.create_note(
             courseId=courseId,
@@ -439,45 +461,47 @@ class NoteService:
         noteId: str,
         courseId: str,
         userId: str,
-        audio_file: FileStorage,
-        ):
-        logging.info(f"Creating audio note: {audio_file}")
+        temp_file_path: str,
+        original_filename: str,
+    ):
+        logging.info(f"Processing audio note: {original_filename}")
 
         try:
-            file_content = audio_file.read()
-            fileId = SupabaseService.upload_file(
-                file=file_content, 
-                fileName=noteId,
-                bucketName='audio-files',
-                contentType='audio/*'
+            with open(temp_file_path, 'rb') as file:
+                fileId = SupabaseService.upload_file(
+                    file=file.read(), 
+                    fileName=noteId,
+                    bucketName='audio-files',
+                    contentType='audio/*'
                 )
 
             if fileId is None:
                 logging.exception(f"Failed to upload file for note {noteId}")
-                return
+                raise Exception("Failed to upload file")
 
-            output = RunpodService.transcribe(
-                fileName=noteId, 
-                )
+            fal_output = FalService.transcribe_audio(temp_file_path)
 
-            if output is None or 'data' not in output:
-                logging.exception(f"Failed to transcribe file for note {noteId}")
-                return
-            
+            if fal_output is None:
+                logging.exception(f"Failed to transcribe file using FalService for note {noteId}")
+                raise Exception("Failed to transcribe file using FalService")
+
             GraphCreationService.create_graph_from_timestamps(
-                timestamps=output['data'],
+                timestamps=fal_output,
                 import_type='audio',
-                document_name=audio_file.filename,
+                document_name=original_filename,
                 noteId=noteId,
                 courseId=courseId,
                 userId=userId
             )
             
-            logging.info(f"File uploaded successfully for note {noteId}")
+            logging.info(f"File processed successfully for note {noteId}")
 
         except Exception as e:
             SupabaseService.update_note(noteId=noteId, key='graphStatus', value='error')
             logging.exception(f'Exception Stack trace: {e}')
+        finally:
+            if os.path.exists(temp_file_path):
+                os.unlink(temp_file_path)
 
 
     @staticmethod

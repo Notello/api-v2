@@ -83,6 +83,14 @@ class HelperService:
                     mime_type = 'text/html'
                 elif file_name.endswith('.pdf'):
                     mime_type = 'application/pdf'
+                elif file_name.endswith('.mp3'):
+                    mime_type = 'audio/mpeg'
+                elif file_name.endswith('.wav'):
+                    mime_type = 'audio/wav'
+                elif file_name.endswith('.ogg'):
+                    mime_type = 'audio/ogg'
+                elif file_name.endswith('.m4a'):
+                    mime_type = 'audio/mp4'
                 else:
                     mime_type = 'application/octet-stream'
             return mime_type
@@ -162,10 +170,7 @@ class HelperService:
             (r'\b(does|did)\b', 'do'),
             (r'\b(goes|went)\b', 'go'),
             (r'\b(makes|made)\b', 'make'),
-            
-            # Remove common suffixes
-            (r'(s|es|ed|ing)$', ''),
-            
+                        
             # Remove any remaining non-alphanumeric characters
             (r'[^a-z0-9\s]', ''),
             

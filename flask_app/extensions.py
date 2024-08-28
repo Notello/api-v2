@@ -6,6 +6,7 @@ import redis
 from supabase import create_client
 import runpod
 from neo4j.time import DateTime
+import fal_client
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -28,4 +29,4 @@ class CustomJSONEncoder(json.JSONEncoder):
         if isinstance(o, DateTime):
             return str(o)
 
-        return json.JSONEncoder.default(self, o)  
+        return json.JSONEncoder.default(self, o)

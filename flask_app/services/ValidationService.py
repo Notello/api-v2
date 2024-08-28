@@ -84,6 +84,11 @@ class ValidationService:
             logging.error(f"Invalid userId: {userId}, courseId: {courseId}")
             return False
         
+        mime_type = HelperService.guess_mime_type(audio_file.filename)
+        if not mime_type or not mime_type.startswith('audio/'):
+            logging.error(f"Invalid file type: {mime_type}. Expected an audio file.")
+            return False
+        
         # Check audio duration
         try:
             audio_file.seek(0, 2)  # Move to the end of the file

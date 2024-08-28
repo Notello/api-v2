@@ -14,6 +14,7 @@ from flask_app.services.RatelimitService import RatelimitService
 from flask_app.services.SimilarityService import SimilarityService
 from flask_app.services.GraphQueryService import GraphQueryService
 from flask_app.services.HelperService import HelperService
+from flask_app.services.RedisService import RedisService
 from flask_app.extensions import r
 
 from flask_app.src.main import processing_source
@@ -143,17 +144,13 @@ class GraphCreationService:
                 summary=summary
                 )
             
-            nodes, relationships = GraphQueryService.get_graph_for_param(key=NOTEID, value=noteId)
+            RedisService.setGraph(key=NOTEID, id=noteId)
 
             logging.info(f"Setting graph for noteId: {noteId}")
-
-            r.set(getGraphKey(noteId), json.dumps({'nodes': nodes, 'relationships': relationships}))
-
-            nodes, relationships = GraphQueryService.get_graph_for_param(key=COURSEID, value=courseId)
+            
+            RedisService.setGraph(key=COURSEID, id=courseId)
 
             logging.info(f"Setting graph for courseId: {courseId}")
-
-            r.set(getGraphKey(courseId), json.dumps({'nodes': nodes, 'relationships': relationships}))
 
             SupabaseService.update_note(noteId=noteId, key='updatedAt', value=datetime.now())
 
