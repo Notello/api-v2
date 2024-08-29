@@ -29,7 +29,7 @@ class Flashcard(Resource):
             
             if RatelimitService.is_rate_limited(userId=user_id, type=FLASHCARD):
                 logging.error(f"User {user_id} has exceeded their flashcard upload rate limit")
-                return {'message': 'You have exceeded your flashcard upload rate limit'}, 400
+                return {'message': 'You have exceeded your flashcard upload rate limit'}, 250
             
             flashcards = GraphQueryService.get_flashcards(
                 flashcardId=flashcardId
@@ -78,7 +78,7 @@ class GenerateFlashcardsFor(Resource):
             
             if RatelimitService.is_rate_limited(userId=user_id, type=FLASHCARD):
                 logging.error(f"User {user_id} has exceeded their flashcard upload rate limit")
-                return {'message': 'You have exceeded your flashcard upload rate limit'}, 400
+                return {'message': 'You have exceeded your flashcard upload rate limit'}, 250
             
             flashcards = FlashcardService.associate_flashcards(
                 noteId=noteId,

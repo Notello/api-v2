@@ -106,8 +106,8 @@ class GraphCreationService:
                     key='graphStatus', 
                     value='complete'
                     )
-                graphAccess.update_source_node(sourceNode(noteId=noteId, blockedReason = 'Your note content was detected to be similar to another note in the same course.'))
-                SupabaseService.update_note(noteId=noteId, key='blockedReason', value='Your note content was detected to be similar to another note in the same course.')
+                graphAccess.update_source_node(sourceNode(noteId=noteId, blockedReason = 'Your note content was detected to be the same as another note in the same course.'))
+                SupabaseService.update_note(noteId=noteId, key='blockedReason', value='Your note content was detected to be the same as another note in the same course.')
                 RatelimitService.remove_rate_limit(rateLimitId)
                 return
 
@@ -117,7 +117,13 @@ class GraphCreationService:
 
             if not isRelated['isRelated']:
                 graphAccess.update_source_node(sourceNode(noteId=noteId, blockedReason = f'Your video was blocked because it was detected to be unrelated to the course content. Reason: {isRelated["reasoning"]}'))
-                SupabaseService.update_note(noteId=noteId, key='blockedReason', value=f'Your video was blocked because it was detected to be unrelated to the course content. Reason: {isRelated["reasoning"]}')
+                SupabaseService.update_note(noteId=noteId, 
+                                            key='blockedReason', 
+                                            value=f'''
+                                            Your video was blocked because it was detected to be unrelated to the course content. 
+                                            Reason: 
+                                            {isRelated["reasoning"]}
+                                            ''')
                 return None
 
             obj_source_node = sourceNode(

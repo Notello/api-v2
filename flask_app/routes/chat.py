@@ -43,7 +43,7 @@ class Chat(Resource):
         
         if RatelimitService.is_rate_limited(userId, CHAT) and botReply is not None:
             logging.error(f"User {userId} has exceeded their chat room rate limit")
-            return {'message': 'You have exceeded your chat room rate limit'}, 400
+            return {'message': 'You have exceeded your chat room rate limit'}, 250
         
         roomId = ChatService.handle_chat(userId=userId, message=message, botReply=botReply, roomId=roomId)
 

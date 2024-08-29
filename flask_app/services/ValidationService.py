@@ -43,17 +43,17 @@ class ValidationService:
     ):
         if ValidationService.invalid_ids(courseId, userId):
             logging.error(f"Invalid userId: {userId}, courseId: {courseId}")
-            return False
+            return False, 400
         
         if RatelimitService.is_rate_limited(userId=userId, type=NOTE):
             logging.error(f"User {userId} has exceeded their note upload rate limit")
-            return False
+            return False, 250
         
         if not ValidationService.validate_ingest_type(ingestType):
             logging.error(f"Invalid ingest type: {ingestType}")
-            return False
+            return False, 400
         
-        return True
+        return True, 200
 
     @staticmethod
     def validate_youtube_inputs(
@@ -62,16 +62,17 @@ class ValidationService:
         userId: str,
         ingestType: str
     ):
-        if not ValidationService.validate_common_inputs(courseId, userId, ingestType):
+        valid, code = ValidationService.validate_common_inputs(courseId, userId, ingestType)
+        if not valid:
             logging.error(f"Invalid userId: {userId}, courseId: {courseId}")
-            return False
+            return valid, code
         
         duration = HelperService.get_video_duration(youtube_url=youtubeUrl)
         if duration > ValidationService.YOUTUBE_MAX_DURATION and not AuthService.is_super_admin(userId):
             logging.error(f"YouTube video exceeds the maximum duration of 2 hours: {youtubeUrl}")
-            return False
+            return False, 400
         
-        return True
+        return True, 200
     
     @staticmethod
     def validate_audio_inputs(
@@ -80,14 +81,15 @@ class ValidationService:
         userId: str,
         ingestType: str
     ):
-        if not ValidationService.validate_common_inputs(courseId, userId, ingestType):
+        valid, code = ValidationService.validate_common_inputs(courseId, userId, ingestType)
+        if not valid:
             logging.error(f"Invalid userId: {userId}, courseId: {courseId}")
-            return False
+            return valid, code
         
         mime_type = HelperService.guess_mime_type(audio_file.filename)
         if not mime_type or not mime_type.startswith('audio/'):
             logging.error(f"Invalid file type: {mime_type}. Expected an audio file.")
-            return False
+            return False, 400
         
         # Check audio duration
         try:
@@ -97,11 +99,11 @@ class ValidationService:
 
             if not AuthService.is_super_admin(userId) and file_size > ValidationService.MAX_AUDIO_SIZE:
                 logging.error(f"Audio file of size {file_size} exceeds the maximum file size of 5MB: {audio_file.filename}")
-                return False
+                return False, 400
         except ValueError as e:
-            return False
+            return False, 400
         
-        return True
+        return True, 200
     
     @staticmethod
     def validate_text_inputs(
@@ -111,14 +113,15 @@ class ValidationService:
         userId: str,
         ingestType: str
     ):
-        if not ValidationService.validate_common_inputs(courseId, userId, ingestType):
+        valid, code = ValidationService.validate_common_inputs(courseId, userId, ingestType)
+        if not valid:
             logging.error(f"Invalid userId: {userId}, courseId: {courseId}")
-            return False
+            return valid, code
         
         if len(rawText.encode('utf-8')) > ValidationService.MAX_TEXT_LENGTH and not AuthService.is_super_admin(userId):
-            return False
+            return False, 400
         
-        return True
+        return True, 200
     
     @staticmethod
     def validate_text_file_inputs(
@@ -127,9 +130,10 @@ class ValidationService:
         userId: str,
         ingestType: str
     ):
-        if not ValidationService.validate_common_inputs(courseId, userId, ingestType):
+        valid, code = ValidationService.validate_common_inputs(courseId, userId, ingestType)
+        if not valid:
             logging.error(f"Invalid userId: {userId}, courseId: {courseId}")
-            return False, None
+            return valid, code, None
                     
         # Check file size
         file.seek(0, 2)  # Move to the end of the file
@@ -137,7 +141,7 @@ class ValidationService:
         file.seek(0)  # Reset file pointer to the beginning
 
         if file_size > ValidationService.MAX_FILE_SIZE and not AuthService.is_super_admin(userId):
-            return False, None
+            return False, 400, None
 
         file_type = HelperService.guess_mime_type(file.filename)
 
@@ -146,8 +150,8 @@ class ValidationService:
 
         if file_type is None:
             logging.exception(f"Failed to validate file")
-            return False, None
+            return False, 400, None
         
         print(f"file at end: {type(file)}")
         
-        return True, file_type
+        return True, 200, file_type

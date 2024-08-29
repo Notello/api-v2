@@ -107,7 +107,7 @@ class YoutubeIntake(Resource):
 
             logging.info(f"Youtube url: {youtubeUrl}")
 
-            valid = ValidationService.validate_youtube_inputs(
+            valid, code = ValidationService.validate_youtube_inputs(
                 youtubeUrl=youtubeUrl,
                 courseId=courseId,
                 userId=userId,
@@ -115,7 +115,7 @@ class YoutubeIntake(Resource):
                 )
             
             if not valid:
-                return {'message': 'Invalid inputs'}, 400
+                return {'message': 'Invalid inputs'}, code
             
             noteId = NoteService.ingest_note(
                 courseId=courseId,
@@ -165,7 +165,7 @@ class AudioIntake(Resource):
         userId = request.user_id
 
         try:
-            valid = ValidationService.validate_audio_inputs(
+            valid, code = ValidationService.validate_audio_inputs(
                 audio_file=audio_file,
                 courseId=courseId,
                 userId=userId,
@@ -173,7 +173,7 @@ class AudioIntake(Resource):
                 )
             
             if not valid:
-                return {'message': 'Invalid inputs'}, 400
+                return {'message': 'Invalid inputs'}, code
             
             noteId = NoteService.ingest_note(
                 courseId=courseId,
@@ -228,7 +228,7 @@ class TextIntake(Resource):
 
         try:
 
-            valid = ValidationService.validate_text_inputs(
+            valid, code = ValidationService.validate_text_inputs(
                 rawText=rawText,
                 noteName=noteName,
                 courseId=courseId,
@@ -237,7 +237,7 @@ class TextIntake(Resource):
                 )
             
             if not valid:
-                return {'message': 'Invalid inputs'}, 400
+                return {'message': 'Invalid inputs'}, code
             
             noteId = NoteService.ingest_note(
                 courseId=courseId,
@@ -287,7 +287,7 @@ class TextFileIntake(Resource):
         userId = request.user_id
 
         try:
-            valid, file_type = ValidationService.validate_text_file_inputs(
+            valid, code, file_type = ValidationService.validate_text_file_inputs(
                 file=file,
                 courseId=courseId,
                 userId=userId,
@@ -295,7 +295,7 @@ class TextFileIntake(Resource):
                 )
             
             if not valid:
-                return {'message': 'Invalid inputs'}, 400
+                return {'message': 'Invalid inputs'}, code
             
             print(f"noteId at start: {noteId}")
 
