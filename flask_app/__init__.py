@@ -18,7 +18,7 @@ def create_app():
     cors.init_app(app)
 
     Neo4jConnection.initialize()
-    # init_indexes()
+    init_indexes()
 
     ratelimit = SupabaseService.get_rate_limit_values()
     ratelimitdict = RatelimitService.construct_rate_limits_dict(rate_limits=ratelimit)

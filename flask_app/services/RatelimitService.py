@@ -27,7 +27,10 @@ class RatelimitService():
         logging.info(f"now: {now}")
 
         for item in rate_limits:
+            logging.info(f"item: {item}")
             item['created_at'] = parser.isoparse(item['created_at']).replace(tzinfo=timezone.utc)
+
+        logging.info("wow")
 
         # Calculate counts for each time period
         monthly_count = sum(item['count'] for item in rate_limits if item['created_at'] >= month_start and item['userType'] == user_type)
@@ -55,6 +58,8 @@ class RatelimitService():
             usage_dict = RatelimitService.sort_into_time_buckets(rate_limits=current_usage, user_type=user_type)
 
             rate_limits_dict = current_app.config['ratelimit'][type][user_type]
+
+            logging.info(f"rate_limits_dict: {rate_limits_dict}")
             
             return (
                 usage_dict['monthly'] >= rate_limits_dict['monthly'] or

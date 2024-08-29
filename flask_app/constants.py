@@ -1,3 +1,4 @@
+import logging
 import os
 import random
 from dotenv import load_dotenv
@@ -90,6 +91,9 @@ class ProxyRotator:
         self.current_port_index = random.randint(0, 9)
 
     def get_proxy_info(self):
+        if os.getenv('ENV_TYPE') == 'dev':
+            return {}
+
         proxy_port = self.base_port + self.current_port_index
 
         proxy_info = {
@@ -107,4 +111,5 @@ class ProxyRotator:
         }
 
     def rotate_proxy_port(self):
+        logging.info(f"current_port_index: {self.current_port_index}")
         self.current_port_index = (self.current_port_index + 1) % 10

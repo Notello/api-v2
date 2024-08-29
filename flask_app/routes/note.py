@@ -117,6 +117,8 @@ class YoutubeIntake(Resource):
             if not valid:
                 return {'message': 'Invalid inputs'}, code
             
+            logging.info(f"User Valid")
+            
             noteId = NoteService.ingest_note(
                 courseId=courseId,
                 userId=userId,
@@ -125,6 +127,8 @@ class YoutubeIntake(Resource):
                 form=NoteForm.YOUTUBE,
                 sourceUrl=youtubeUrl
                 )
+            
+            logging.info(f"noteId: {noteId}")
             
             if not noteId:
                 return {'message': 'Note creation failed'}, 400
