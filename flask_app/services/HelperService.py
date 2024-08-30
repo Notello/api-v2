@@ -85,12 +85,6 @@ class HelperService:
                     mime_type = 'application/pdf'
                 elif file_name.endswith('.mp3'):
                     mime_type = 'audio/mpeg'
-                elif file_name.endswith('.wav'):
-                    mime_type = 'audio/wav'
-                elif file_name.endswith('.ogg'):
-                    mime_type = 'audio/ogg'
-                elif file_name.endswith('.m4a'):
-                    mime_type = 'audio/mp4'
                 else:
                     mime_type = 'application/octet-stream'
             return mime_type

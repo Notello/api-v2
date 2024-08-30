@@ -4,12 +4,12 @@ from typing import List, Dict, Any
 from langchain_core.pydantic_v1 import BaseModel, Field, validator
 
 class Node(BaseModel):
-    id: str = Field(description="Name or human-readable unique identifier.")
+    id: str = Field(description="Name or human-readable unique identifier. Must be all lowercase with spaces between words.")
     description: str = Field(description="Description of the node as would be read on a flashcard.")
 
 class Relationship(BaseModel):
-    source: str = Field(description="Name or human-readable unique identifier of source node, must match a node in the nodes list")
-    target: str = Field(description="Name or human-readable unique identifier of target node, must match a node in the nodes list")
+    source: str = Field(description="Name or human-readable unique identifier of source node, must match a node in the nodes list. Must be all lowercase with spaces between words.")
+    target: str = Field(description="Name or human-readable unique identifier of target node, must match a node in the nodes list. Must be all lowercase with spaces between words.")
     type: str = Field(description="The type of the relationship.")
 
 class KnowledgeGraph(BaseModel):

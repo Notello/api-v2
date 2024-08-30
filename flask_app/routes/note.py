@@ -231,7 +231,6 @@ class TextIntake(Resource):
         userId = request.user_id
 
         try:
-
             valid, code = ValidationService.validate_text_inputs(
                 rawText=rawText,
                 noteName=noteName,
