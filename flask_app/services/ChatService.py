@@ -119,7 +119,7 @@ class ChatService():
             4. Ask follow-up questions or suggest related topics to encourage further discussion.
             5. Maintain a friendly and engaging tone throughout the conversation.
             6. If you use information from the context, include the relevant Chunk UUID(s) in the 'sources' field of your response.
-            7. Do not provide chunk citations in your reply, only in the 'sources' field.
+            7. Do not provide chunk citations in the reply field, only in the 'sources' field.
             """
         elif botReply == ChatType.ANSWER:
             prompt_template = f"""You are an AI assistant tasked with providing concise and direct answers to user questions. Your goal is to give accurate and to-the-point responses based on the available information. Use the following details to inform your answer:
@@ -136,7 +136,7 @@ class ChatService():
             4. Avoid unnecessary elaboration or tangential information.
             5. If the question cannot be answered with the given context, state that clearly.
             6. If you use information from the context, include the relevant Chunk UUID(s) in the 'sources' field of your response.
-            7. Do not provide chunk citations in your reply, only in the 'sources' field.
+            7. Do not provide chunk citations in the reply field, only in the 'sources' field.
             """
         else:
             logging.error(f'Invalid botReply: {botReply}')

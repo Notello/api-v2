@@ -313,7 +313,7 @@ class GraphQueryService():
                 COLLECT(DISTINCT {{
                     document_name: chunk.document_name,
                     text: chunk.text,
-                    id: chunk.id,
+                    id: chunk.noteId,
                     offset: chunk.offset,
                     noteId: chunk.noteId
                 }})[..{num_chunks}] AS related_chunks
