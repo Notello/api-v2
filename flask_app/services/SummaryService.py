@@ -180,6 +180,9 @@ class SummaryService():
             id = noteId if specifierParam == NOTEID else courseId
 
             importance_graph = GraphQueryService.get_importance_graph_by_param(param=specifierParam, id=id)
+            
+            logging.info(f"Importance graph: {importance_graph}")
+
             topics = GraphQueryService.get_topics_for_param(param=COURSEID, id=courseId)
 
             if importance_graph is None or len(importance_graph) == 0:

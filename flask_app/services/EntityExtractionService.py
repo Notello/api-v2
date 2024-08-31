@@ -14,6 +14,14 @@ class Entities(BaseModel):
         description="A list of the named entites in the text."
     )
 
+class SynonymList(BaseModel):
+    entity: str = Field(description="The original entity")
+    synonyms: List[str] = Field(description="A list of synonyms for the entity")
+
+class SimilarTopics(BaseModel):
+    all_synonyms: List[SynonymList] = Field(description="A list of synonym lists for each entity")
+
+
 def setup_llm(
     text: str,
 ):
@@ -43,33 +51,33 @@ class EntityExtractor():
         return result.entities
     
     @staticmethod
-    def get_context_nodes(query_str: str) -> Dict[str, str]:
+    def get_similies(query_str: str) -> List[Dict[str, str]]:
         entites = EntityExtractor.extract_entities(query_str=query_str)
 
-        logging.info(f"Entities: {entites}")
+        similies = EntityExtractor.get_similar_topics(entities=entites)
 
-        context_nodes = {}
+        return similies
+    
+    @staticmethod
+    def get_similar_topics(entities: List[str]) -> List[Dict[str, List[str]]]:
+        logging.info(f"Entities: {entities}")
 
-        if entites:
-            for entity in entites:
-                similar_topic = GraphQueryService.get_most_similar_topic(topic_name=entity)
-                output = GraphQueryService.get_topic_graph_for_topic_uuid(topic_uuid=similar_topic['uuid'], num_chunks=3)
+        llm = get_llm(GPT_4O_MINI).with_structured_output(SimilarTopics)
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", """
+             You are a synonym generator. 
+             Given a list of entities, return a list of synonym lists, where each item contains the original entity and a list of 10 synonyms, related terms, or closely associated concepts for that entity.
+             Focus on providing accurate, relevant, and closely related terms.
+             For technical or specific terms, include abbreviations, alternative names, and closely related concepts.
+             Do not include the original entity in the list of synonyms.
+             """),
+            ("user", f"Entities: {entities}")
+        ])
 
-                if not output:
-                    return None
+        invokable = prompt | llm
 
-                context_nodes[similar_topic['id']] = {
-                    'uuid': output[0]['result']['start_concept']['uuid'],
-                    'related_chunks': output[0]['result']['related_chunks'],
-                    'related_concepts': output[0]['result']['related_concepts']
-                }
-        else:
-            similar_topic = GraphQueryService.get_most_similar_topic(topic_name=query_str)
-            output = GraphQueryService.get_topic_graph_for_topic_uuid(topic_uuid=similar_topic['uuid'], num_chunks=3)
+        result: SimilarTopics = invokable.invoke({})
 
-            if not output:
-                return None
+        logging.info(f"Result: {result}")
 
-            context_nodes[similar_topic['id']] = output[0]['result']
-        
-        return context_nodes
+        return [{"entity": synonym_list.entity, "synonyms": synonym_list.synonyms} for synonym_list in result.all_synonyms]

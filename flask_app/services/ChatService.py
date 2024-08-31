@@ -7,7 +7,7 @@ from langchain_core.pydantic_v1 import BaseModel, Field
 
 from flask_app.services.SupabaseService import SupabaseService
 from flask_app.services.ContextAwareThread import ContextAwareThread
-from flask_app.services.EntityExtractionService import EntityExtractor
+from flask_app.services.ContextService import ContextService, QuestionModel
 from flask_app.services.RatelimitService import RatelimitService
 
 from flask_app.constants import CHAT, GPT_4O_MINI
@@ -56,32 +56,48 @@ class ChatService():
     
     @staticmethod
     def generate_bot_reply(userId, message, botReply, roomId):
-        context = EntityExtractor.get_context_nodes(query_str=message)
+        ratelimitId = RatelimitService.add_rate_limit(userId=userId, type=CHAT, value=1)
+        try:
+            question_type = ChatService.get_question_type(message)
 
-        history = SupabaseService.get_chat_history(chat_room_id=roomId)
+            context = ContextService.get_context(question_type=question_type, query_str=message)
 
-        logging.info(f"Chat history: {history}")
+            history = SupabaseService.get_chat_history(chat_room_id=roomId)
 
-        reply = ChatService.generate_reply(userId=userId, message=message, history=history, context=context, botReply=botReply)
+            logging.info(f"Chat history: {history}")
 
-        RatelimitService.add_rate_limit(userId=userId, type=CHAT, value=1)
-        SupabaseService.add_chat_message(chat_room_id=roomId, user_id=None, message=json.dumps(reply))
+            reply = ChatService.generate_reply(userId=userId, message=message, history=history, context=context, botReply=botReply)
+
+            SupabaseService.add_chat_message(chat_room_id=roomId, user_id=None, message=json.dumps(reply))
+        except Exception as e:
+            logging.error(f"Error generating bot reply: {e}")
+            RatelimitService.remove_rate_limit(rateLimitId=ratelimitId)
+            SupabaseService.add_chat_message(chat_room_id=roomId, user_id=None, message=json.dumps({"message": "Sorry, I'm having trouble generating a reply at the moment. Please try again later."}))
     
     @staticmethod
     def generate_reply(userId, message, history, context, botReply):
-        extraction_chain = ChatService.setup_llm(
-            userMessage=message,
-            history=history,
-            context=context,
-            botReply=botReply
-        )
+        # extraction_chain = ChatService.setup_llm(
+        #     userMessage=message,
+        #     history=history,
+        #     context=context,
+        #     botReply=botReply
+        # )
 
-        result = extraction_chain.invoke({})
+        # result = extraction_chain.invoke({})
+
+        # return {
+        #     'message': result.reply,
+        #     'sources': result.sources
+        # }
 
         return {
-            'message': result.reply,
-            'sources': result.sources
+            'message': "dud",
+            'sources': []
         }
+    
+    @staticmethod
+    def escape_template_variables(s):
+        return s.replace("{", "{{").replace("}", "}}")
 
     @staticmethod
     def setup_llm(
@@ -91,7 +107,7 @@ class ChatService():
         botReply
     ):
         prompt_template = ""
-        history_str = '\n'.join(history)
+        history_str = ChatService.escape_template_variables('\n'.join(history))
         context_str = ""
         if len(context) > 0:
             context_items = []
@@ -150,3 +166,40 @@ class ChatService():
         ])
         
         return extraction_prompt | extraction_llm
+
+    @staticmethod
+    def get_question_type(message):
+        try:
+            llm = get_llm(GPT_4O_MINI).with_structured_output(QuestionModel)
+
+            prompt = ChatPromptTemplate.from_messages([
+                ("system", """
+                You are a question classifier. Your goal is to determine the type of question the user is asking based on the following criteria:
+
+                1. EXPLORE: The user is asking a broad, open-ended question to learn about a topic. 
+                   Example: "Tell me about the French Revolution."
+
+                2. ANSWER: The user is seeking a specific, factual answer or solution to a problem. This includes homework-like questions or requests for direct answers.
+                   Examples: "What is the capital of France?", "Solve for x in the equation 2x + 3 = 11", "Answer question 1"
+
+                3. RELATIONSHIP: The user is asking about connections, comparisons, or interactions between two or more entities, concepts, or events.
+                   Example: "How did World War I influence World War II?"
+
+                4. FOLLOWUP: The user is referring to or building upon information from a previous part of the conversation. This often includes pronouns or context-dependent phrases.
+                   Example: "Can you elaborate on that last point?", "What about its impact on the economy?"
+
+                Classify the following question into one of these four categories. If the question could fit multiple categories, choose the most specific and appropriate one based on the given criteria.
+                """),
+                ("user", message)
+            ])
+
+            invokable = prompt | llm
+
+            result: QuestionModel = invokable.invoke({})
+
+            logging.info(f"Question type: {result.question_type}")
+
+            return result.question_type
+        except Exception as e:
+            logging.error(f"Error in get_question_type: {e}")
+            return None

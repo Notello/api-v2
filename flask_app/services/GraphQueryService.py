@@ -1,10 +1,26 @@
-import json
 import logging
 import random
 from typing import Any, Dict, List, Tuple
 
-from flask_app.src.shared.common_fn import load_embedding_model
+from langchain_core.pydantic_v1 import BaseModel, Field
+from langchain_core.prompts import ChatPromptTemplate
+
+from flask_app.src.shared.common_fn import get_llm, load_embedding_model
+from flask_app.constants import GPT_4O_MINI
 from flask_app.src.graphDB_dataAccess import graphDBdataAccess
+
+class TopConcept(BaseModel):
+    conceptId: str = Field(
+        description="The concept ID of the top topic."
+    )
+    conceptUuid: str = Field(
+        description="The concept UUID of the top topic."
+    )
+
+class TopConcepts(BaseModel):
+    top_topics: List[TopConcept] = Field(
+        description="A list of the top topics for the given note summary."
+    )
 
 class GraphQueryService():
     @staticmethod
@@ -222,53 +238,54 @@ class GraphQueryService():
             return None
                 
         return result
+    
+    @staticmethod
+        
+    @staticmethod
+    def choose_most_important_topics(entities, note_description):
+        entities_str = ", ".join([f"Name: {entity['conceptId']}, UUID: {entity['conceptUuid']}" for entity in entities])
+
+        llm = get_llm(GPT_4O_MINI).with_structured_output(TopConcepts)
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", """
+            You are an expert concept selector tasked with identifying the most crucial concepts for summarizing a note. Your goal is to select concepts that will provide a comprehensive understanding of the note's content while minimizing redundancy.
+
+            Guidelines for topic selection:
+            1. Relevance: Choose concepts that are central to the main ideas and arguments presented in the note.
+            2. Breadth: Select a diverse range of concepts that cover different aspects of the note, ensuring a well-rounded summary.
+            3. Depth: Prioritize concepts that delve into the core concepts rather than superficial details.
+            4. Interconnectedness: Identify concepts that connect multiple ideas within the note, showcasing relationships between concepts.
+            5. Uniqueness: Favor concepts that are specific to this note and distinguish it from general knowledge.
+            6. Context: Consider the overall theme and purpose of the note when selecting concepts.
+            7. Avoid Redundancy: Eliminate repetitive or closely related concepts to ensure efficiency in the summary.
+
+            For each concept you will provide the conceptId, which is the name of the concept, and the conceptUuid, which is a uuid-4 identifier for the concept.
+            """),
+            ("user", f"Entities: {entities_str}\nNote Summary: {note_description}")
+        ])
+
+        invokable = prompt | llm
+
+        result: TopConcepts = invokable.invoke({})
+
+        logging.info(f"Result: {result}")
+
+        return result.top_topics
 
     @staticmethod
-    def get_importance_graph_by_param(param: str, id: str) -> str | None:
+    def get_importance_graph_by_param(param: str, id: str):
         graphAccess = graphDBdataAccess()
 
-        QUERY = f"""
+        # First query to get top 50 concepts
+        QUERY1 = f"""
         MATCH (c:Concept)
         WHERE $id IN c.{param}
         OPTIONAL MATCH (c)-[:RELATED]->(relatedConcept:Concept)
         WITH c, COUNT(relatedConcept) AS connectionCount
         WITH c, connectionCount, connectionCount * log(1 + connectionCount) AS importanceScore
         ORDER BY importanceScore DESC
-        LIMIT 10
-
-        // Find immediate concept neighbors of important nodes
-        MATCH (c)-[:RELATED]-(neighbor:Concept)
-        WHERE $id IN neighbor.{param}
-
-        // Find related chunks
-        WITH c, connectionCount, importanceScore, collect(neighbor) AS neighbors
-        MATCH (chunk:Chunk)-[:REFERENCES]->(relatedConcept:Concept)
-        WHERE relatedConcept = c OR relatedConcept IN neighbors
-        WITH c, connectionCount, importanceScore, neighbors, chunk, count(DISTINCT relatedConcept) AS relevanceScore
-        ORDER BY relevanceScore DESC
-        WITH c, connectionCount, importanceScore, neighbors,
-            COLLECT({{
-                id: chunk.id,
-                text: chunk.text, 
-                document_name: chunk.document_name,
-                offset: chunk.offset,
-                noteId: chunk.noteId
-            }})[0..3] AS topChunks
-
-        // Calculate connection counts for neighbors
-        UNWIND neighbors AS neighbor
-        OPTIONAL MATCH (neighbor)-[:RELATED]->(neighborRelated:Concept)
-        WITH c, connectionCount, importanceScore, neighbor, COUNT(neighborRelated) AS neighborConnectionCount, topChunks
-        
-        // Return the results
-        RETURN DISTINCT
-            c.id AS conceptId,
-            c.uuid[0] as conceptUuid,
-            COLLECT({{
-                id: neighbor.id, 
-                uuid: neighbor.uuid[0]
-            }}) AS relatedConcepts,
-            topChunks
+        LIMIT 50
+        RETURN c.id AS conceptId, c.uuid[0] AS conceptUuid
         """
 
         parameters = {
@@ -276,12 +293,79 @@ class GraphQueryService():
         }
 
         try:
-            result = graphAccess.execute_query(QUERY, parameters)   
-            logging.info(f"Query: {QUERY}")
-            logging.info(f"result: {result}")
+            top_concepts = graphAccess.execute_query(QUERY1, parameters)
+            logging.info(f"Query 1: {QUERY1}")
+            logging.info(f"Top concepts: {top_concepts}")
+
+            NOTE_QUERY = f"""
+            MATCH (n:Document)
+            where '{id}' in n.{param}
+            RETURN n.summary as summary
+            """
+
+            note_summaries = graphAccess.execute_query(NOTE_QUERY, parameters)
+
+            logging.info(f"note_summaries: {note_summaries}")
+
+            filtered_concepts = GraphQueryService.choose_most_important_topics(entities=top_concepts, note_description=note_summaries[0]['summary'])
+
+            logging.info(f"filtered_concepts: {filtered_concepts}")
+
+            # After processing, use the list of concepts for the second query
+            concept_uuids = [concept.conceptUuid for concept in filtered_concepts]
+
+            logging.info(f"concept_uuids: {concept_uuids}")
+
+            QUERY2 = f"""
+            UNWIND $conceptUuids AS targetUuid
+            MATCH (c:Concept)
+            WHERE targetUuid IN c.uuid
+            WITH c, targetUuid
+
+            // Find immediate concept neighbors of important nodes
+            MATCH (c)-[:RELATED]-(neighbor:Concept)
+            WHERE '{id}' IN neighbor.noteId
+
+            // Find related chunks for the main concept
+            WITH c, neighbor, targetUuid
+            MATCH (chunk:Chunk)-[r:REFERENCES]->(c)
+            WITH c, neighbor, chunk, targetUuid, count(DISTINCT c) AS relevanceScore
+            ORDER BY relevanceScore DESC
+            WITH c, neighbor, targetUuid, COLLECT({{
+                id: chunk.id,
+                text: chunk.text, 
+                document_name: chunk.document_name,
+                offset: chunk.offset,
+                noteId: chunk.noteId
+            }})[0..3] AS topChunks
+
+            // Calculate connection counts for neighbors
+            OPTIONAL MATCH (neighbor)-[:RELATED]->(neighborRelated:Concept)
+            WITH c, neighbor, COUNT(neighborRelated) AS neighborConnectionCount, topChunks, targetUuid
+
+            // Return the results
+            RETURN DISTINCT
+                c.id AS conceptId,
+                targetUuid AS conceptUuid,
+                COLLECT({{
+                    id: neighbor.id, 
+                    uuid: neighbor.uuid[0]
+                }}) AS relatedConcepts,
+                topChunks
+            """
+
+            parameters2 = {
+                "id": id,
+                "conceptUuids": concept_uuids
+            }
+
+            result = graphAccess.execute_query(QUERY2, parameters2)
+            logging.info(f"Query 2: {QUERY2}")
+            logging.info(f"result: {', '.join([concept['conceptId'] for concept in result])}")
+
             return result
         except Exception as e:
-            logging.error(f"Error executing query: {{e}}")
+            logging.error(f"Error executing query: {e}")
             return None
 
     @staticmethod
