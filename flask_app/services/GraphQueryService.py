@@ -1,3 +1,4 @@
+import json
 import logging
 import random
 from typing import Any, Dict, List, Tuple
@@ -248,7 +249,8 @@ class GraphQueryService():
         llm = get_llm(GPT_4O_MINI).with_structured_output(TopConcepts)
         prompt = ChatPromptTemplate.from_messages([
             ("system", """
-            You are an expert concept selector tasked with identifying the most crucial concepts for summarizing a note. Your goal is to select concepts that will provide a comprehensive understanding of the note's content while minimizing redundancy.
+            You are an expert concept selector tasked with identifying the most crucial concepts for summarizing a note. 
+            Your goal is to select concepts that will provide a comprehensive understanding of the note's content while minimizing redundancy.
 
             Guidelines for topic selection:
             1. Relevance: Choose concepts that are central to the main ideas and arguments presented in the note.
@@ -677,3 +679,29 @@ class GraphQueryService():
         result = graphAccess.execute_query(QUERY)
 
         return result
+    
+    @staticmethod
+    def get_quiz_questions_by_id(quizId: str) -> List[Dict] | None:
+        graphAccess = graphDBdataAccess()
+
+        QUERY = f"""
+        MATCH (q:QuizQuestion)
+        WHERE '{quizId}' IN q.quizId
+        RETURN q.id AS questionId, q.question AS question, q.answers AS answers, q.difficulty AS difficulty, q.topics AS topics, q.chunkIds as chunkIds
+        """
+
+        result = graphAccess.execute_query(QUERY)
+
+        questions = []
+
+        for record in result:
+            questions.append({
+                'id': record['questionId'],
+                'question': record['question'],
+                'answers': json.loads(record['answers']),
+                'difficulty': record['difficulty'],
+                'topics': record['topics'],
+                'chunkIds': record['chunkIds']
+            })
+
+        return questions

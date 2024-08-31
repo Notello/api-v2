@@ -39,10 +39,11 @@ class RecommendationService():
         MATCH (concept:Concept)-[:HAS_QUESTION]->(question)
         WHERE '{courseId}' in question.courseId
         WITH concept, 
-            SUM(CASE WHEN r.relationship = 'RIGHT' THEN 1 ELSE -1 END) AS score
+            SUM(CASE WHEN r.relationship = 'RIGHT' THEN 1 ELSE -1 END) AS score,
+            count(DISTINCT r) AS numAnswers
         ORDER BY score ASC
-        LIMIT 10
-        RETURN concept.id AS conceptName, concept.uuid[0] as conceptUuid, score
+        LIMIT 50
+        RETURN concept.id AS conceptName, concept.uuid[0] as conceptUuid, score, numAnswers
         """
 
         logging.info(f"Query: {query}")

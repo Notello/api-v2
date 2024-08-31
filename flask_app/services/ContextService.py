@@ -86,6 +86,7 @@ class ContextService():
 
             if entities:
                 for entity in entities:
+                    logging.info(f"Entity: {entity}")
                     similar_topic = GraphQueryService.get_most_similar_topic(topic_name=entity, similarity_threshold=0.97)
 
                     logging.info(f"Similar topic: {similar_topic}")
@@ -100,7 +101,9 @@ class ContextService():
                             )
 
                         if not output:
-                            return None
+                            logging.info(f"Not output for topic {entity}")
+                            continue
+
                         context_nodes[similar_topic['id']] = {
                             'uuid': output[0]['result']['start_concept']['uuid'],
                             'related_chunks': output[0]['result']['related_chunks'],
@@ -124,6 +127,8 @@ class ContextService():
                     return None
 
                 context_nodes[similar_topic['id']] = output[0]['result']
+
+            logging.info(f"Context nodes: {context_node['id']}" for context_node in context_nodes)
             
             return context_nodes
         except Exception as e:

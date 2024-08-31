@@ -59,6 +59,10 @@ class ChatService():
         ratelimitId = RatelimitService.add_rate_limit(userId=userId, type=CHAT, value=1)
         param = NOTEID if noteId is not None else COURSEID
         id = noteId if noteId is not None else courseId
+
+        logging.info(f"Param: {param}, id: {id}")
+
+        messageId = SupabaseService.add_chat_message(chat_room_id=roomId, user_id=None, message=json.dumps({"message": "Gathering Sources", "sources": []}))
         try:
             history = SupabaseService.get_chat_text(chat_room_id=roomId)
 
@@ -78,6 +82,8 @@ class ChatService():
 
             annotated_history = SupabaseService.get_annotated_messages(chat_room_id=roomId)
 
+            SupabaseService.edit_chat_message(message_id=messageId, message=json.dumps({"message": "Generating Reply", "sources": []}))
+
             reply = ChatService.generate_reply(
                 userId=userId, 
                 message=message, 
@@ -86,8 +92,9 @@ class ChatService():
                 botReply=botReply,
                 answer_format=answer_format
                 )
+            
+            SupabaseService.edit_chat_message(message_id=messageId, message=json.dumps({"message": reply.reply, "sources": reply.sources}))
 
-            SupabaseService.add_chat_message(chat_room_id=roomId, user_id=None, message=json.dumps(reply))
         except Exception as e:
             logging.error(f"Error generating bot reply: {e}")
             RatelimitService.remove_rate_limit(rateLimitId=ratelimitId)
@@ -105,10 +112,7 @@ class ChatService():
 
         result = extraction_chain.invoke({})
 
-        return {
-            'message': result.reply,
-            'sources': result.sources
-        }
+        return result
     
     @staticmethod
     def escape_template_variables(s):
@@ -173,6 +177,7 @@ class ChatService():
             5. Maintain a friendly and engaging tone throughout the conversation.
             6. If you use information from the context, include the relevant Chunk UUID(s) in the 'sources' field of your response.
             7. Do not provide chunk citations in the reply field, only in the 'sources' field.
+            8. If the provided context is not relevant to the user's message, inform the user of that fact, but still provide a response.
 
             {formatting_instructions}
             """
@@ -194,6 +199,7 @@ class ChatService():
             4. Avoid unnecessary elaboration or tangential information.
             5. If you use information from the context, include the relevant Chunk UUID(s) in the 'sources' field of your response.
             6. Do not provide chunk citations in the reply field, only in the 'sources' field.
+            7. If the provided context is not relevant to the user's message, inform the user of that fact, but still provide a response.
 
             {formatting_instructions}
             """

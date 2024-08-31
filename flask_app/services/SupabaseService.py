@@ -403,6 +403,16 @@ class SupabaseService:
         return message[0]['id']
     
     @staticmethod
+    def edit_chat_message(message_id, message):
+        if not HelperService.validate_all_uuid4(message_id):
+            logging.error(f'Invalid message_id: {message_id}')
+            return None
+
+        return supabase.table(CHAT_MESSAGE_TABLE_NAME).update({
+            'content': str(message)
+        }).eq('id', str(message_id)).execute().data
+    
+    @staticmethod
     def get_chat_history(chat_room_id):
         if not HelperService.validate_all_uuid4(chat_room_id):
             logging.error(f'Invalid chat_room_id: {chat_room_id}')

@@ -1,5 +1,6 @@
 from enum import Enum
 from io import BytesIO
+import json
 import os
 import tempfile
 from werkzeug.datastructures import FileStorage
@@ -138,7 +139,7 @@ class NoteService:
         title: str = '',
         file_type: str = '',
         file: FileStorage = None,
-        noteId: str = None
+        noteId: str = None,
     ):
         if ingestType == IngestType.EDIT:
             if form == NoteForm.YOUTUBE:
@@ -153,7 +154,8 @@ class NoteService:
                     courseId=courseId,
                     userId=userId,
                     audio_file=file,
-                    noteId=noteId
+                    noteId=noteId,
+                    title=title
                     )
             elif form == NoteForm.TEXT:
                 return NoteService.edit_text_note(
@@ -183,6 +185,7 @@ class NoteService:
                     courseId=courseId,
                     userId=userId,
                     audio_file=file,
+                    title=title
                     )
             elif form == NoteForm.TEXT:
                 return NoteService.create_text_note(
@@ -254,7 +257,8 @@ class NoteService:
         courseId: str,
         userId: str,
         audio_file: FileStorage,
-        noteId: str
+        noteId: str,
+        title: str
     ):
         logging.info(f"Editing audio note: {audio_file}")
         if not AuthService.can_edit_note(userId, noteId):
@@ -268,7 +272,8 @@ class NoteService:
             courseId=courseId,
             userId=userId,
             audio_file=audio_file,
-            origionalNoteId=noteId
+            origionalNoteId=noteId,
+            title=title
             )
     
     @staticmethod
@@ -276,6 +281,7 @@ class NoteService:
         courseId: str,
         userId: str,
         audio_file: FileStorage,
+        title: str,
         originalNoteId: str = None
     ):
         logging.info(f"Creating audio note: {audio_file.filename}")
@@ -283,7 +289,7 @@ class NoteService:
             courseId=courseId,
             userId=userId,
             form=NoteForm.AUDIO,
-            title=f"Audio File: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            title=title,
             noteId=originalNoteId
         )
 
@@ -480,6 +486,9 @@ class NoteService:
                 raise Exception("Failed to upload file")
 
             fal_output = FalService.transcribe_audio(temp_file_path)
+
+            SupabaseService.update_note(noteId=noteId, key='contentStatus', value='complete')
+            SupabaseService.update_note(noteId=noteId, key='rawContent', value=json.dumps(fal_output))
 
             if fal_output is None:
                 logging.exception(f"Failed to transcribe file using FalService for note {noteId}")

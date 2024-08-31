@@ -154,6 +154,9 @@ create_audio_note_parser.add_argument(COURSEID, location='form',
 create_audio_note_parser.add_argument(NOTEID, location='form', 
                         type=str, required=False,
                         help='Optional note ID to edit')
+create_audio_note_parser.add_argument('title', location='form', 
+                        type=str, required=True,
+                        help='Title of the note')
 
 @api.expect(create_audio_note_parser)
 @api.route('/create-audio-note')
@@ -166,6 +169,7 @@ class AudioIntake(Resource):
         noteId = args.get(NOTEID, None)
         audio_file = args.get('file', None)
         ingestType = NoteService.ingest_to_enum(args.get('ingestType', None))
+        title = args.get('title', None)
         userId = request.user_id
 
         try:
@@ -186,6 +190,7 @@ class AudioIntake(Resource):
                 form=NoteForm.AUDIO,
                 ingestType=ingestType,
                 file=audio_file,
+                title=title
                 )
             
             if not noteId:
