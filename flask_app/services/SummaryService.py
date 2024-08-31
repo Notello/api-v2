@@ -259,7 +259,7 @@ class SummaryService():
 
             logging.info(f"Generating topic summary for topic: {topicId}")
 
-            topic_graph = GraphQueryService.get_topic_graph_for_topic_uuid(topic_uuid=topicId)
+            topic_graph = GraphQueryService.get_topic_graph_for_topic_uuid(topic_uuid=topicId, param=COURSEID, id=courseId)
 
             if topic_graph is None or len(topic_graph) == 0:
                 logging.error(f"No topic graph found for {topicId}, topic_graph: {topic_graph}")

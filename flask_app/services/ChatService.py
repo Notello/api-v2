@@ -7,10 +7,10 @@ from langchain_core.pydantic_v1 import BaseModel, Field
 
 from flask_app.services.SupabaseService import SupabaseService
 from flask_app.services.ContextAwareThread import ContextAwareThread
-from flask_app.services.ContextService import ContextService, QuestionModel
+from flask_app.services.ContextService import ContextService, QuestionModel, BotPrompt
 from flask_app.services.RatelimitService import RatelimitService
 
-from flask_app.constants import CHAT, GPT_4O_MINI
+from flask_app.constants import CHAT, COURSEID, GPT_4O_MINI, NOTEID
 from flask_app.src.shared.common_fn import get_llm
 
 class ChatType(Enum):
@@ -36,7 +36,7 @@ class ChatService():
             return None
 
     @staticmethod
-    def handle_chat(userId, message, botReply, roomId):
+    def handle_chat(userId, message, botReply, roomId, noteId, courseId):
         roomId = roomId if roomId is not None else SupabaseService.create_chat_room(userId)
         
         logging.info(f"Chat room created: {roomId}")
@@ -49,24 +49,43 @@ class ChatService():
         if botReply is not None:
             ContextAwareThread(
                 target=ChatService.generate_bot_reply,
-                args=(userId, message, botReply, roomId)
+                args=(userId, message, botReply, roomId, noteId, courseId)
             ).start()
         
         return roomId
     
     @staticmethod
-    def generate_bot_reply(userId, message, botReply, roomId):
+    def generate_bot_reply(userId, message, botReply, roomId, noteId, courseId):
         ratelimitId = RatelimitService.add_rate_limit(userId=userId, type=CHAT, value=1)
+        param = NOTEID if noteId is not None else COURSEID
+        id = noteId if noteId is not None else courseId
         try:
-            question_type = ChatService.get_question_type(message)
+            history = SupabaseService.get_chat_text(chat_room_id=roomId)
 
-            context = ContextService.get_context(question_type=question_type, query_str=message)
-
-            history = SupabaseService.get_chat_history(chat_room_id=roomId)
+            question_type, answer_format = ChatService.get_question_classification(message=message, history=history)
 
             logging.info(f"Chat history: {history}")
 
-            reply = ChatService.generate_reply(userId=userId, message=message, history=history, context=context, botReply=botReply)
+            context = ContextService.get_context_nodes(
+                question_type=question_type, 
+                query_str=message, 
+                history=history,
+                param=param,
+                id=id
+                )
+
+            logging.info(f"Chat history: {history}")
+
+            annotated_history = SupabaseService.get_annotated_messages(chat_room_id=roomId)
+
+            reply = ChatService.generate_reply(
+                userId=userId, 
+                message=message, 
+                history=annotated_history, 
+                context=context, 
+                botReply=botReply,
+                answer_format=answer_format
+                )
 
             SupabaseService.add_chat_message(chat_room_id=roomId, user_id=None, message=json.dumps(reply))
         except Exception as e:
@@ -75,24 +94,20 @@ class ChatService():
             SupabaseService.add_chat_message(chat_room_id=roomId, user_id=None, message=json.dumps({"message": "Sorry, I'm having trouble generating a reply at the moment. Please try again later."}))
     
     @staticmethod
-    def generate_reply(userId, message, history, context, botReply):
-        # extraction_chain = ChatService.setup_llm(
-        #     userMessage=message,
-        #     history=history,
-        #     context=context,
-        #     botReply=botReply
-        # )
+    def generate_reply(userId, message, history, context, botReply, answer_format):
+        extraction_chain = ChatService.setup_llm(
+            userMessage=message,
+            history=history,
+            context=context,
+            botReply=botReply,
+            answer_format=answer_format
+        )
 
-        # result = extraction_chain.invoke({})
-
-        # return {
-        #     'message': result.reply,
-        #     'sources': result.sources
-        # }
+        result = extraction_chain.invoke({})
 
         return {
-            'message': "dud",
-            'sources': []
+            'message': result.reply,
+            'sources': result.sources
         }
     
     @staticmethod
@@ -104,18 +119,40 @@ class ChatService():
         userMessage: str,
         history: List[str],
         context,
-        botReply
+        botReply,
+        answer_format
     ):
         prompt_template = ""
-        history_str = ChatService.escape_template_variables('\n'.join(history))
+        history_str = ""
+        userMessage_str = ChatService.escape_template_variables(userMessage)
+        if history:
+            history_str = ChatService.escape_template_variables('\n'.join(history))
         context_str = ""
-        if len(context) > 0:
+        if context is not None and len(context) > 0:
             context_items = []
             for key, value in context.items():
                 related_chunks = '\n'.join([f"Chunk UUID: {chunk['id']}, Chunk Text: {chunk['text']}" for chunk in value['related_chunks']])
                 related_concepts = ', '.join([f"{concept['id']}" for concept in value['related_concepts']])
                 context_items.append(f"Identified Object in Query: {key}\nRelated Chunks:\n{related_chunks}\nRelated Concepts:\n{related_concepts}")
             context_str = '\n\n'.join(context_items)
+
+        formatting_instructions = ""
+        if answer_format == BotPrompt.MATH:
+            formatting_instructions = """
+            FORMATTING INSTRUCTIONS:
+            - Use LaTeX format for all mathematical expressions and equations.
+            - Enclose inline math expressions in single dollar signs, e.g., $x^2 + y^2 = z^2$.
+            - For displayed equations, use double dollar signs, e.g., $$\int_0^{{\infty}} e^{{-x^2}} dx = \frac{{\sqrt{{\pi}}}}{{2}}$$.
+            - Ensure all mathematical symbols, Greek letters, and operators are properly formatted in LaTeX.
+            """
+        elif answer_format == BotPrompt.SCIENCE:
+            formatting_instructions = """
+            FORMATTING INSTRUCTIONS:
+            - Use LaTeX format for mathematical expressions and equations.
+            - For chemical formulas, use subscripts and superscripts appropriately, e.g., H_2O for water, Fe^{{2+}} for iron(II) ion.
+            - For physics equations, use proper LaTeX notation, e.g., $F = ma$ for Newton's Second Law.
+            - Ensure all units are properly formatted, e.g., m/s^2 for acceleration.
+            """
 
         if botReply == ChatType.CHAT:
             prompt_template = f"""You are an AI assistant engaged in a conversation with a user. Your goal is to provide informative and engaging responses that encourage further learning and discussion about the topic at hand. Use the following information to inform your responses:
@@ -126,16 +163,18 @@ class ChatService():
             Conversation History:
             {history_str}
 
-            User Message: {userMessage}
+            User Message: {userMessage_str}
 
             Instructions:
-            1. Analyze the user's message and the provided context.
+            1. Analyze the user's message using the provided context.
             2. Provide a detailed and informative response that addresses the user's query or continues the conversation naturally.
             3. Include relevant information from the context if applicable.
             4. Ask follow-up questions or suggest related topics to encourage further discussion.
             5. Maintain a friendly and engaging tone throughout the conversation.
             6. If you use information from the context, include the relevant Chunk UUID(s) in the 'sources' field of your response.
             7. Do not provide chunk citations in the reply field, only in the 'sources' field.
+
+            {formatting_instructions}
             """
         elif botReply == ChatType.ANSWER:
             prompt_template = f"""You are an AI assistant tasked with providing concise and direct answers to user questions. Your goal is to give accurate and to-the-point responses based on the available information. Use the following details to inform your answer:
@@ -143,23 +182,27 @@ class ChatService():
             Context:
             {context_str}
 
+            Conversation History:
+            {history_str}
+
             User Question: {userMessage}
 
             Instructions:
-            1. Analyze the user's question and the provided context.
+            1. Analyze the user's question using the provided context.
             2. Provide a concise and direct answer that addresses the user's question.
             3. Include only the most relevant information from the context.
             4. Avoid unnecessary elaboration or tangential information.
-            5. If the question cannot be answered with the given context, state that clearly.
-            6. If you use information from the context, include the relevant Chunk UUID(s) in the 'sources' field of your response.
-            7. Do not provide chunk citations in the reply field, only in the 'sources' field.
+            5. If you use information from the context, include the relevant Chunk UUID(s) in the 'sources' field of your response.
+            6. Do not provide chunk citations in the reply field, only in the 'sources' field.
+
+            {formatting_instructions}
             """
         else:
             logging.error(f'Invalid botReply: {botReply}')
             return
         
         logging.info(f"Prompt template: {prompt_template}")
-    
+
         extraction_llm = get_llm(GPT_4O_MINI).with_structured_output(BotReply)
         extraction_prompt = ChatPromptTemplate.from_messages([
             ("system", prompt_template),
@@ -168,38 +211,59 @@ class ChatService():
         return extraction_prompt | extraction_llm
 
     @staticmethod
-    def get_question_type(message):
+    def get_question_classification(message, history):
+        history_str = ""
+        if history:
+            history_str = ChatService.escape_template_variables('\n'.join(history))
+        message = ChatService.escape_template_variables(message)
+
         try:
             llm = get_llm(GPT_4O_MINI).with_structured_output(QuestionModel)
-
             prompt = ChatPromptTemplate.from_messages([
                 ("system", """
-                You are a question classifier. Your goal is to determine the type of question the user is asking based on the following criteria:
+                You are a question classifier. Your goal is to determine the type of question the user is asking and the appropriate response format based on the following criteria:
 
-                1. EXPLORE: The user is asking a broad, open-ended question to learn about a topic. 
-                   Example: "Tell me about the French Revolution."
+                Question Type:
+                EXPLORE: The user is asking a broad, open-ended question to learn about a topic. 
+                Example: "Tell me about the French Revolution."
+                ANSWER: The user is seeking a specific, factual answer or solution to a problem. This includes homework-like questions, requests for direct answers, or instructions to answer specific questions. Examples:
+                "What is the capital of France?"
+                "Solve for x in the equation 2x + 3 = 11"
+                "Answer question 1"
+                "Answer question 2"
+                RELATIONSHIP: The user is asking about connections, comparisons, or interactions between two or more entities, concepts, or events.
+                Example: "How did World War I influence World War II?"
+                FOLLOWUP: The user is referring to or building upon information from a previous part of the conversation. This often includes pronouns or context-dependent phrases that require previous context to understand fully. Examples:
+                "Can you elaborate on that last point?"
+                "What about its impact on the economy?"
+                "Why is that important?"
 
-                2. ANSWER: The user is seeking a specific, factual answer or solution to a problem. This includes homework-like questions or requests for direct answers.
-                   Examples: "What is the capital of France?", "Solve for x in the equation 2x + 3 = 11", "Answer question 1"
+                Important notes for Question Type:
+                Questions like "Answer question X" or "Solve problem Y" should always be classified as ANSWER, not FOLLOWUP, even if they seem to reference previous context.
+                FOLLOWUP should only be used when the question cannot be fully understood without previous context.
+                When in doubt between ANSWER and FOLLOWUP, prefer ANSWER if the question seems to be seeking a specific piece of information or solution.
 
-                3. RELATIONSHIP: The user is asking about connections, comparisons, or interactions between two or more entities, concepts, or events.
-                   Example: "How did World War I influence World War II?"
+                Bot Prompt:
+                DEFAULT: The question doesn't fall into a specific subject area or requires a general response.
+                MATH: The question will require an answer relating to mathematics, including equations and formulas. The answer will require the use of LaTeX formatting.
+                SCIENCE: The question will require an answer relating to science, including physics, chemistry, or biology. The answer will require chemical of physics equations.
 
-                4. FOLLOWUP: The user is referring to or building upon information from a previous part of the conversation. This often includes pronouns or context-dependent phrases.
-                   Example: "Can you elaborate on that last point?", "What about its impact on the economy?"
+                Classify the following question into one of the four question types and one of the four bot prompt categories. Choose the most specific and appropriate ones based on the given criteria.
 
-                Classify the following question into one of these four categories. If the question could fit multiple categories, choose the most specific and appropriate one based on the given criteria.
+                Take into account the conversation history provided to determine if the current message is a follow-up question or if it requires context from previous messages. If the current message seems to build upon or reference information from the conversation history, consider classifying it as FOLLOWUP.
                 """),
-                ("user", message)
+                ("human", "Here's the conversation history:"),
+                ("human", f"{history}"),
+                ("human", "And here's the current message:"),
+                ("human", f"{message}")
             ])
 
             invokable = prompt | llm
-
             result: QuestionModel = invokable.invoke({})
-
+            
             logging.info(f"Question type: {result.question_type}")
-
-            return result.question_type
+            logging.info(f"Bot prompt: {result.answer_format}")
+            return result.question_type, result.answer_format
         except Exception as e:
-            logging.error(f"Error in get_question_type: {e}")
-            return None
+            logging.error(f"Error in get_question_classification: {e}")
+            return None, None

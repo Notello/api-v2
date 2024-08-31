@@ -18,6 +18,8 @@ chat_room_parser = api.parser()
 chat_room_parser.add_argument('room_id', type=str, required=False, help='room id')
 chat_room_parser.add_argument('message', type=str, required=True, help='message')
 chat_room_parser.add_argument('bot_reply', type=str, required=False, help='answer, chat, or None')
+chat_room_parser.add_argument('noteId', type=str, required=False, help='note id')
+chat_room_parser.add_argument('courseId', type=str, required=False, help='course id')
 
 @api.expect(chat_room_parser)
 @api.route('/send')
@@ -29,6 +31,8 @@ class Chat(Resource):
         roomId = args.get('room_id', None)
         userId = args.get('user_id', None)
         message = args.get('message', None)
+        noteId = args.get('noteId', None)
+        courseId = args.get('courseId', None)
         botReply = ChatService.chat_type_to_enum(args.get('bot_reply', None))
 
         userId = request.user_id
@@ -45,7 +49,14 @@ class Chat(Resource):
             logging.error(f"User {userId} has exceeded their chat room rate limit")
             return {'message': 'You have exceeded your chat room rate limit'}, 250
         
-        roomId = ChatService.handle_chat(userId=userId, message=message, botReply=botReply, roomId=roomId)
+        roomId = ChatService.handle_chat(
+            userId=userId, 
+            message=message, 
+            botReply=botReply, 
+            roomId=roomId, 
+            noteId=noteId,
+            courseId=courseId
+            )
 
         if not roomId:
             return {'message': 'Error creating chat room'}, 400

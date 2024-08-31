@@ -416,10 +416,26 @@ class SupabaseService:
 
         if len(messages) > 10:
             messages = messages[-10:]
-        
-        messages = [f"{'Human' if message['userId'] is not None else 'Bot'} Message: {json.loads(message['content'])['message']}" for message in messages]
 
         return messages
+    
+    @staticmethod
+    def get_annotated_messages(chat_room_id):
+        messages = SupabaseService.get_chat_history(chat_room_id=chat_room_id)
+
+        if not messages:
+            return None
+        
+        return [f"{'Human' if message['userId'] is not None else 'Bot'} Message: {json.loads(message['content'])['message']}" for message in messages]
+    
+    @staticmethod
+    def get_chat_text(chat_room_id):
+        messages = SupabaseService.get_chat_history(chat_room_id=chat_room_id)
+
+        if not messages:
+            return None
+        
+        return [json.loads(message['content'])['message'] for message in messages]
     
     @staticmethod
     def get_course_description(courseId: str) -> str:

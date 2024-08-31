@@ -370,48 +370,97 @@ class GraphQueryService():
 
     @staticmethod
     def get_topic_graph_for_topic_uuid(
+        param,
+        id,
         topic_uuid: str,
-        num_chunks: int = 5
+        num_chunks: int = 5,
+        num_related_concepts: int = 3,
     ): 
+        logging.info(f"Getting topic graph for topic uuid: {topic_uuid}")
         graphAccess = graphDBdataAccess()
-        
-        MAIN_QUERY = f"""
-            WITH $topic_uuid AS topic_uuid
-            MATCH (start:Concept)
-            WHERE topic_uuid IN start.uuid
 
-            // Find related concepts
-            OPTIONAL MATCH (start)-[r1:RELATED]-(related:Concept)
-            WHERE NOT topic_uuid IN related.uuid
+        logging.info(f"Param: {param}, id: {id}")
+        logging.info(f"Topic uuid: {topic_uuid}")
 
-            // Find chunks related to the start concept
-            OPTIONAL MATCH (chunk:Chunk)-[r2:REFERENCES]-(start)
+        if param and id:      
+            MAIN_QUERY = f"""
+                WITH $topic_uuid AS topic_uuid
+                MATCH (start:Concept)
+                WHERE topic_uuid IN start.uuid AND '{id}' in start.{param}
 
-            // Collect results
-            WITH start, 
-                COLLECT(DISTINCT {{
-                    uuid: related.uuid[0],
-                    id: related.id,
-                    relation_type: r1.type
-                }}) AS related_concepts,
-                COLLECT(DISTINCT {{
-                    document_name: chunk.document_name,
-                    text: chunk.text,
-                    id: chunk.noteId,
-                    offset: chunk.offset,
-                    noteId: chunk.noteId
-                }})[..{num_chunks}] AS related_chunks
+                // Find related concepts
+                OPTIONAL MATCH (start)-[r1:RELATED]-(related:Concept)
+                WHERE NOT topic_uuid IN related.uuid AND '{id}' in related.{param}
 
-            // Return the results
-            RETURN {{
-                start_concept: {{
-                    uuid: start.uuid[0],
-                    id: start.id
-                }},
-                related_concepts: related_concepts,
-                related_chunks: related_chunks
-            }} as result
-        """
+                // Find chunks related to the start concept
+                OPTIONAL MATCH (chunk:Chunk)-[r2:REFERENCES]-(start)
+                WHERE '{id}' in chunk.{param}
+
+                // Collect results
+                WITH start, 
+                    COLLECT(DISTINCT {{
+                        uuid: related.uuid[0],
+                        id: related.id,
+                        relation_type: r1.type
+                    }})[..{num_related_concepts}] AS related_concepts,
+                    COLLECT(DISTINCT {{
+                        document_name: chunk.document_name,
+                        text: chunk.text,
+                        id: chunk.noteId,
+                        offset: chunk.offset,
+                        noteId: chunk.noteId
+                    }})[..{num_chunks}] AS related_chunks
+
+                // Return the results
+                RETURN {{
+                    start_concept: {{
+                        uuid: start.uuid[0],
+                        id: start.id
+                    }},
+                    related_concepts: related_concepts,
+                    related_chunks: related_chunks
+                }} as result
+            """
+        else:
+            MAIN_QUERY = f"""
+                WITH $topic_uuid AS topic_uuid
+                MATCH (start:Concept)
+                WHERE topic_uuid IN start.uuid
+
+                // Find related concepts
+                OPTIONAL MATCH (start)-[r1:RELATED]-(related:Concept)
+                WHERE NOT topic_uuid IN related.uuid
+
+                // Find chunks related to the start concept
+                OPTIONAL MATCH (chunk:Chunk)-[r2:REFERENCES]-(start)
+
+                // Collect results
+                WITH start, 
+                    COLLECT(DISTINCT {{
+                        uuid: related.uuid[0],
+                        id: related.id,
+                        relation_type: r1.type
+                    }})[..{num_related_concepts}] AS related_concepts,
+                    COLLECT(DISTINCT {{
+                        document_name: chunk.document_name,
+                        text: chunk.text,
+                        id: chunk.noteId,
+                        offset: chunk.offset,
+                        noteId: chunk.noteId
+                    }})[..{num_chunks}] AS related_chunks
+
+                // Return the results
+                RETURN {{
+                    start_concept: {{
+                        uuid: start.uuid[0],
+                        id: start.id
+                    }},
+                    related_concepts: related_concepts,
+                    related_chunks: related_chunks
+                }} as result
+            """
+
+        logging.info(f"Query: {MAIN_QUERY}")
 
         parameters = {
             'topic_uuid': topic_uuid
@@ -586,7 +635,7 @@ class GraphQueryService():
         return result
     
     @staticmethod
-    def get_most_similar_topic(topic_name: str):
+    def get_most_similar_topic(topic_name: str, similarity_threshold):
         graph_access = graphDBdataAccess()
 
         embeddings, dimension = load_embedding_model()
@@ -594,14 +643,13 @@ class GraphQueryService():
         topic_embedding = embeddings.embed_query(text=topic_name)
 
         QUERY = f"""
-        CALL db.index.vector.queryNodes('concept_embedding', 1, {topic_embedding}) YIELD node AS n, score
-
-        // Return the result
+        CALL db.index.vector.queryNodes('concept_embedding', 20, {topic_embedding}) YIELD node AS n, score
         RETURN {{
             uuid: n.uuid[0],
             id: n.id,
             similarity: score
         }} AS result
+        ORDER BY score DESC
         LIMIT 1
         """
 
