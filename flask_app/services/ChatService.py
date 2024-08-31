@@ -57,8 +57,8 @@ class ChatService():
     @staticmethod
     def generate_bot_reply(userId, message, botReply, roomId, noteId, courseId):
         ratelimitId = RatelimitService.add_rate_limit(userId=userId, type=CHAT, value=1)
-        param = NOTEID if noteId is not None else COURSEID
-        id = noteId if noteId is not None else courseId
+        param = NOTEID if noteId else COURSEID
+        id = noteId if noteId else courseId
 
         logging.info(f"Param: {param}, id: {id}")
 
