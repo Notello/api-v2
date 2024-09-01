@@ -277,7 +277,7 @@ class GraphCreationService:
         """
         
         # Transform the results dictionary into a list of dictionaries
-        results_list = [{"questionId": qId, "correct": correct} for qId, correct in results.items()]
+        results_list = [{"questionId": result['uuid'], "correct": result['result']} for result in results]
         
         params = {
             "userId": userId,

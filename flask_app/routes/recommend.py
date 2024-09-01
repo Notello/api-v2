@@ -34,7 +34,7 @@ class RecommendNotesForUser(Resource):
             recommendedNotes = RecommendationService.get_recommended_notes_for_user(userId=userId, courseId=courseId)
 
             logging.info(f"Got {len(recommendedNotes)} notes for userId: {userId}, courseId: {courseId}")
-            return {'notes': recommendedNotes}, 200
+            return recommendedNotes, 200
         except Exception as e:
             logging.exception(f"Error getting notes for user {userId}: {str(e)}")
             return {'message': str(e)}, 500
@@ -60,7 +60,7 @@ class RecommendTopicsToStudy(Resource):
             recommendedTopics = RecommendationService.get_recommended_topics_for_user(userId=userId, courseId=courseId)
 
             logging.info(f"Got {len(recommendedTopics)} topics for userId: {userId}, courseId: {courseId}")
-            return {'topics': recommendedTopics}, 200
+            return recommendedTopics, 200
         except Exception as e:
             logging.exception(f"Error getting topics to study for user {userId}: {str(e)}")
             return {'message': str(e)}, 500

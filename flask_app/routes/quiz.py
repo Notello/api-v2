@@ -145,9 +145,9 @@ class CompleteQuiz(Resource):
 
             logging.info(f"Complete quiz for userId: {userId}, quizId: {quizId}, results: {results}")
 
-            for uuid, result in results.items():
-                if not isinstance(result, bool) or not HelperService.validate_uuid4(uuid):
-                    return {'message': f'Invalid result for UUID {uuid}. Must be a valid UUID boolean mapping'}, 400
+            for result in results:
+                if not isinstance(result['result'], bool) or not HelperService.validate_uuid4(result['uuid']):
+                    return {'message': f'Invalid result for UUID {result["uuid"]}. Must be a valid UUID boolean mapping'}, 400
             
             GraphCreationService.insert_question_results(userId=userId, results=results)
 
