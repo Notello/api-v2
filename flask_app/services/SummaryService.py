@@ -187,6 +187,7 @@ class SummaryService():
 
             if importance_graph is None or len(importance_graph) == 0:
                 logging.error(f"No importance graph found for {specifierParam}: {id}")
+                logging.info(f"importance_graph: {importance_graph}")
                 return None
             
             document_name = None if 'topChunks' not in importance_graph[0] or len(importance_graph[0]['topChunks']) == 0 else importance_graph[0]['topChunks'][0]['document_name']
