@@ -47,7 +47,7 @@ class GraphQueryService():
         return f"""
         MATCH (n)-[rel]->(r)
         WHERE (n.{key} = $value OR $value IN n.{key}) AND (r.{key} = $value OR $value IN r.{key})
-        RETURN ID(n) AS start_node_id, ID(r) AS end_node_id, rel.type AS relationship_type
+        RETURN ID(n) AS start_node_id, ID(r) AS end_node_id, rel.type AS relationship_type, id(rel) AS relationship_id
         """
 
     @staticmethod

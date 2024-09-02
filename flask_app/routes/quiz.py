@@ -58,7 +58,9 @@ class GenerateQuiz(Resource):
             topicsFiltered = [t for t in topics if t is not None]
             userId = request.user_id
 
-            specifierParam = NOTEID if noteId else None
+            specifierParam = NOTEID if noteId else COURSEID
+
+            logging.info(f"Specifier param: {specifierParam}, noteId: {noteId}")
 
             logging.info(f"Topics: {topicsFiltered}")
 

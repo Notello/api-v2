@@ -314,6 +314,8 @@ class GraphCreationService:
         RETURN pair.rel.description AS description, n.id AS nodeId, n.uuid[0] as nodeUuid
         """
 
+        logging.info(query)
+
         return graphAccess.execute_query(query)
     
     @staticmethod

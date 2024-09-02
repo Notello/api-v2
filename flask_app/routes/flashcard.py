@@ -71,6 +71,7 @@ class GenerateFlashcardsFor(Resource):
             setName = args.get('setName', None)
 
             topic_uuids = [] if topics is None else topics.split(',')
+            topic_uuids = [t for t in topic_uuids if t]
             param = NOTEID if noteId is not None else COURSEID
             id = noteId if noteId is not None else courseId
 
@@ -84,7 +85,7 @@ class GenerateFlashcardsFor(Resource):
                 logging.error(f"User {user_id} has exceeded their flashcard upload rate limit")
                 return {'message': 'You have exceeded your flashcard upload rate limit'}, 250
             
-            flashcards = FlashcardService.associate_flashcards(
+            flashcards, flashcardId = FlashcardService.associate_flashcards(
                 noteId=noteId,
                 courseId=courseId,
                 param=param,
@@ -94,7 +95,10 @@ class GenerateFlashcardsFor(Resource):
                 setName=setName
             )
 
-            return {'flashcards': flashcards}, 200
+            logging.info(f"Flashcard ID: {flashcardId}")
+            logging.info(f"Flashcards: {flashcards}")
+
+            return {'flashcards': flashcards, 'flashcardId': flashcardId}, 200
         except Exception as e:
             message = f" Unable to create flashcards, Exception: {e}"
             logging.exception(message)

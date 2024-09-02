@@ -39,4 +39,4 @@ class FlashcardService():
 
         SupabaseService.update_flashcards(flashcardId=flashcardId, key='numFlashcards', value=len(flashcards))
 
-        return flashcards
+        return flashcards, flashcardId

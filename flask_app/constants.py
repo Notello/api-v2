@@ -92,6 +92,7 @@ class ProxyRotator:
 
     def get_proxy_info(self):
         if os.getenv('ENV_TYPE') == 'dev':
+            logging.info("dev")
             return {}
 
         proxy_port = self.base_port + self.current_port_index
