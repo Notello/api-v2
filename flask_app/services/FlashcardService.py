@@ -12,8 +12,9 @@ class FlashcardService():
         id: str, 
         userId: str,
         courseId: str,
-        topics: list,
-        noteId: str = None
+        topic_uuids: list,
+        setName: str,
+        noteId: str
         ):
         if not HelperService.validate_all_uuid4(userId, id):
             logging.error(f'Invalid userId: {userId}, param: {param}, id: {id}')
@@ -22,7 +23,8 @@ class FlashcardService():
         flashcardId = SupabaseService.create_flashcards(
             noteId=noteId,
             courseId=courseId,
-            userId=userId
+            userId=userId,
+            setName=setName
         )
 
         if not HelperService.validate_all_uuid4(flashcardId):
@@ -30,9 +32,11 @@ class FlashcardService():
         
         flashcards = GraphCreationService.associate_flashcards(
             flashcardId=flashcardId,
-            topic_uuids=topics,
+            topic_uuids=topic_uuids,
             param=param,
             id=id
         )
+
+        SupabaseService.update_flashcards(flashcardId=flashcardId, key='numFlashcards', value=len(flashcards))
 
         return flashcards

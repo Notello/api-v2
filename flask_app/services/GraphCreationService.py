@@ -311,7 +311,7 @@ class GraphCreationService:
             WHEN pair.rel.flashcardId IS NOT NULL THEN pair.rel.flashcardId + ['{flashcardId}']
             ELSE ['{flashcardId}']
         END
-        RETURN pair.rel.description AS description, n.id AS id
+        RETURN pair.rel.description AS description, n.id AS nodeId, n.uuid[0] as nodeUuid
         """
 
         return graphAccess.execute_query(query)

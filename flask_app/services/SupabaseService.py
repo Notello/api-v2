@@ -148,7 +148,8 @@ class SupabaseService:
     def create_flashcards(
         courseId: str, 
         noteId: str, 
-        userId: str
+        userId: str,
+        setName: str
     ):
         if not HelperService.validate_all_uuid4(courseId, userId):
             logging.error(f'Invalid courseId: {courseId}, userId: {userId}')
@@ -158,6 +159,7 @@ class SupabaseService:
             NOTEID: noteId,
             COURSEID: courseId,
             USERID: userId,
+            'setName': setName
         }).execute().data
 
         if len(flashcard) == 0:
@@ -166,6 +168,20 @@ class SupabaseService:
         logging.info(f'Flashcard created successfully for courseId: {courseId}, userId: {userId}, noteId: {noteId}')
 
         return flashcard[0]['id']
+    
+    @staticmethod
+    def update_flashcards(
+        flashcardId: str,
+        key: str,
+        value: str
+    ):
+        if not HelperService.validate_all_uuid4(flashcardId):
+            logging.error(f'Invalid flashcardId: {flashcardId}')
+            return None
+        
+        return supabase.table(FLASHCARD_TABLE_NAME).update({
+            str(key): str(value)
+            }).eq('id', str(flashcardId)).execute().data
 
     
     @staticmethod

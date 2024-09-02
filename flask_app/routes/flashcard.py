@@ -53,6 +53,9 @@ associate_flashcard_parser.add_argument(NOTEID, location='form',
 associate_flashcard_parser.add_argument('topics', location='form', 
                         type=str, required=False,
                         help='Comma delimited list of topic uuids to make flashcards for')
+associate_flashcard_parser.add_argument('setName', location='form',
+                        type=str, required=True,
+                        help='Name of the set to associate flashcards with')
 
 @api.expect(associate_flashcard_parser)
 @api.route('/associate-flashcards')
@@ -65,8 +68,9 @@ class GenerateFlashcardsFor(Resource):
             courseId = args.get(COURSEID, None)
             noteId = args.get(NOTEID, None)
             topics = args.get('topics', None)
+            setName = args.get('setName', None)
 
-            topics = [] if topics is None else topics.split(',')
+            topic_uuids = [] if topics is None else topics.split(',')
             param = NOTEID if noteId is not None else COURSEID
             id = noteId if noteId is not None else courseId
 
@@ -86,7 +90,8 @@ class GenerateFlashcardsFor(Resource):
                 param=param,
                 id=id,
                 userId=user_id,
-                topics=topics
+                topic_uuids=topic_uuids,
+                setName=setName
             )
 
             return {'flashcards': flashcards}, 200

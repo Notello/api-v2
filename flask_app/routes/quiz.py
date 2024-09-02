@@ -28,9 +28,6 @@ create_quiz_parser.add_argument(COURSEID, location='form',
 create_quiz_parser.add_argument(NOTEID, location='form', 
                         type=str, required=False,
                         help='Note ID associated with the quiz, if not provided a topic list is required')
-create_quiz_parser.add_argument('specifierParam', location='form',
-                                type=str, required=False,
-                                help='Which id to use to specify the topic for quiz generation')
 create_quiz_parser.add_argument('difficulty', location='form', 
                         type=int, required=False,
                         help='Difficulty of the quiz from 1 - 5')
@@ -51,7 +48,6 @@ class GenerateQuiz(Resource):
             args = create_quiz_parser.parse_args()
             courseId = args.get(COURSEID, None)
             noteId = args.get(NOTEID, None)
-            specifierParam = args.get('specifierParam', None)
             difficulty = args.get('difficulty', 3)
             numQuestions = args.get('numQuestions', 5)
             topics = args.get('topics', None)
@@ -59,17 +55,18 @@ class GenerateQuiz(Resource):
             logging.info(f"Topics: {topics}")
 
             topics = topics.split(',') if topics else []
+            topicsFiltered = [t for t in topics if t is not None]
             userId = request.user_id
 
-            logging.info(f"Generate quiz for userId: {userId}, courseId: {courseId}, noteId: {noteId}, specifierParam: {specifierParam}, difficulty: {difficulty}, numQuestions: {numQuestions}, topics: {topics}")
+            specifierParam = NOTEID if noteId else None
 
-            logging.info(f"Topics: {topics}")
+            logging.info(f"Topics: {topicsFiltered}")
 
             if (
                 not HelperService.validate_all_uuid4(userId, courseId) \
                 or (specifierParam is not None and specifierParam not in QuizService.validSpecifiers)
                 or (not HelperService.validate_uuid4(noteId) and specifierParam == NOTEID)
-                or not isinstance(topics, list)
+                or not isinstance(topicsFiltered, list)
                 or not SupabaseService.param_id_exists(COURSEID, courseId)
                 or not SupabaseService.param_id_exists(USERID, userId)
                 or (noteId is not None and not SupabaseService.param_id_exists('noteId', noteId))
@@ -90,12 +87,12 @@ class GenerateQuiz(Resource):
             )
 
             if quizId is None:
-                logging.error(f"Quiz creation failed for userId: {userId}, courseId: {courseId}, noteId: {noteId}, specifierParam: {specifierParam}, difficulty: {difficulty}, numQuestions: {numQuestions}, topics: {topics}")
+                logging.error(f"Quiz creation failed for userId: {userId}, courseId: {courseId}, noteId: {noteId}, specifierParam: {specifierParam}, difficulty: {difficulty}, numQuestions: {numQuestions}, topics: {topicsFiltered}")
                 return {'message': 'Quiz creation failed'}, 400
 
             ContextAwareThread(
                     target=QuizService.generate_quiz,
-                    args=(topics, 
+                    args=(topicsFiltered, 
                         courseId, 
                         userId, 
                         quizId, 
