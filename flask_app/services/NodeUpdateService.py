@@ -224,24 +224,40 @@ class NodeUpdateService:
             [node IN nodes | node.courseId] AS allCourseIds,
             [node IN nodes | node.uuid] AS allUuids,
             [node IN nodes | node.{course_com_string}] AS allCourseCommunities,
-            [node IN nodes | node.{note_com_string}] AS allNoteCommunities
+            [node IN nodes | 
+                [key IN keys(node) WHERE key STARTS WITH 'noteId_' AND key ENDS WITH '_community'] 
+            ] AS allNoteCommunityKeys
 
         CALL apoc.merge.node(['Concept'], {{id: map.root}}, {{}}) YIELD node AS mergedNode
 
-        WITH map, nodes, mergedNode, allNoteIds, allUserIds, allCourseIds, allUuids, allCourseCommunities, allNoteCommunities
+        WITH map, nodes, mergedNode, allNoteIds, allUserIds, allCourseIds, allUuids, allCourseCommunities, allNoteCommunityKeys
         CALL apoc.refactor.mergeNodes(nodes + mergedNode, {{properties: "combine", mergeRels: true}})
         YIELD node
 
         // Set properties on merged node
-        SET node = apoc.map.removeKeys(node, ['id', 'userId', 'noteId', 'courseId', 'uuid', 'embedding', '{course_com_string}', '{note_com_string}']),
+        WITH node, map, allNoteIds, allUserIds, allCourseIds, allUuids, allCourseCommunities, allNoteCommunityKeys
+        SET node = apoc.map.removeKeys(node, ['id', 'userId', 'noteId', 'courseId', 'uuid', 'embedding', '{course_com_string}']),
             node.id = map.root,
             node.userId = apoc.coll.toSet(apoc.coll.flatten(allUserIds)),
             node.noteId = apoc.coll.toSet(apoc.coll.flatten(allNoteIds)),
             node.courseId = apoc.coll.toSet(apoc.coll.flatten(allCourseIds)),
             node.uuid = apoc.coll.toSet(apoc.coll.flatten(allUuids)),
             node.embedding = map.embedding,
-            node.{course_com_string} = allCourseCommunities[0],
-            node.{note_com_string} = allNoteCommunities[0]
+            node.{course_com_string} = allCourseCommunities[0]
+
+        // Preserve all note community strings
+        WITH node, apoc.coll.flatten(allNoteCommunityKeys) AS flattenedNoteCommunityKeys
+        CALL apoc.do.when(
+            size(flattenedNoteCommunityKeys) > 0,
+            "WITH node, flattenedNoteCommunityKeys
+            UNWIND flattenedNoteCommunityKeys AS communityKey
+            WITH node, communityKey, node[communityKey] AS communityValue
+            CALL apoc.create.setProperty(node, communityKey, communityValue)
+            YIELD node AS updatedNode
+            RETURN count(updatedNode) AS updateCount",
+            "RETURN 0 AS updateCount",
+            {{node: node, flattenedNoteCommunityKeys: flattenedNoteCommunityKeys}}
+        ) YIELD value
 
         RETURN count(node) AS mergedCount
         """

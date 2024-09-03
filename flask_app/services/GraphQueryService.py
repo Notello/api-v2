@@ -523,7 +523,7 @@ class GraphQueryService():
             WHERE n2:Document OR n2:Chunk OR n2:Concept
             UNWIND [r1, r2] AS rel
             WITH rel WHERE rel IS NOT NULL
-            RETURN DISTINCT ID(startNode(rel)) AS start_node_id, ID(endNode(rel)) AS end_node_id, type(rel) AS relationship_type
+            RETURN DISTINCT ID(startNode(rel)) AS start_node_id, ID(endNode(rel)) AS end_node_id, rel.type AS relationship_type, id(rel) AS relationship_id
             """
 
             node_result = graphAccess.execute_query(node_query, {"uuid": uuid})
