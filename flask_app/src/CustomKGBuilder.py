@@ -12,6 +12,7 @@ def setup_llm(text: str, summary: str):
     system_prompt = """
         - You are a top-tier algorithm designed for extracting information in structured formats to build a detailed knowledge graph. 
         - Your task is to identify as many concepts and entities in the text and relations between them as possible. 
+        - You will provide at least three relationships for every entity you identify.
         - You will also provide descriptions for each node as they would appear on a flashcard.
         - You will use the summary of the text provided to you to guide what types of concepts and entities to extract. 
         - You should use the summary to correct any typos in the source text based on the context provided.
@@ -28,9 +29,12 @@ def setup_llm(text: str, summary: str):
             type: The type of the relationship.
 
         ## IMPORTANT GUIDELINES ##
-        - You should add *AS MANY* relations as possible, you should infer relationships between entities and concepts based on the context if necessary.
+        - You should add *AS MANY* relations as possible, you should infer at least three relationships oer each entity.
         - Maintain Entity Consistency: When extracting entities or concepts, it's vital to ensure consistency. 
         - If an entity, such as "John Doe", is mentioned multiple times in the text but is referred to by different names or pronouns (e.g., "Joe", "he"), always use the most complete identifier for that entity.
+
+        ## FINAL POINT ##
+        It is extremely important that you extract as many nodes and relationships as possible. You should aim for 20-30 nodes minimum.
     """
 
     user_template = f"""
