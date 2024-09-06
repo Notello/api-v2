@@ -78,7 +78,7 @@ class GenerateQuiz(Resource):
 
             if RatelimitService.is_rate_limited(userId, QUIZ):
                 logging.error(f"User {userId} has exceeded their quiz rate limit")
-                return {'message': 'You have exceeded your quiz rate limit'}, 400
+                return {'message': 'You have exceeded your quiz rate limit'}, 250
                     
             quizId = SupabaseService.create_quiz(
                 noteId=noteId,

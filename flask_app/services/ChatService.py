@@ -10,7 +10,7 @@ from flask_app.services.ContextAwareThread import ContextAwareThread
 from flask_app.services.ContextService import ContextService, QuestionModel, BotPrompt
 from flask_app.services.RatelimitService import RatelimitService
 
-from flask_app.constants import CHAT, COURSEID, GPT_4O_MINI, NOTEID
+from flask_app.constants import CHAT, COURSEID, GPT_4O_MINI, NOTEID, GPT_4O_MODEL
 from flask_app.src.shared.common_fn import get_llm
 
 class ChatType(Enum):
@@ -140,26 +140,8 @@ class ChatService():
                 context_items.append(f"Identified Object in Query: {key}\nRelated Chunks:\n{related_chunks}\nRelated Concepts:\n{related_concepts}")
             context_str = '\n\n'.join(context_items)
 
-        formatting_instructions = ""
-        if answer_format == BotPrompt.MATH:
-            formatting_instructions = """
-            FORMATTING INSTRUCTIONS:
-            - Use LaTeX format for all mathematical expressions and equations.
-            - Enclose inline math expressions in single dollar signs, e.g., $x^2 + y^2 = z^2$.
-            - For displayed equations, use double dollar signs, e.g., $$\int_0^{{\infty}} e^{{-x^2}} dx = \frac{{\sqrt{{\pi}}}}{{2}}$$.
-            - Ensure all mathematical symbols, Greek letters, and operators are properly formatted in LaTeX.
-            """
-        elif answer_format == BotPrompt.SCIENCE:
-            formatting_instructions = """
-            FORMATTING INSTRUCTIONS:
-            - Use LaTeX format for mathematical expressions and equations.
-            - For chemical formulas, use subscripts and superscripts appropriately, e.g., H_2O for water, Fe^{{2+}} for iron(II) ion.
-            - For physics equations, use proper LaTeX notation, e.g., $F = ma$ for Newton's Second Law.
-            - Ensure all units are properly formatted, e.g., m/s^2 for acceleration.
-            """
-
         if botReply == ChatType.CHAT:
-            prompt_template = f"""You are an AI assistant engaged in a conversation with a user. Your goal is to provide informative and engaging responses that encourage further learning and discussion about the topic at hand. Use the following information to inform your responses:
+            prompt_template = f"""You are an KaTeX based AI assistant engaged in a conversation with a user. Your goal is to provide informative and engaging responses, formatted entirely in KaTeX. Use the following information to inform your responses:
 
             Context:
             {context_str}
@@ -171,18 +153,16 @@ class ChatService():
 
             Instructions:
             1. Analyze the user's message using the provided context.
-            2. Provide a detailed and informative response that addresses the user's query or continues the conversation naturally.
+            2. Provide a detailed and informative response that addresses the user's query or continues the conversation naturally, using KaTeX for both text and mathematical expressions.
             3. Include relevant information from the context if applicable.
             4. Ask follow-up questions or suggest related topics to encourage further discussion.
-            5. Maintain a friendly and engaging tone throughout the conversation.
+            5. Maintain a friendly and engaging tone throughout the conversation, formatted properly in KaTeX.
             6. If you use information from the context, include the relevant Chunk UUID(s) in the 'sources' field of your response.
             7. Do not provide chunk citations in the reply field, only in the 'sources' field.
             8. If the provided context is not relevant to the user's message, inform the user of that fact, but still provide a response.
-
-            {formatting_instructions}
             """
         elif botReply == ChatType.ANSWER:
-            prompt_template = f"""You are an AI assistant tasked with providing concise and direct answers to user questions. Your goal is to give accurate and to-the-point responses based on the available information. Use the following details to inform your answer:
+            prompt_template = f"""You are an AI assistant tasked with providing concise and direct answers to user questions, formatted in KaTeX. Your goal is to give accurate and to-the-point responses based on the available information. Use the following details to inform your answer:
 
             Context:
             {context_str}
@@ -190,30 +170,28 @@ class ChatService():
             Conversation History:
             {history_str}
 
-            User Question: {userMessage}
+            User Question: {userMessage_str}
 
             Instructions:
             1. Analyze the user's question using the provided context.
-            2. Provide a concise and direct answer that addresses the user's question.
+            2. Provide a concise and direct answer that addresses the user's question, formatted using KaTeX.
             3. Include only the most relevant information from the context.
             4. Avoid unnecessary elaboration or tangential information.
             5. If you use information from the context, include the relevant Chunk UUID(s) in the 'sources' field of your response.
             6. Do not provide chunk citations in the reply field, only in the 'sources' field.
             7. If the provided context is not relevant to the user's message, inform the user of that fact, but still provide a response.
-
-            {formatting_instructions}
             """
         else:
             logging.error(f'Invalid botReply: {botReply}')
             return
-        
+
         logging.info(f"Prompt template: {prompt_template}")
 
         extraction_llm = get_llm(GPT_4O_MINI).with_structured_output(BotReply)
         extraction_prompt = ChatPromptTemplate.from_messages([
             ("system", prompt_template),
         ])
-        
+
         return extraction_prompt | extraction_llm
 
     @staticmethod
@@ -259,7 +237,7 @@ class ChatService():
                 Take into account the conversation history provided to determine if the current message is a follow-up question or if it requires context from previous messages. If the current message seems to build upon or reference information from the conversation history, consider classifying it as FOLLOWUP.
                 """),
                 ("human", "Here's the conversation history:"),
-                ("human", f"{history}"),
+                ("human", f"{history_str}"),
                 ("human", "And here's the current message:"),
                 ("human", f"{message}")
             ])

@@ -57,6 +57,8 @@ class RatelimitService():
 
             usage_dict = RatelimitService.sort_into_time_buckets(rate_limits=current_usage, user_type=user_type)
 
+            logging.info(f"type: {type}, user_type: {user_type}")
+
             rate_limits_dict = current_app.config['ratelimit'][type][user_type]
 
             logging.info(f"rate_limits_dict: {rate_limits_dict}")

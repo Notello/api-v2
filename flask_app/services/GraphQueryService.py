@@ -484,10 +484,8 @@ class GraphQueryService():
             WHERE $uuid IN root.uuid
             OPTIONAL MATCH (root)--(n1)
             WHERE n1:Document OR n1:Chunk OR n1:Concept
-            OPTIONAL MATCH (n1)--(n2)
-            WHERE n2:Document OR n2:Chunk OR n2:Concept
-            WITH root, n1, n2
-            UNWIND [root, n1, n2] AS n
+            WITH root, n1
+            UNWIND [root, n1] AS n
             WITH n WHERE n IS NOT NULL
             RETURN DISTINCT
                 CASE
@@ -495,13 +493,13 @@ class GraphQueryService():
                         id: ID(n),
                         labels: LABELS(n)[0],
                         fileName: n.fileName,
-                        noteId: n.noteId
+                        noteId: [n.noteId]
                     }}
                     WHEN n:Chunk THEN {{
                         id: ID(n),
                         labels: LABELS(n)[0],
                         offset: n.offset,
-                        noteId: n.noteId
+                        noteId: [n.noteId]
                     }}
                     WHEN n:Concept THEN {{
                         id: ID(n),
@@ -519,9 +517,7 @@ class GraphQueryService():
             WHERE $uuid IN root.uuid
             OPTIONAL MATCH (root)-[r1]-(n1)
             WHERE n1:Document OR n1:Chunk OR n1:Concept
-            OPTIONAL MATCH (n1)-[r2]-(n2)
-            WHERE n2:Document OR n2:Chunk OR n2:Concept
-            UNWIND [r1, r2] AS rel
+            UNWIND [r1] AS rel
             WITH rel WHERE rel IS NOT NULL
             RETURN DISTINCT ID(startNode(rel)) AS start_node_id, ID(endNode(rel)) AS end_node_id, rel.type AS relationship_type, id(rel) AS relationship_id
             """
