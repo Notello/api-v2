@@ -247,7 +247,7 @@ class SupabaseService:
         return out
     
     @staticmethod
-    def delete_note(noteId: str, bucketName: str):
+    def delete_note(noteId: str, bucketName: str | None):
         if not HelperService.validate_all_uuid4(noteId):
             logging.error(f'Invalid noteId: {noteId}')
             return None

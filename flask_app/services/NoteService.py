@@ -481,13 +481,14 @@ class NoteService:
                     contentType='audio/*'
                 )
 
+            SupabaseService.update_note(noteId=noteId, key='contentStatus', value='complete')
+
             if fileId is None:
                 logging.exception(f"Failed to upload file for note {noteId}")
                 raise Exception("Failed to upload file")
 
             fal_output = FalService.transcribe_audio(temp_file_path)
-
-            SupabaseService.update_note(noteId=noteId, key='contentStatus', value='complete')
+            
             SupabaseService.update_note(noteId=noteId, key='rawContent', value=json.dumps(fal_output))
 
             if fal_output is None:
