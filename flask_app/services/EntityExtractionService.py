@@ -60,6 +60,10 @@ class EntityExtractor():
         if history:
             history_str = "\n".join(history)
 
+        history_str = EntityExtractor.escape_template_variables(history_str)
+
+        logging.info(f"History string: {history_str}")
+
         extraction_chain = setup_llm(
             text=query_str,
             history_str=history_str

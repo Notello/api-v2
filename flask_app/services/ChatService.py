@@ -22,7 +22,7 @@ class BotReply(BaseModel):
         description="Your reply to the user's message with no citations."
     )
     sources: Optional[List[str]] = Field(
-        description="A list of the Chunk UUIDs of the sources used to generate the reply."
+        description="A list of the Chunk UUIDs of the sources used to generate the reply. Do NOT include citations that do not exist or ones we do not provide."
     )
 
 class ChatService():
@@ -110,7 +110,11 @@ class ChatService():
             answer_format=answer_format
         )
 
+        logging.info("Got chain")
+
         result = extraction_chain.invoke({})
+
+        logging.info("Got result")
 
         return result
     
@@ -126,6 +130,7 @@ class ChatService():
         botReply,
         answer_format
     ):
+        logging.info(f"Prompt template: {userMessage}")
         prompt_template = ""
         history_str = ""
         userMessage_str = ChatService.escape_template_variables(userMessage)
@@ -140,8 +145,25 @@ class ChatService():
                 context_items.append(f"Identified Object in Query: {key}\nRelated Chunks:\n{related_chunks}\nRelated Concepts:\n{related_concepts}")
             context_str = '\n\n'.join(context_items)
 
+        logging.info(f"History string: {history_str}")
+        logging.info(f"Context string: {context_str}")
+
+        FORMATTING = """
+        You MUST wrap all math or special expressions in $ symbols.
+        For example, the message [ \\frac{{\\pi^2}}{{2}} \\approx 4.9348 ] should be formatted as $[ \\frac{{\\pi^2}}{{2}} \\approx 4.9348 ]$.
+        You must also start each math expression on a new line, seperated by a \\n character.
+        It is EXTREMELY important that you format ALL KaTeX expressions in the message, including inline math, equations, and special symbols in this way.
+
+        FINAL WARNING:
+        ALWAYS wrap all math or special expressions, including inline math, equations, matricies, vectors, and special symbols in $ symbols.
+        YOU WILL ALWAYS WRAP A MATRIX IN $ SYMBOLS.
+        """
+
         if botReply == ChatType.CHAT:
-            prompt_template = f"""You are an KaTeX based AI assistant engaged in a conversation with a user. Your goal is to provide informative and engaging responses, formatted entirely in KaTeX. Use the following information to inform your responses:
+            prompt_template = f"""
+            You are an KaTeX based AI assistant that always wraps math output in $$ symbols and engages in a conversation with a user. 
+            Your goal is to provide informative and engaging responses, formatted entirely in KaTeX, seperating math output in $ characters. 
+            Use the following information to inform your responses:
 
             Context:
             {context_str}
@@ -160,9 +182,15 @@ class ChatService():
             6. If you use information from the context, include the relevant Chunk UUID(s) in the 'sources' field of your response.
             7. Do not provide chunk citations in the reply field, only in the 'sources' field.
             8. If the provided context is not relevant to the user's message, inform the user of that fact, but still provide a response.
+
+            Formatting Guidelines:
+            {FORMATTING}
             """
         elif botReply == ChatType.ANSWER:
-            prompt_template = f"""You are an AI assistant tasked with providing concise and direct answers to user questions, formatted in KaTeX. Your goal is to give accurate and to-the-point responses based on the available information. Use the following details to inform your answer:
+            prompt_template = f"""You are a KaTeX based AI assistant tasked with providing concise and direct answers to user questions, who always replies in special KaTeX formatting. 
+            Your goal is to give accurate and to-the-point responses based on the available information. 
+            You always wrap math output in $ characters.
+            Use the following details to inform your answer:
 
             Context:
             {context_str}
@@ -180,6 +208,9 @@ class ChatService():
             5. If you use information from the context, include the relevant Chunk UUID(s) in the 'sources' field of your response.
             6. Do not provide chunk citations in the reply field, only in the 'sources' field.
             7. If the provided context is not relevant to the user's message, inform the user of that fact, but still provide a response.
+
+            Formatting Guidelines:
+            {FORMATTING}
             """
         else:
             logging.error(f'Invalid botReply: {botReply}')
