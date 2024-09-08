@@ -30,21 +30,37 @@ class RecommendationService():
         return result
     
     @staticmethod
-    def get_recommended_topics_for_user(userId, courseId):
+    def get_recommended_topics_for_user(userId, courseId, topicId):
         graphAccess = graphDBdataAccess()
 
-        query = f"""
-        MATCH (user:User {{id: '{userId}'}})
-        MATCH (user)-[r:ANSWERED]->(question:QuizQuestion)
-        MATCH (concept:Concept)-[:HAS_QUESTION]->(question)
-        WHERE '{courseId}' in question.courseId
-        WITH concept, 
-            SUM(CASE WHEN r.relationship = 'RIGHT' THEN 1 ELSE -1 END) AS score,
-            count(DISTINCT r) AS numAnswers
-        ORDER BY score ASC
-        LIMIT 50
-        RETURN concept.id AS conceptName, concept.uuid[0] as conceptUuid, score, numAnswers
-        """
+        query = ""
+
+        if topicId:
+            query = f"""
+            MATCH (user:User {{id: '{userId}'}})
+            MATCH (user)-[r:ANSWERED]->(question:QuizQuestion)
+            MATCH (concept:Concept)-[:HAS_QUESTION]->(question)
+            WHERE '{courseId}' in question.courseId AND '{topicId}' IN concept.uuid
+            WITH concept, 
+                SUM(CASE WHEN r.relationship = 'RIGHT' THEN 1 ELSE -1 END) AS score,
+                count(DISTINCT r) AS numAnswers
+            ORDER BY score ASC
+            LIMIT 50
+            RETURN concept.id AS conceptName, concept.uuid[0] as conceptUuid, score, numAnswers
+            """
+        else:
+            query = f"""
+            MATCH (user:User {{id: '{userId}'}})
+            MATCH (user)-[r:ANSWERED]->(question:QuizQuestion)
+            MATCH (concept:Concept)-[:HAS_QUESTION]->(question)
+            WHERE '{courseId}' in question.courseId
+            WITH concept, 
+                SUM(CASE WHEN r.relationship = 'RIGHT' THEN 1 ELSE -1 END) AS score,
+                count(DISTINCT r) AS numAnswers
+            ORDER BY score ASC
+            LIMIT 50
+            RETURN concept.id AS conceptName, concept.uuid[0] as conceptUuid, score, numAnswers
+            """
 
         logging.info(f"Query: {query}")
 

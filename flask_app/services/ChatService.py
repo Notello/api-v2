@@ -98,7 +98,7 @@ class ChatService():
         except Exception as e:
             logging.error(f"Error generating bot reply: {e}")
             RatelimitService.remove_rate_limit(rateLimitId=ratelimitId)
-            SupabaseService.add_chat_message(chat_room_id=roomId, user_id=None, message=json.dumps({"message": "Sorry, I'm having trouble generating a reply at the moment. Please try again later."}))
+            SupabaseService.edit_chat_message(message_id=messageId, message=json.dumps({"message": "Error generating reply", "sources": []}))
     
     @staticmethod
     def generate_reply(userId, message, history, context, botReply, answer_format):

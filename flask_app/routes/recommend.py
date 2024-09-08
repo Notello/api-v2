@@ -43,6 +43,9 @@ rec_topic_parser = api.parser()
 rec_topic_parser.add_argument(COURSEID, location='form', 
                         type=str, required=True,
                         help='Course ID associated with the user')
+rec_topic_parser.add_argument("topicId", location='form',
+                        type=str, required=False,
+                        help='Topic ID associated with the user')
   
 @api.expect(rec_topic_parser)
 @api.route('/get-topics-to-study')
@@ -53,11 +56,12 @@ class RecommendTopicsToStudy(Resource):
         try:
             args = rec_topic_parser.parse_args()
             courseId = args.get(COURSEID, None)
+            topicId = args.get("topicId", None)
             userId = request.user_id
 
             logging.info(f"Get topics to study for userId: {userId}, courseId: {courseId}")
             
-            recommendedTopics = RecommendationService.get_recommended_topics_for_user(userId=userId, courseId=courseId)
+            recommendedTopics = RecommendationService.get_recommended_topics_for_user(userId=userId, courseId=courseId, topicId=topicId)
 
             logging.info(f"Got {len(recommendedTopics)} topics for userId: {userId}, courseId: {courseId}")
             return recommendedTopics, 200
