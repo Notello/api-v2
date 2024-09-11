@@ -22,11 +22,15 @@ class Answer(BaseModel):
     correct: bool = Field(description="A boolean value indicating whether the answer is correct")
     explanation: str = Field(description="A concise, informative explanation of why the answer is correct or incorrect")
 
+class Note(BaseModel):
+    note_uuid: str = Field(description="The UUID of the note")
+    document_name: str = Field(description="The document name of the note")
+
 class QuizQuestion(BaseModel):
     question: str = Field(description="The question text")
     difficulty: int = Field(description="The difficulty level of the question (1-5, where 1 is easiest and 5 is most difficult)")
     answers: List[Answer] = Field(description="A list of four possible answers")
-    chunkIds: List[str] = Field(description="A list of chunk ids that were used to generate the question")
+    noteIds: List[Note] = Field(description="A list of note uuids and names that were used to generate the question")
 
 class QuestionResult(BaseModel):
     questions: List[QuizQuestion] = Field(description="A list of questions generated for a given topic pair")
@@ -45,13 +49,13 @@ def setup_llm(
 
     Input:
     - A relationship between two concepts
-    - A list of text chunks related to the concepts
+    - A list of notes related to the concepts
     - Number of questions to generate
     - Difficulty level for the questions
 
     ## Guidelines:
     1. Create questions that explore the relationship between the given concepts.
-    2. Use the provided text chunks to inform the questions and answers.
+    2. Use the provided notes to inform the questions and answers.
     3. Provide four possible answers for each question, with exactly one marked as correct.
     4. Include clear, concise, and informative explanations for each answer option.
     5. Assign the given difficulty level to each question, where 1 is easiest and 5 is most difficult.
@@ -59,8 +63,8 @@ def setup_llm(
     7. Ensure that the questions and answers are understandable to someone unfamiliar with the internal structure of the knowledge base.
 
     ## Important:
-    - Do NOT mention or reference chunk IDs in the question text, answer options, or explanations.
-    - Only include chunk IDs in the designated 'chunkIds' list for each question.
+    - Do NOT mention or reference note IDs in the question text, answer options, or explanations.
+    - Only include note IDs in the designated 'noteIds' list for each question.
     - Frame the questions and answers in a way that's natural and easy for a general audience to understand.
     - For explanations, provide meaningful insights that go beyond simply restating the correctness of the answer.
     - Explanations should be one paragraph or less, offering a real understanding of why an answer is correct or incorrect.
@@ -74,21 +78,21 @@ def setup_llm(
 
     1. Relationship: {source_str} {relationship_type_str} {target_str}
 
-    2. Related Text Chunks:
+    2. Related Notes:
     {chunks_str}
 
     3. Difficulty level: {difficulty_str}
 
     Generate questions that:
     - Explore the relationship between {source_str} and {target_str}
-    - Are based on the provided text chunks
+    - Are based on the provided notes
     - Each have four possible answers
     - Have the specified difficulty level ({difficulty_str})
     - Are phrased in natural language, avoiding technical terms like "entities" or "relationships"
 
     ## Important:
-    - Do NOT mention or reference chunk IDs in the question text, answer options, or explanations.
-    - Only include chunk IDs in the designated 'chunkIds' list for each question.
+    - Do NOT mention or reference note IDs in the question text, answer options, or explanations.
+    - Only include chunk IDs in the designated 'noteIds' list for each question.
     - Ensure that the questions and answers are clear and understandable to a general audience.
     - Provide concise but insightful explanations for each answer, highlighting why it's correct or incorrect.
     - Explanations should be one paragraph or less and offer meaningful context or comparisons when appropriate.
@@ -107,6 +111,8 @@ def setup_llm(
 def generate_quiz_questions(
     source: str,
     target: str,
+    sourceUuid: str,
+    targetUuid: str,
     relationship_type: str,
     chunks: List[Dict[str, str]],
     difficulty: int,
@@ -114,7 +120,7 @@ def generate_quiz_questions(
 ) -> Optional[List[Dict]]:
     try:
         logging.info(f"Generating quiz questions for source: {source}, target: {target}, relationship type: {relationship_type}, chunks: {len(chunks)}, difficulty: {difficulty}, num_questions: {num_questions}")
-        chunks_str = "\n".join([f"Chunk ID: {chunk['id']}, Text: {chunk['text']}" for chunk in chunks])
+        chunks_str = "\n".join([f"Note ID: {chunk['noteId']}, Note Name: {chunk['document_name']}, Text: {chunk['text']}" for chunk in chunks])
 
         extraction_chain = setup_llm(
             source_str=source,
@@ -127,7 +133,7 @@ def generate_quiz_questions(
 
         results = extraction_chain.invoke({})
 
-        output = [{"question": question, "topics": [source, target]} for question in results.questions]
+        output = [{"question": question, "topics": [{"name": source, "uuid": sourceUuid}, {"name": target, "uuid": targetUuid}]} for question in results.questions]
         
         return output
     except Exception as e:
@@ -178,6 +184,8 @@ class QuizService():
 
             formatted_questions = []
 
+            logging.info(f"Results: {results}")
+
             for question in results:
                 formatted_questions.append(
                     {
@@ -189,7 +197,7 @@ class QuizService():
                         'question': question['question'].question,
                         'difficulty': question['question'].difficulty,
                         'answers': [{'label': answer.answer, 'correct': answer.correct, 'explanation': answer.explanation} for answer in question['question'].answers],
-                        'chunkIds': question['question'].chunkIds,
+                        'noteIds': [{'note_uuid': note.note_uuid, 'document_name': note.document_name} for note in question['question'].noteIds],
                         'topics': question['topics']
                     }
                 )
@@ -233,6 +241,8 @@ class QuizService():
                             generate_quiz_questions,
                             source=result['source'],
                             target=result['target'],
+                            sourceUuid=result['sourceUUID'],
+                            targetUuid=result['targetUUID'],
                             relationship_type=result['type'],
                             chunks=result['chunks'],
                             difficulty=difficultyList[i],

@@ -143,9 +143,9 @@ class ValidationService:
         logging.info(f"File name: {file.filename}")
         logging.info(f"File type: {file_type}")
 
-        if file_type is None:
+        if file_type is None or file_type == 'application/octet-stream':
             logging.exception(f"Failed to validate file")
-            return False, 400, None
+            return False, 401, None
         
         print(f"file at end: {type(file)}")
         

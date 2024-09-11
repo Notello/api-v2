@@ -54,7 +54,7 @@ class GenerateQuiz(Resource):
 
             logging.info(f"Topics: {topics}")
 
-            topics = topics.split(',') if topics else []
+            topics = [] if not topics else topics.split(',')
             topicsFiltered = [t for t in topics if t is not None]
             userId = request.user_id
 

@@ -51,7 +51,7 @@ class GraphCreationService:
         courseId: str,
         userId: str,
         rawText: str,
-        fileName: str
+        fileName: str,
     ) -> None:
         try:
             chunks = ChunkService.get_text_chunks(rawText)
@@ -116,12 +116,10 @@ class GraphCreationService:
             isRelated = SimilarityService.is_related(courseId=courseId, documentSummary=summary)
 
             if not isRelated['isRelated']:
-                graphAccess.update_source_node(sourceNode(noteId=noteId, blockedReason = f'Your video was blocked because it was detected to be unrelated to the course content. Reason: {isRelated["reasoning"]}'))
+                graphAccess.update_source_node(sourceNode(noteId=noteId, blockedReason = f'{isRelated["reasoning"]}'))
                 SupabaseService.update_note(noteId=noteId, 
                                             key='blockedReason', 
                                             value=f'''
-                                            Your video was blocked because it was detected to be unrelated to the course content. 
-                                            Reason: 
                                             {isRelated["reasoning"]}
                                             ''')
                 return None
@@ -184,20 +182,15 @@ class GraphCreationService:
             question: q.question,
             answers: q.answers,
             topics: q.topics,
-            chunkIds: q.chunkIds,
+            noteIds: q.noteIds,
             difficulty: q.difficulty
         })
         
         WITH question, q
-        UNWIND q.topics AS topicId
+        UNWIND q.topicIds AS topicId
         MATCH (concept:Concept {id: topicId})
         CREATE (concept)-[:HAS_QUESTION]->(question)
-        
-        WITH question, q
-        UNWIND q.chunkIds AS chunkId
-        MATCH (chunk:Chunk {id: chunkId})
-        CREATE (chunk)-[:HAS_QUESTION]->(question)
-        
+
         RETURN q
         """
 
@@ -215,8 +208,15 @@ class GraphCreationService:
                     'correct': a['correct'],
                     'explanation': a['explanation']
                 } for a in q['answers']]),
-                'chunkIds': q['chunkIds'],
-                'topics': q['topics'],
+                'noteIds': json.dumps([{
+                    "note_uuid": n['note_uuid'],
+                    "document_name": n['document_name']
+                } for n in q['noteIds']]),
+                'topics': json.dumps([{
+                    "name": t['name'], 
+                    "uuid": t['uuid']
+                } for t in q['topics']]),
+                'topicIds': [t['name'] for t in q['topics']],
             } for q in questions
         ]}
         

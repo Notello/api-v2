@@ -41,7 +41,7 @@ class HelperService:
 
         logging.info(f"uuid check for: {uuid_string}")
         
-        if not type(uuid_string) == str:
+        if not type(uuid_string) == str or uuid_string == "":
             return False
 
         try:
@@ -83,6 +83,10 @@ class HelperService:
                     mime_type = 'text/html'
                 elif file_name.endswith('.pdf'):
                     mime_type = 'application/pdf'
+                elif file_name.endswith('.pptx'):
+                    mime_type = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+                elif file_name.endswith('.docx'):
+                    mime_type = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
                 elif file_name.endswith('.mp3'):
                     mime_type = 'audio/mpeg'
                 else:

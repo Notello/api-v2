@@ -49,8 +49,12 @@ def create_graph_database_connection(uri, userName, password, database):
   return graph
 
 
-def load_embedding_model():
-  embeddings = OpenAIEmbeddings()
+def load_embedding_model(
+    retry_max_seconds=1,
+    retry_min_seconds=0.1,
+    max_retries=1
+):
+  embeddings = OpenAIEmbeddings(max_retries=max_retries, retry_max_seconds=retry_max_seconds, retry_min_seconds=retry_min_seconds)
   dimension = 1536
   logging.info(f"Embedding: Using OpenAI Embeddings , Dimension:{dimension}")
   return embeddings, dimension
@@ -99,6 +103,7 @@ def get_graph():
     )
 
 def embed_name(name: str, embeddings: OpenAIEmbeddings) -> Tuple[str, List[float]]:
+  logging.info(f"Embedding name: {name}")
   return name, embeddings.embed_query(text=name)
 
 def embed_chunk(row, embeddings: OpenAIEmbeddings) -> Tuple[str, List[float]]:

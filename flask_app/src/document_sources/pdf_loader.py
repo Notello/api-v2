@@ -1,4 +1,5 @@
 from io import BytesIO
+import io
 import PyPDF2
 import logging
 from werkzeug.datastructures import FileStorage
@@ -6,6 +7,9 @@ import tempfile
 import os
 from bs4 import BeautifulSoup
 import markdown
+from langchain_community.document_loaders import UnstructuredPowerPointLoader
+from langchain_community.document_loaders import Docx2txtLoader
+
 
 
 def extract_text_from_pdf(file_content, file_name) -> str | None:
@@ -50,6 +54,40 @@ def extract_text_from_html(file_content, file_name) -> str | None:
     except Exception as e:
         logging.exception(f'Exception for file: {file_name}, Stack trace: {e}')
         return None
+    
+def extract_text_from_docx(file_content, file_name) -> str | None:
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.docx') as temp_file:
+            temp_file.write(file_content)
+            temp_file_path = temp_file.name
+
+        loader = Docx2txtLoader(temp_file_path)
+        data = loader.load()
+        content = "".join([page.page_content for page in data])
+
+        os.unlink(temp_file_path)
+
+        return content
+    except Exception as e:
+        logging.exception(f'Exception for file: {file_name}, Stack trace: {e}')
+        return None
+
+def extract_text_from_pptx(file_content, file_name) -> str | None:
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pptx') as temp_file:
+            temp_file.write(file_content)
+            temp_file_path = temp_file.name
+
+        loader = UnstructuredPowerPointLoader(temp_file_path)
+        data = loader.load()
+        content = "".join([page.page_content for page in data])
+
+        os.unlink(temp_file_path)
+
+        return content
+    except Exception as e:
+        logging.exception(f'Exception for file: {file_name}, Stack trace: {e}')
+        return None
 
 
 def extract_text(file_content, file_name, content_type) -> str | None:
@@ -59,6 +97,10 @@ def extract_text(file_content, file_name, content_type) -> str | None:
         return extract_text_from_md(file_content, file_name)
     elif content_type == 'text/html':
         return extract_text_from_html(file_content, file_name)
+    elif content_type == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+        return extract_text_from_docx(file_content, file_name)
+    elif content_type == 'application/vnd.openxmlformats-officedocument.presentationml.presentation':
+        return extract_text_from_pptx(file_content, file_name)
     else:
         logging.error(f'Unsupported content type: {content_type}')
         return None

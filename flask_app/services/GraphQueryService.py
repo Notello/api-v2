@@ -683,7 +683,7 @@ class GraphQueryService():
         QUERY = f"""
         MATCH (q:QuizQuestion)
         WHERE '{quizId}' IN q.quizId
-        RETURN q.id AS questionId, q.question AS question, q.answers AS answers, q.difficulty AS difficulty, q.topics AS topics, q.chunkIds as chunkIds
+        RETURN q.id AS questionId, q.question AS question, q.answers AS answers, q.difficulty AS difficulty, q.topics AS topics, q.noteIds as noteIds
         """
 
         result = graphAccess.execute_query(QUERY)
@@ -697,7 +697,7 @@ class GraphQueryService():
                 'answers': json.loads(record['answers']),
                 'difficulty': record['difficulty'],
                 'topics': record['topics'],
-                'chunkIds': record['chunkIds']
+                'noteIds': record['noteIds']
             })
 
         return questions

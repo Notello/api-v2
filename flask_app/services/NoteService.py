@@ -536,7 +536,7 @@ class NoteService:
                 file=file_content, 
                 fileName=noteId, 
                 bucketName='pdf-files',
-                contentType='application/pdf'
+                contentType=file_type
                 )
 
             if fileId is None:

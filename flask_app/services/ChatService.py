@@ -36,7 +36,16 @@ class ChatService():
             return None
 
     @staticmethod
-    def handle_chat(userId, message, botReply, roomId, noteId, courseId):
+    def handle_chat(
+        userId, 
+        message, 
+        botReply, 
+        roomId, 
+        noteId, 
+        courseId,
+        userName,
+        userProfilePic
+        ):
         roomId = roomId if roomId is not None else SupabaseService.create_chat_room(userId)
         
         logging.info(f"Chat room created: {roomId}")
@@ -44,7 +53,13 @@ class ChatService():
         if not roomId:
             return None
         
-        SupabaseService.add_chat_message(chat_room_id=roomId, user_id=userId, message=json.dumps({"message": message, "sources": []}))
+        SupabaseService.add_chat_message(
+            chat_room_id=roomId, 
+            user_id=userId, 
+            message=json.dumps({"message": message, "sources": []}),
+            user_name=userName,
+            pfp=userProfilePic
+            )
 
         if botReply is not None:
             ContextAwareThread(
@@ -62,7 +77,10 @@ class ChatService():
 
         logging.info(f"Param: {param}, id: {id}")
 
-        messageId = SupabaseService.add_chat_message(chat_room_id=roomId, user_id=None, message=json.dumps({"message": "Gathering Sources", "sources": []}))
+        messageId = SupabaseService.add_chat_message(
+            chat_room_id=roomId, 
+            user_id=None, 
+            message=json.dumps({"message": "Gathering Sources", "sources": []}))
         try:
             history = SupabaseService.get_chat_text(chat_room_id=roomId)
 
@@ -131,6 +149,7 @@ class ChatService():
         answer_format
     ):
         logging.info(f"Prompt template: {userMessage}")
+        logging.info(f"context: {context}")
         prompt_template = ""
         history_str = ""
         userMessage_str = ChatService.escape_template_variables(userMessage)
@@ -141,7 +160,7 @@ class ChatService():
             context_items = []
             for key, value in context.items():
                 related_chunks = '\n'.join([f"Chunk UUID: {chunk['id']}, Chunk Text: {chunk['text']}" for chunk in value['related_chunks']])
-                related_concepts = ', '.join([f"{concept['id']}" for concept in value['related_concepts']])
+                related_concepts = ', '.join([f"{key} {concept['relation_type']} {concept['id']}" for concept in value['related_concepts']])
                 context_items.append(f"Identified Object in Query: {key}\nRelated Chunks:\n{related_chunks}\nRelated Concepts:\n{related_concepts}")
             context_str = '\n\n'.join(context_items)
 
@@ -153,16 +172,19 @@ class ChatService():
         For example, the message [ \\frac{{\\pi^2}}{{2}} \\approx 4.9348 ] should be formatted as $[ \\frac{{\\pi^2}}{{2}} \\approx 4.9348 ]$.
         You must also start each math expression on a new line, seperated by a \\n character.
         It is EXTREMELY important that you format ALL KaTeX expressions in the message, including inline math, equations, and special symbols in this way.
+        You will never use the \\text{{}} command in your response.
 
         FINAL WARNING:
         ALWAYS wrap all math or special expressions, including inline math, equations, matricies, vectors, and special symbols in $ symbols.
         YOU WILL ALWAYS WRAP A MATRIX IN $ SYMBOLS.
+        NEVER USE THE \\text{{}} COMMAND IN YOUR RESPONSE.
         """
 
         if botReply == ChatType.CHAT:
             prompt_template = f"""
             You are an KaTeX based AI assistant that always wraps math output in $$ symbols and engages in a conversation with a user. 
             Your goal is to provide informative and engaging responses, formatted entirely in KaTeX, seperating math output in $ characters. 
+            You never ever use the \\text command in your response.
             Use the following information to inform your responses:
 
             Context:
@@ -177,7 +199,7 @@ class ChatService():
             1. Analyze the user's message using the provided context.
             2. Provide a detailed and informative response that addresses the user's query or continues the conversation naturally, using KaTeX for both text and mathematical expressions.
             3. Include relevant information from the context if applicable.
-            4. Ask follow-up questions or suggest related topics to encourage further discussion.
+            4. Reference the relationships between the identified objects in the context.
             5. Maintain a friendly and engaging tone throughout the conversation, formatted properly in KaTeX.
             6. If you use information from the context, include the relevant Chunk UUID(s) in the 'sources' field of your response.
             7. Do not provide chunk citations in the reply field, only in the 'sources' field.
@@ -190,6 +212,7 @@ class ChatService():
             prompt_template = f"""You are a KaTeX based AI assistant tasked with providing concise and direct answers to user questions, who always replies in special KaTeX formatting. 
             Your goal is to give accurate and to-the-point responses based on the available information. 
             You always wrap math output in $ characters.
+            You never ever use the \\text command in your response.
             Use the following details to inform your answer:
 
             Context:

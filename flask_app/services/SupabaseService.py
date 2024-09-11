@@ -402,7 +402,13 @@ class SupabaseService:
         return chatRoom[0]['id']
     
     @staticmethod
-    def add_chat_message(chat_room_id, user_id, message):
+    def add_chat_message(
+        chat_room_id, 
+        user_id, 
+        message,
+        user_name = "Notello AI",
+        pfp = None
+        ):
         if not HelperService.validate_all_uuid4(chat_room_id):
             logging.error(f'Invalid chat_room_id: {chat_room_id}, user_id: {user_id}')
             return None
@@ -410,7 +416,9 @@ class SupabaseService:
         message = supabase.table(CHAT_MESSAGE_TABLE_NAME).insert({
             'chatId': str(chat_room_id),
             'userId': user_id,
-            'content': str(message)
+            'content': str(message),
+            'userName': user_name,
+            'pfp': pfp
         }).execute().data
 
         if not message:

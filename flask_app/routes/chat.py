@@ -20,6 +20,8 @@ chat_room_parser.add_argument('message', type=str, required=True, help='message'
 chat_room_parser.add_argument('bot_reply', type=str, required=False, help='answer, chat, or None')
 chat_room_parser.add_argument('noteId', type=str, required=False, help='note id')
 chat_room_parser.add_argument('courseId', type=str, required=False, help='course id')
+chat_room_parser.add_argument('userName', type=str, required=False, help='user name')
+chat_room_parser.add_argument('userProfilePic', type=str, required=False, help='user profile pic')
 
 @api.expect(chat_room_parser)
 @api.route('/send')
@@ -33,6 +35,8 @@ class Chat(Resource):
         message = args.get('message', None)
         noteId = args.get('noteId', None)
         courseId = args.get('courseId', None)
+        userName = args.get('userName', None)
+        userProfilePic = args.get('userProfilePic', None)
         botReply = ChatService.chat_type_to_enum(args.get('bot_reply', None))
 
         userId = request.user_id
@@ -55,7 +59,9 @@ class Chat(Resource):
             botReply=botReply, 
             roomId=roomId, 
             noteId=noteId,
-            courseId=courseId
+            courseId=courseId,
+            userName=userName,
+            userProfilePic=userProfilePic
             )
 
         if not roomId:
