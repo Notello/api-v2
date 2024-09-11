@@ -13,7 +13,7 @@ from flask_app.services.SupabaseService import SupabaseService
 from flask_app.services.GraphCreationService import GraphCreationService
 from flask_app.services.RatelimitService import RatelimitService
 from flask_app.src.shared.common_fn import get_llm
-from flask_app.constants import COURSEID, GPT_4O_MINI, NOTEID, QUIZ, USERID
+from flask_app.constants import COURSEID, GPT_4O_MINI, GPT_4O_MODEL, NOTEID, QUIZ, USERID
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +43,7 @@ def setup_llm(
         difficulty_str,
         num_questions
 ):
+    logging.info(f"Setting up LLM")
     system_prompt = """
     You are an advanced quiz question generator, specializing in creating insightful and thought-provoking questions 
     based on provided information. Your task is to generate multiple questions based on a given relationship between concepts and associated text chunks.
@@ -58,21 +59,41 @@ def setup_llm(
     2. Use the provided notes to inform the questions and answers.
     3. Provide four possible answers for each question, with exactly one marked as correct.
     4. Include clear, concise, and informative explanations for each answer option.
-    5. Assign the given difficulty level to each question, where 1 is easiest and 5 is most difficult.
+    5. Assign the given difficulty level to each question, using the scale described below.
     6. Use natural language in the questions and answers. Avoid mentioning "entities" or "relationships" explicitly.
     7. Ensure that the questions and answers are understandable to someone unfamiliar with the internal structure of the knowledge base.
+    8. Ensure the info needed to know what the question is asking is provided in the question.
+
+    ## Difficulty Scale:
+    1 - Very Easy: Basic recall of explicit information, suitable for beginners.
+    2 - Easy: Simple application of concepts, requiring minimal inference.
+    3 - Moderate: Requires understanding of relationships and some analysis.
+    4 - Challenging: Involves complex reasoning, synthesis of multiple concepts.
+    5 - Very Difficult: Demands deep critical thinking, evaluation of nuanced relationships.
+
+    ## Question Design:
+    - Make questions thought-provoking and meaningfully different.
+    - Ensure the correct answer is not immediately obvious.
+    - Avoid trivial differences between answer options.
+    - Create answer options that require careful consideration.
+
+    ## Explanations:
+    - Provide unique and insightful explanations for each answer option.
+    - Avoid repetitive patterns like "X is right because it's Y, Z is wrong because it's not Y" for all options.
+    - Offer meaningful context, comparisons, or contrasts in explanations.
+    - Limit explanations to one paragraph, focusing on key insights.
 
     ## Important:
     - Do NOT mention or reference note IDs in the question text, answer options, or explanations.
     - Only include note IDs in the designated 'noteIds' list for each question.
     - Frame the questions and answers in a way that's natural and easy for a general audience to understand.
     - For explanations, provide meaningful insights that go beyond simply restating the correctness of the answer.
-    - Explanations should be one paragraph or less, offering a real understanding of why an answer is correct or incorrect.
     - Compare and contrast the correct answer with the incorrect ones in the explanations when relevant.
+    - Ensure the info needed to know what the question is asking is provided in the question.
 
     Remember to create questions that are both challenging and answerable based on the provided information.
     """
-    
+
     user_template = f"""
     Please generate {num_questions} quiz questions based on the following information:
 
@@ -82,29 +103,17 @@ def setup_llm(
     {chunks_str}
 
     3. Difficulty level: {difficulty_str}
-
-    Generate questions that:
-    - Explore the relationship between {source_str} and {target_str}
-    - Are based on the provided notes
-    - Each have four possible answers
-    - Have the specified difficulty level ({difficulty_str})
-    - Are phrased in natural language, avoiding technical terms like "entities" or "relationships"
-
-    ## Important:
-    - Do NOT mention or reference note IDs in the question text, answer options, or explanations.
-    - Only include chunk IDs in the designated 'noteIds' list for each question.
-    - Ensure that the questions and answers are clear and understandable to a general audience.
-    - Provide concise but insightful explanations for each answer, highlighting why it's correct or incorrect.
-    - Explanations should be one paragraph or less and offer meaningful context or comparisons when appropriate.
-
-    Please provide the questions in the JSON format specified in the system prompt.
     """
 
-    extraction_llm = get_llm(GPT_4O_MINI).with_structured_output(QuestionResult)
+    logging.info(f"Setting up LLM")
+
+    extraction_llm = get_llm(GPT_4O_MODEL).with_structured_output(QuestionResult)
     extraction_prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
         ("human", user_template),
     ])
+
+    logging.info(f"Extraction prompt: {extraction_prompt}")
     
     return extraction_prompt | extraction_llm
 
@@ -122,6 +131,8 @@ def generate_quiz_questions(
         logging.info(f"Generating quiz questions for source: {source}, target: {target}, relationship type: {relationship_type}, chunks: {len(chunks)}, difficulty: {difficulty}, num_questions: {num_questions}")
         chunks_str = "\n".join([f"Note ID: {chunk['noteId']}, Note Name: {chunk['document_name']}, Text: {chunk['text']}" for chunk in chunks])
 
+        logging.info(f"Chunks: {chunks_str}")
+
         extraction_chain = setup_llm(
             source_str=source,
             target_str=target,
@@ -131,9 +142,15 @@ def generate_quiz_questions(
             num_questions=num_questions
         )
 
+        logging.info(f"Extraction chain: {extraction_chain}")
+
         results = extraction_chain.invoke({})
 
+        logging.info(f"Results: {results}")
+
         output = [{"question": question, "topics": [{"name": source, "uuid": sourceUuid}, {"name": target, "uuid": targetUuid}]} for question in results.questions]
+
+        logging.info(f"Output: {output}")
         
         return output
     except Exception as e:
@@ -257,5 +274,7 @@ class QuizService():
                 except Exception as e:
                     logging.error(f"Error generating questions: {str(e)}")
                     raise
+
+        logging.info(f"Generated {len(questions)} questions for topic pair")
 
         return questions
