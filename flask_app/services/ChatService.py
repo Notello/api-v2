@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
 import json
 import logging
@@ -12,6 +13,8 @@ from flask_app.services.RatelimitService import RatelimitService
 
 from flask_app.constants import CHAT, COURSEID, GPT_4O_MINI, NOTEID, GPT_4O_MODEL
 from flask_app.src.shared.common_fn import get_llm
+
+pthread = ThreadPoolExecutor(max_workers=10)
 
 class ChatType(Enum):
     CHAT = 'chat'
@@ -62,10 +65,10 @@ class ChatService():
             )
 
         if botReply is not None:
-            ContextAwareThread(
-                target=ChatService.generate_bot_reply,
-                args=(userId, message, botReply, roomId, noteId, courseId)
-            ).start()
+            pthread.submit(
+                ChatService.generate_bot_reply,
+                userId, message, botReply, roomId, noteId, courseId
+            )
         
         return roomId
     

@@ -81,6 +81,8 @@ class GraphCreationService:
         rateLimitId = RatelimitService.add_rate_limit(userId, NOTE, 1)
         graphAccess: graphDBdataAccess = graphDBdataAccess()
 
+        isPrivate = SupabaseService.isCollegePrivate(courseId=courseId)
+
         try:
             similarityService = SimilarityService(
                 similarity_threshold=0.98, 
@@ -94,7 +96,7 @@ class GraphCreationService:
             )
             
 
-            if similar:
+            if similar and not isPrivate:
                 logging.info(f"File: {fileName} is similar to {similar}")
                 SupabaseService.update_note(
                     noteId=noteId,
@@ -113,7 +115,7 @@ class GraphCreationService:
 
             summary = HelperService.get_document_summary(chunks)
 
-            isRelated = SimilarityService.is_related(courseId=courseId, documentSummary=summary)
+            isRelated = SimilarityService.is_related(courseId=courseId, documentSummary=summary, isPrivate=isPrivate)
 
             if not isRelated['isRelated']:
                 graphAccess.update_source_node(sourceNode(noteId=noteId, blockedReason = f'{isRelated["reasoning"]}'))

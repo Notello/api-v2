@@ -21,7 +21,7 @@ class NodeUpdateService:
         nodes_to_update = []
         futures = []
 
-        with ThreadPoolExecutor(max_workers=200) as executor:
+        with ThreadPoolExecutor(max_workers=50) as executor:
             for node in nodes_data:
                 name = node['id']
                 futures.append(
@@ -195,7 +195,7 @@ class NodeUpdateService:
         futures = []
         root_embeddings = {}
 
-        with ThreadPoolExecutor(max_workers=200) as executor:
+        with ThreadPoolExecutor(max_workers=50) as executor:
             for node, keys in root_map.items():
                 if keys['count'] > 1:
                     logging.info(f"Embedding node: {node} with {keys['count']} uuids")

@@ -5,7 +5,7 @@ metadata:
   name: flask-restx-api-deployment
   namespace: neo4j
 spec:
-  replicas: 1
+  replicas: 3
   selector:
     matchLabels:
       app: flask-restx-api
@@ -18,7 +18,7 @@ spec:
         dedicated: api
       containers:
       - name: flask-restx-api
-        image: registry.digitalocean.com/notello/api-dev:v3.0
+        image: registry.digitalocean.com/notello/api-dev:v3.03
         ports:
         - containerPort: 8080
         resources:

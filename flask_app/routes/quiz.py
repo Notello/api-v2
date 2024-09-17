@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 import json
 import logging
 from flask_restx import Namespace, Resource
@@ -17,6 +18,8 @@ from flask_app.routes.auth import authorizations
 from flask_app.constants import COURSEID, NOTEID, QUIZ, USERID
 
 logging.basicConfig(format='%(asctime)s - %(message)s', level='INFO')
+
+pthread = ThreadPoolExecutor(max_workers=10)
 
 api = Namespace('quiz', authorizations=authorizations)
 
@@ -66,12 +69,7 @@ class GenerateQuiz(Resource):
 
             if (
                 not HelperService.validate_all_uuid4(userId, courseId) \
-                or (specifierParam is not None and specifierParam not in QuizService.validSpecifiers)
-                or (not HelperService.validate_uuid4(noteId) and specifierParam == NOTEID)
                 or not isinstance(topicsFiltered, list)
-                or not SupabaseService.param_id_exists(COURSEID, courseId)
-                or not SupabaseService.param_id_exists(USERID, userId)
-                or (noteId is not None and not SupabaseService.param_id_exists('noteId', noteId))
             ):
                 logging.error(f"Invalid userId: {userId}, courseId: {courseId}, noteId: {noteId}, specifierParam: {specifierParam}")
                 return {'message': 'Must have userId, courseId, optionally noteId and a valid specifierParam'}, 400
@@ -92,18 +90,17 @@ class GenerateQuiz(Resource):
                 logging.error(f"Quiz creation failed for userId: {userId}, courseId: {courseId}, noteId: {noteId}, specifierParam: {specifierParam}, difficulty: {difficulty}, numQuestions: {numQuestions}, topics: {topicsFiltered}")
                 return {'message': 'Quiz creation failed'}, 400
 
-            ContextAwareThread(
-                    target=QuizService.generate_quiz,
-                    args=(topicsFiltered, 
-                        courseId, 
-                        userId, 
-                        quizId, 
-                        noteId,
-                        difficulty,
-                        numQuestions,
-                        specifierParam
-                        )
-            ).start()
+            pthread.submit(
+                QuizService.generate_quiz,
+                topicsFiltered, 
+                    courseId, 
+                    userId, 
+                    quizId, 
+                    noteId,
+                    difficulty,
+                    numQuestions,
+                    specifierParam
+                    )
 
             return {'quizId': quizId}, 201
         except Exception as e:

@@ -50,7 +50,7 @@ def processing_source(
     logging.info(f"Total chunks: {len(chunks)}")
 
     try:
-        with ThreadPoolExecutor(max_workers=200) as executor:
+        with ThreadPoolExecutor(max_workers=50) as executor:
             for i, chunk in enumerate(chunks):
                 futures.append(
                     executor.submit(

@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
 from io import BytesIO
 import json
@@ -24,6 +25,8 @@ from flask_app.extensions import r
 
 from flask_app.src.document_sources.pdf_loader import extract_text
 from flask_app.constants import NOTE, NOTEID
+
+pthread = ThreadPoolExecutor(max_workers=10)
 
 class NoteForm(Enum):
     TEXT = 'text'
@@ -245,10 +248,10 @@ class NoteService:
         if not HelperService.validate_all_uuid4(noteId):
             return None
 
-        ContextAwareThread(
-            target=NoteService.youtube_video_to_graph,
-            args=(noteId, courseId, userId, youtubeUrl)
-        ).start()
+        pthread.submit(
+            NoteService.youtube_video_to_graph,
+            noteId, courseId, userId, youtubeUrl
+        )
 
         return noteId
     
@@ -304,10 +307,10 @@ class NoteService:
                 temp_file_path = temp_file.name
 
             # Start the processing in a new thread
-            ContextAwareThread(
-                target=NoteService.audio_file_to_graph,
-                args=(noteId, courseId, userId, temp_file_path, audio_file.filename)
-            ).start()
+            pthread.submit(
+                NoteService.audio_file_to_graph,
+                noteId, courseId, userId, temp_file_path, audio_file.filename
+            )
 
         except Exception as e:
             logging.exception(f"Error saving audio file: {str(e)}")
@@ -361,10 +364,10 @@ class NoteService:
         if not HelperService.validate_all_uuid4(noteId):
             return None
         
-        ContextAwareThread(
-                target=GraphCreationService.create_graph_from_raw_text,
-                args=(noteId, courseId, userId, rawText, noteName)
-        ).start()
+        pthread.submit(
+            GraphCreationService.create_graph_from_raw_text,
+            noteId, courseId, userId, rawText, noteName
+        )
 
         return noteId
     
@@ -416,10 +419,10 @@ class NoteService:
         
         file_content = file.read()
 
-        ContextAwareThread(
-                target=NoteService.pdf_file_to_graph,
-                args=(noteId, courseId, userId, file.filename, file_content, file_type)
-        ).start()
+        pthread.submit(
+            NoteService.pdf_file_to_graph,
+            noteId, courseId, userId, file.filename, file_content, file_type
+        )
 
         return noteId
         

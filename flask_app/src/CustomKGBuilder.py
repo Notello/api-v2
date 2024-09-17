@@ -7,6 +7,9 @@ from flask_app.constants import GPT_4O_MINI
 
 from flask_app.src.entities.KnowledgeGraph import KnowledgeGraph
 
+def escape_template_variables(s):
+    return s.replace("{", "{{").replace("}", "}}")
+
 
 def setup_llm(text: str, summary: str):
     system_prompt = """
@@ -61,11 +64,17 @@ class CustomKGBuilder:
     def create_knowledge_graph(text: str, summary: str) -> KnowledgeGraph:
         try:
             logging.info("Generating knowledge graph.")
+
+            cleaned_text = escape_template_variables(text)
+            cleaned_summary = escape_template_variables(summary)
+
+            logging.info(f"Cleaned text: {cleaned_text}")
+            logging.info(f"Cleaned summary: {cleaned_summary}")
             
-            llm_chain = setup_llm(text=text, summary=summary)
+            llm_chain = setup_llm(text=cleaned_text, summary=cleaned_summary)
 
             try:
-                result = llm_chain.invoke({"text": text, "summary": summary})
+                result = llm_chain.invoke({})
                 logging.info(f"LLM output: {result}")
 
                 final_result = KnowledgeGraph.parse_llm_output(result)

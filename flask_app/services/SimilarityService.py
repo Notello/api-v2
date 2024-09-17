@@ -208,9 +208,7 @@ class SimilarityService:
             }
     
     @staticmethod
-    def is_related(courseId, documentSummary):
-        isPrivate = SupabaseService.isCollegePrivate(courseId=courseId)
-
+    def is_related(courseId, documentSummary, isPrivate):
         if isPrivate:
             return {
                 "isRelated": True

@@ -11,6 +11,8 @@ from langchain.docstore.document import Document
 from flask_app.constants import GPT_4O_MINI, ProxyRotator
 from flask_app.src.shared.common_fn import get_llm
 
+
+
 class HelperService:
     @staticmethod
     def get_youtube_title(youtube_url: str):
@@ -26,6 +28,10 @@ class HelperService:
 
         logging.exception(f"Error fetching youtube title for URL: {youtube_url}")
         return "Youtube Video"
+    
+    @staticmethod
+    def escape_template_variables(s):
+        return s.replace("{", "{{").replace("}", "}}")
     
     @staticmethod
     def validate_uuid4(uuid_string) -> bool:
@@ -127,30 +133,37 @@ class HelperService:
         
 
     @staticmethod
-    def get_document_summary(
-        chunks: List[Document],
-    ):
-        text = "\n".join([chunk.page_content for chunk in chunks])[:5000]
-
+    def get_document_summary(chunks: List[Document]):
         llm = get_llm(GPT_4O_MINI)
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", 
-             """
-             You are a concise summarizer, you will provide a one to two sentence summary capturing the main idea of the provided text.
-             You will not add any preamble to the summary or tell me you are giving me a summary, you will simply provide the summary of the provided text.
-             """
-             ),
-            ("user", f"Please summarize the following text in a concise and informative manner: {text}"),
-            ("ai", f"Summary: ")
-        ])
+        chunk_size = 5000
+        summary = ""
 
-        promptable_llm = prompt | llm
+        for i in range(0, len(chunks), chunk_size):
+            chunk_text = "\n".join([chunk.page_content for chunk in chunks[i:i+chunk_size]])
+            cleaned_text = HelperService.escape_template_variables(chunk_text)
 
-        output = promptable_llm.invoke({})
+            prompt = ChatPromptTemplate.from_messages([
+                ("system", 
+                 """
+                 You are a comprehensive summarizer. Your task is to provide a concise yet informative summary of the given text. 
+                 If a previous summary is provided, incorporate new information from the current chunk into it.
+                 Focus on capturing the main ideas, key points, and overall context of the entire document.
+                 Do not add any preamble to the summary or mention that you are providing a summary.
+                 Simply provide the updated summary of the entire document based on all information seen so far.
+                 Keep the summary under 1 paragraph.
+                 """
+                 ),
+                ("user", f"Previous summary: {summary}\n\nNew text to incorporate: {cleaned_text}\n\nPlease provide an updated summary of the entire document:"),
+            ])
 
-        logging.info(f"Summary: {output.dict()}")
+            chain = prompt | llm
+            output = chain.invoke({})
+            summary = output.content.strip()
 
-        return output.dict()['content'].strip()
+            logging.info(f"Updated summary after chunk {i//chunk_size + 1}: {summary}")
+
+        return summary
+
     
     @staticmethod
     def get_cleaned_id(id: str) -> str:
