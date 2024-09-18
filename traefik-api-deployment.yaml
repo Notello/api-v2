@@ -18,7 +18,7 @@ spec:
         dedicated: api
       containers:
       - name: flask-restx-api
-        image: registry.digitalocean.com/notello/api-dev:v3.03
+        image: registry.digitalocean.com/notello/api-dev:v3.04
         ports:
         - containerPort: 8080
         resources:
