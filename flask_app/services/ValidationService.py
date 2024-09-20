@@ -13,13 +13,13 @@ from flask_app.services.NoteService import IngestType
 from flask_app.constants import NOTE
 
 class ValidationService:
-    YOUTUBE_MAX_DURATION = 2 * 60 * 60  # 2 hours in seconds
+    YOUTUBE_MAX_DURATION = 5 * 60 * 60  # 2 hours in seconds
 
     MAX_AUDIO_SIZE = 100 * 1024 * 1024   # 100MB in bytes
 
-    MAX_TEXT_LENGTH = 5 * 1024 * 1024  # Approximately 5MB worth of text
+    MAX_TEXT_LENGTH = 100 * 1024 * 1024  # Approximately 5MB worth of text
 
-    MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB in bytes
+    MAX_FILE_SIZE = 100 * 1024 * 1024  # 5MB in bytes
 
 
     @staticmethod

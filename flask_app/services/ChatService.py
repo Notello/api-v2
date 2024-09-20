@@ -87,9 +87,7 @@ class ChatService():
         try:
             history = SupabaseService.get_chat_text(chat_room_id=roomId)
 
-            question_type, answer_format = ChatService.get_question_classification(message=message, history=history)
-
-            logging.info(f"Chat history: {history}")
+            question_type, answer_format = ChatService.get_question_classification(message=message, history=history, context="NOTE" if param == NOTEID else "COURSE")
 
             context = ContextService.get_context_nodes(
                 question_type=question_type, 
@@ -252,46 +250,32 @@ class ChatService():
         return extraction_prompt | extraction_llm
 
     @staticmethod
-    def get_question_classification(message, history):
+    def get_question_classification(message, history, context):
         history_str = ""
         if history:
             history_str = ChatService.escape_template_variables('\n'.join(history))
         message = ChatService.escape_template_variables(message)
 
         try:
-            llm = get_llm(GPT_4O_MINI).with_structured_output(QuestionModel)
+            llm = get_llm(GPT_4O_MODEL).with_structured_output(QuestionModel)
             prompt = ChatPromptTemplate.from_messages([
-                ("system", """
-                You are a question classifier. Your goal is to determine the type of question the user is asking and the appropriate response format based on the following criteria:
+                ("system", f"""
+                You are an in context question classifier. Your goal is to determine the type of question the user is asking, and if the output will need any formatting.
+                You are answering questions in the context of a specifc {context}. Please keep this in mind when classifying questions.
+                Note on the format of information: It is stored in a Neo4j database, there are concepts, which are related to other concepts. Keep this in mind for the meta classifications.
+                
+                Please classify the question as one of the following types:
+                    META_GENERAL: The user is asking a questions about the {context} in general. This could (but is not limited to) a question about the themes in the {context}, or a question about what the {context} is about.
+                    META_STATS: The user is asking a question about the statistics of the {context}. This could be (but is not limited to) a question about the number of nodes or concepts in the {context}, or a question about the number of connections a node has. These can also include questions that would need info from a Neo4j Cypher to answer the question.
+                    FACT_BASED: The user is asking a question that will need a specific piece of information from the origional text in the {context} to answer.
+                    PROBLEM_SOLVING: The user is asking a question that will require logical reasoning and problem solving to answer. This could be (but is not limited to) a math question, or a question that is asking to solve a problem / question in general.
+                    EXPLORE: The user is asking a broad, open-ended question to learn about a topic.
 
-                Question Type:
-                EXPLORE: The user is asking a broad, open-ended question to learn about a topic. 
-                Example: "Tell me about the French Revolution."
-                ANSWER: The user is seeking a specific, factual answer or solution to a problem. This includes homework-like questions, requests for direct answers, or instructions to answer specific questions. Examples:
-                "What is the capital of France?"
-                "Solve for x in the equation 2x + 3 = 11"
-                "Answer question 1"
-                "Answer question 2"
-                RELATIONSHIP: The user is asking about connections, comparisons, or interactions between two or more entities, concepts, or events.
-                Example: "How did World War I influence World War II?"
-                FOLLOWUP: The user is referring to or building upon information from a previous part of the conversation. This often includes pronouns or context-dependent phrases that require previous context to understand fully. Examples:
-                "Can you elaborate on that last point?"
-                "What about its impact on the economy?"
-                "Why is that important?"
-
-                Important notes for Question Type:
-                Questions like "Answer question X" or "Solve problem Y" should always be classified as ANSWER, not FOLLOWUP, even if they seem to reference previous context.
-                FOLLOWUP should only be used when the question cannot be fully understood without previous context.
-                When in doubt between ANSWER and FOLLOWUP, prefer ANSWER if the question seems to be seeking a specific piece of information or solution.
-
-                Bot Prompt:
-                DEFAULT: The question doesn't fall into a specific subject area or requires a general response.
-                MATH: The question will require an answer relating to mathematics, including equations and formulas. The answer will require the use of LaTeX formatting.
-                SCIENCE: The question will require an answer relating to science, including physics, chemistry, or biology. The answer will require chemical of physics equations.
+                Please classify the needed formatting for the answer as one of the following types:
+                    DEFAULT: The answer will not require special formatting.
+                    LATEX: The answer will require LaTeX formatting.
 
                 Classify the following question into one of the four question types and one of the four bot prompt categories. Choose the most specific and appropriate ones based on the given criteria.
-
-                Take into account the conversation history provided to determine if the current message is a follow-up question or if it requires context from previous messages. If the current message seems to build upon or reference information from the conversation history, consider classifying it as FOLLOWUP.
                 """),
                 ("human", "Here's the conversation history:"),
                 ("human", f"{history_str}"),

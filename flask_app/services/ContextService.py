@@ -10,15 +10,15 @@ from flask_app.src.shared.common_fn import get_llm
 from langchain_core.prompts import ChatPromptTemplate
 
 class QuestionType(str, Enum):
+    META_GENERAL = "meta_general"
+    META_STATS = "meta_stats"
+    FACT_BASED = "fact_based"
+    PROBLEM_SOLVING = "problem_solving"
     EXPLORE = "explore"
-    ANSWER = "answer"
-    RELATIONSHIP = "relationship"
-    FOLLOWUP = "followup"
 
 class BotPrompt(str, Enum):
     DEFAULT = "default"
-    MATH = "math"
-    SCIENCE = "science"
+    LATEX = "latex"
 
 class QuestionModel(BaseModel):
     question_type: QuestionType = Field(
@@ -28,45 +28,44 @@ class QuestionModel(BaseModel):
         description="The format of the bot's response."
     )
 
+
 class ContextService():
     @staticmethod
     def get_context_nodes(question_type, query_str, history, param, id):
-        if question_type == QuestionType.EXPLORE:
-            return ContextService.get_context(
-                query_str, 
-                entities=EntityExtractor.get_similies(query_str=query_str, history=history), 
-                num_chunks=3, 
-                num_related_concepts=25,
-                param=param,
-                id=id
-                )
-        elif question_type == QuestionType.ANSWER:
+        if question_type == QuestionType.META_GENERAL:
+            return {
+                'question_type': question_type,
+                'answer_format': BotPrompt.DEFAULT
+            }
+        elif question_type == QuestionType.META_STATS:
+            return 
+        elif question_type == QuestionType.FACT_BASED:
             return ContextService.get_context(
                 query_str=query_str, 
-                entities=EntityExtractor.get_similies(query_str=query_str, history=history), 
-                num_chunks=7, 
-                num_related_concepts=25,
+                entities=EntityExtractor.get_similies(query_str=query_str, history=history),
+                num_chunks=15,
+                num_related_concepts=10,
                 param=param,
                 id=id
-                )
-        elif question_type == QuestionType.RELATIONSHIP:
+            )
+        elif question_type == QuestionType.PROBLEM_SOLVING:
             return ContextService.get_context(
                 query_str=query_str, 
-                entities=EntityExtractor.get_similies(query_str=query_str, history=history), 
-                num_chunks=3, 
-                num_related_concepts=100,
+                entities=EntityExtractor.get_similies(query_str=query_str, history=history),
+                num_chunks=10,
+                num_related_concepts=10,
                 param=param,
                 id=id
-                )
-        elif question_type == QuestionType.FOLLOWUP:
+            )
+        elif question_type == QuestionType.EXPLORE:
             return ContextService.get_context(
                 query_str=query_str, 
-                entities=EntityExtractor.get_similies(query_str=query_str, history=history), 
-                num_chunks=3, 
-                num_related_concepts=25,
+                entities=EntityExtractor.get_similies(query_str=query_str, history=history),
+                num_chunks=15,
+                num_related_concepts=50,
                 param=param,
                 id=id
-                )
+            )
         else:
             return None
 
@@ -134,3 +133,7 @@ class ContextService():
         except Exception as e:
             logging.error(f"Error getting context: {e}")
             return None
+        
+    @staticmethod
+    def get_meta_context():
+        pass

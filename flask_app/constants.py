@@ -41,6 +41,7 @@ PREMIUM = "premium"
 
 GPT_35_TURBO_MODEL = "gpt-3.5-turbo-0125"
 GPT_4O_MODEL = "gpt-4o"
+O1_MINI_MODEL = "o1-mini"
 GPT_4O_MINI = "gpt-4o-mini"
 MIXTRAL_MODEL = "mixtral-8x7b-32768"
 LLAMA_8_MODEL = "llama3-8b-8192"
@@ -88,12 +89,13 @@ K8S_VER = '3.04'
 class ProxyRotator:
     def __init__(self):
         self.base_port = 10000
-        self.current_port_index = random.randint(0, 9)
+        self.max_port_index = 100
+        self.current_port_index = random.randint(0, self.max_port_index)
 
     def get_proxy_info(self):
-        if os.getenv('ENV_TYPE') == 'dev':
-            logging.info("dev")
-            return {}
+        # if os.getenv('ENV_TYPE') == 'dev':
+        #     logging.info("dev")
+        #     return {}
 
         proxy_port = self.base_port + self.current_port_index
 
@@ -113,4 +115,4 @@ class ProxyRotator:
 
     def rotate_proxy_port(self):
         logging.info(f"current_port_index: {self.current_port_index}")
-        self.current_port_index = (self.current_port_index + 1) % 10
+        self.current_port_index = (self.current_port_index + 1) % self.max_port_index

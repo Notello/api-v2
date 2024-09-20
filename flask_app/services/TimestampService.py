@@ -16,17 +16,25 @@ class TimestampService:
 
     @staticmethod
     def get_youtube_timestamps(youtube_url: str):
-        proxy_rotator = ProxyRotator()
+        try:
+            youtube_id = TimestampService.get_youtube_id(youtube_url)
+            timestamps = YouTubeTranscriptApi.get_transcript(youtube_id, languages=['en', 'en-US'])
 
-        for _ in range(10):
-            try:
-                youtube_id = TimestampService.get_youtube_id(youtube_url)
-                proxy = proxy_rotator.get_proxy_info()
-                return YouTubeTranscriptApi.get_transcript(youtube_id, languages=['en', 'en-US'], proxies=proxy)
-            except Exception as e:
-                proxy_rotator.rotate_proxy_port()
-                continue
+            return timestamps
+        except Exception as e:
+            proxy_rotator = ProxyRotator()
 
-        # If all attempts fail, raise an exception
-        message = f"Youtube transcript is not available for youtube URL: {youtube_url}"
-        raise Exception(message)
+            for _ in range(100):
+                try:
+                    proxy = proxy_rotator.get_proxy_info()
+                    timestamps = YouTubeTranscriptApi.get_transcript(youtube_id, languages=['en', 'en-US'], proxies=proxy)
+
+                    return timestamps
+                except Exception as e:
+                    proxy_rotator.rotate_proxy_port()
+                    print(f"error: {e}")
+                    continue
+
+            # If all attempts fail, raise an exception
+            message = f"Youtube transcript is not available for youtube URL: {youtube_url}"
+            raise Exception(message)

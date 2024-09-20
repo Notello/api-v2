@@ -21,6 +21,7 @@ class HelperService:
         for _ in range(10):
             try:
                 proxy = proxy_rotator.get_proxy_info()
+
                 return YouTube(youtube_url, proxies=proxy).title.strip()
             except Exception as e:
                 proxy_rotator.rotate_proxy_port()
@@ -118,18 +119,25 @@ class HelperService:
 
     @staticmethod
     def get_video_duration(youtube_url: str):
-        proxy_rotator = ProxyRotator()
+        try:
+            length = YouTube(youtube_url).length
+            return length
+        except Exception as e:
+            proxy_rotator = ProxyRotator()
 
-        for _ in range(10):
-            try:
-                proxy = proxy_rotator.get_proxy_info()
-                return YouTube(youtube_url, proxies=proxy).length
-            except Exception as e:
-                proxy_rotator.rotate_proxy_port()
-                continue
+            for _ in range(10):
+                try:
+                    proxy = proxy_rotator.get_proxy_info()
+                    print("youtube url", youtube_url)
+                    print("proxy", proxy)
+                    return YouTube(youtube_url, proxies=proxy).length
+                except Exception as e:
+                    proxy_rotator.rotate_proxy_port()
+                    print(f"error: {e}")
+                    continue
 
-        logging.exception(f"Error fetching video duration for URL: {youtube_url}")
-        return 0
+            logging.exception(f"Error fetching video duration for URL: {youtube_url}")
+            return 0
         
 
     @staticmethod
