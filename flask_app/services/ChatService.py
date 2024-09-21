@@ -8,10 +8,10 @@ from langchain_core.pydantic_v1 import BaseModel, Field
 
 from flask_app.services.SupabaseService import SupabaseService
 from flask_app.services.ContextAwareThread import ContextAwareThread
-from flask_app.services.ContextService import ContextService, QuestionModel, BotPrompt
+from flask_app.services.ContextService import ContextService, QuestionModel, QuestionType
 from flask_app.services.RatelimitService import RatelimitService
 
-from flask_app.constants import CHAT, COURSEID, GPT_4O_MINI, NOTEID, GPT_4O_MODEL
+from flask_app.constants import CHAT, COURSEID, GPT_4O_MINI, NOTEID, GPT_4O_MODEL, O1_MINI_MODEL
 from flask_app.src.shared.common_fn import get_llm
 
 pthread = ThreadPoolExecutor(max_workers=10)
@@ -35,6 +35,19 @@ class ChatService():
             return ChatType.CHAT
         elif chat_type == 'answer':
             return ChatType.ANSWER
+        else:
+            return None
+    
+    @staticmethod
+    def question_type_to_enum(question_type):
+        if question_type == 'meta_general':
+            return QuestionType.META_GENERAL
+        elif question_type == 'fact_based':
+            return QuestionType.FACT_BASED
+        elif question_type == 'problem_solving':
+            return QuestionType.PROBLEM_SOLVING
+        elif question_type == 'explore':
+            return QuestionType.EXPLORE
         else:
             return None
 
@@ -79,6 +92,8 @@ class ChatService():
         id = noteId if noteId else courseId
 
         logging.info(f"Param: {param}, id: {id}")
+        logging.info(f"noteId: {noteId}")
+        logging.info(f"courseId: {courseId}")
 
         messageId = SupabaseService.add_chat_message(
             chat_room_id=roomId, 
@@ -87,16 +102,22 @@ class ChatService():
         try:
             history = SupabaseService.get_chat_text(chat_room_id=roomId)
 
-            question_type, answer_format = ChatService.get_question_classification(message=message, history=history, context="NOTE" if param == NOTEID else "COURSE")
+            context_type = "note" if param == NOTEID else "course"
+            
+            question_type = ChatService.get_question_classification(message=message, history=history, context=context_type)
+
+            question_enum = ChatService.question_type_to_enum(question_type=question_type)
 
             context = ContextService.get_context_nodes(
-                question_type=question_type, 
+                question_type=question_enum, 
                 query_str=message, 
                 history=history,
                 param=param,
                 id=id
                 )
-
+            
+            logging.info(f"context: {context}")
+                        
             logging.info(f"Chat history: {history}")
 
             annotated_history = SupabaseService.get_annotated_messages(chat_room_id=roomId)
@@ -108,8 +129,8 @@ class ChatService():
                 message=message, 
                 history=annotated_history, 
                 context=context, 
-                botReply=botReply,
-                answer_format=answer_format
+                context_type=context_type,
+                question_type=question_enum,
                 )
             
             SupabaseService.edit_chat_message(message_id=messageId, message=json.dumps({"message": reply.reply, "sources": reply.sources}))
@@ -120,14 +141,23 @@ class ChatService():
             SupabaseService.edit_chat_message(message_id=messageId, message=json.dumps({"message": "Error generating reply", "sources": []}))
     
     @staticmethod
-    def generate_reply(userId, message, history, context, botReply, answer_format):
+    def generate_reply(
+        userId, 
+        message, 
+        history,
+        context, 
+        context_type,
+        question_type
+    ):
         extraction_chain = ChatService.setup_llm(
             userMessage=message,
             history=history,
             context=context,
-            botReply=botReply,
-            answer_format=answer_format
+            context_type=context_type,
+            question_type=question_type,
         )
+
+        print(question_type)
 
         logging.info("Got chain")
 
@@ -146,47 +176,106 @@ class ChatService():
         userMessage: str,
         history: List[str],
         context,
-        botReply,
-        answer_format
+        context_type,
+        question_type,
     ):
         logging.info(f"Prompt template: {userMessage}")
-        logging.info(f"context: {context}")
-        prompt_template = ""
         history_str = ""
         userMessage_str = ChatService.escape_template_variables(userMessage)
         if history:
             history_str = ChatService.escape_template_variables('\n'.join(history))
-        context_str = ""
-        if context is not None and len(context) > 0:
-            context_items = []
-            for key, value in context.items():
-                related_chunks = '\n'.join([f"Chunk UUID: {chunk['id']}, Chunk Text: {chunk['text']}" for chunk in value['related_chunks']])
-                related_concepts = ', '.join([f"{key} {concept['relation_type']} {concept['id']}" for concept in value['related_concepts']])
-                context_items.append(f"Identified Object in Query: {key}\nRelated Chunks:\n{related_chunks}\nRelated Concepts:\n{related_concepts}")
-            context_str = '\n\n'.join(context_items)
 
         logging.info(f"History string: {history_str}")
-        logging.info(f"Context string: {context_str}")
 
-        FORMATTING = """
-        You MUST wrap all math or special expressions in $ symbols.
-        For example, the message [ \\frac{{\\pi^2}}{{2}} \\approx 4.9348 ] should be formatted as $[ \\frac{{\\pi^2}}{{2}} \\approx 4.9348 ]$.
-        You must also start each math expression on a new line, seperated by a \\n character.
-        It is EXTREMELY important that you format ALL KaTeX expressions in the message, including inline math, equations, and special symbols in this way.
-        You will never use the \\text{{}} command in your response.
+        model_dict = {
+            QuestionType.PROBLEM_SOLVING: GPT_4O_MODEL,
+            QuestionType.EXPLORE: GPT_4O_MINI,
+            QuestionType.META_GENERAL: GPT_4O_MINI,
+            QuestionType.FACT_BASED: GPT_4O_MINI
+        }
 
-        FINAL WARNING:
-        ALWAYS wrap all math or special expressions, including inline math, equations, matricies, vectors, and special symbols in $ symbols.
-        YOU WILL ALWAYS WRAP A MATRIX IN $ SYMBOLS.
-        NEVER USE THE \\text{{}} COMMAND IN YOUR RESPONSE.
-        """
+        prompt_template_dict = {
+            QuestionType.META_GENERAL: f"""
+            You are a question answering assistant. You answer questions about the current {context_type} in general, the user assumes you are an expert in the contents of the {context_type}.
 
-        if botReply == ChatType.CHAT:
-            prompt_template = f"""
-            You are an KaTeX based AI assistant that always wraps math output in $$ symbols and engages in a conversation with a user. 
-            Your goal is to provide informative and engaging responses, formatted entirely in KaTeX, seperating math output in $ characters. 
-            You never ever use the \\text command in your response.
-            Use the following information to inform your responses:
+            **General Guidelines**:
+            1. Whenever possible, you will answer questions fully from the context of the current {context_type}.
+            2. It is acceptable to reasonably extend your answers beyond the given context, however it is VERY important that you inform the user you are doing so.
+            3. You will NEVER provide an answer not directly supported by the text without telling the user EXPLICITLY. You must ALWAYS inform the user you are using your best judgement, and that the statement is not backed up by the context.
+            4. Use your best judgement to infer the user's intent, it is possible they want a concise answer, or that they want you to engage them in a dialog.
+            """,
+            QuestionType.FACT_BASED: f"""
+            You are a fact based question answering assistant. You answer questions about the current {context_type}, the user assumes you are an expert in the contents of the {context_type}.
+
+            **General Guidelines**:
+            1. Whenever possible, you will answer questions fully from the context of the current {context_type}.
+            2. You will NEVER provide an answer not directly supported by the text without telling the user EXPLICITLY. You must ALWAYS inform the user you are using your best judgement, and that the statement is not backed up by the context.
+            3. Use your best judgement to infer the user's intent, it is possible they want a concise answer, or that they want you to engage them in a dialog.
+            """,
+            QuestionType.PROBLEM_SOLVING: f"""
+            You are a problem assistant. You solve logical or reasoning based problems in a clear and explainable way.
+
+            **General Guidelines**:
+            1. You will always make sure your explanations make sense, and are grounded in the context provided.
+            2. You will ensure that all steps in your process are clear and understandable, making sure not to gloss over details.
+            3. If you do need to make any assumptions, you will inform the user up front, and make them clear at the start of your response.
+            """,
+            QuestionType.EXPLORE: f"""
+            You are a question answering assistant. You answer questions about the current {context_type} with the goal of exploring, the user assumes you are an expert in the contents of the {context_type}.
+
+            **General Guidelines**:
+            1. Whenever possible, you will answer questions fully from the context of the current {context_type}.
+            2. It is acceptable to reasonably extend your answers beyond the given context, however it is VERY important that you inform the user you are doing so.
+            3. Use your best judgement to infer the user's intent, it is possible they want a concise answer, or that they want you to engage them in a dialog.
+            4. The user is asking an exploratory question or one that is vague in direction, if appropriate, suggest followup ideas the could explore or questions they could ask based on the context.
+            """
+        }
+
+        context_prompt = ""
+        
+        if question_type == QuestionType.META_GENERAL:
+            logging.info("in meta")
+            summaries_str = ''.join(f"Document Summary {i}:\n {summary}\n\n" for i, summary in enumerate(context['summaries']))
+            logging.info("past summaries")
+            chunks_str = ''.join(f"Supporting Text {i}:\n Text: {text['text']}\n Chunk UUID: {text['noteId']}\n\n" for i, text in enumerate(context['chunks']))
+            logging.info("past chunks")
+            concepts_str = ''.join(f"Topic: {topic['name']}, Important Score: {topic['rel_count']}\n" for topic in context['concepts'])
+            logging.info("past concepts")
+
+            context_prompt = f"""
+            The context provided is on the {context_type} as a whole. It includes summaries of documents in the {context_type}, supporting text from the {context_type}, and the top concepts in the {context_type}.
+            You will also be given the current history of the conversation, as well as the current user question.
+
+            Document Summaries:
+            {summaries_str}
+
+            Supporting Text:
+            {chunks_str}
+
+            Top Concepts:
+            {concepts_str}
+
+            Conversation History:
+            {history_str}
+
+            User Message:
+            {userMessage_str}
+            """
+        else:
+            logging.info("not meta")
+            context_str = ""
+            logging.info(context)
+            if context is not None and len(context) > 0:
+                context_items = []
+                for key, value in context.items():
+                    related_chunks = '\n'.join([f"Chunk UUID: {chunk['id']}, Chunk Text: {chunk['text']}" for chunk in value['related_chunks']])
+                    related_concepts = ', '.join([f"{key} {concept['relation_type']} {concept['id']}" for concept in value['related_concepts']])
+                    context_items.append(f"Identified Object in Query: {key}\nRelated Chunks:\n{related_chunks}\nRelated Concepts:\n{related_concepts}")
+                context_str = '\n\n'.join(context_items)
+
+            context_prompt = f"""
+            The context provided is on the {context_type} as a whole. It includes summaries of documents in the {context_type}, supporting text from the {context_type}, and the top concepts in the {context_type}.
+            You will also be given the current history of the conversation, as well as the current user question.
 
             Context:
             {context_str}
@@ -195,56 +284,23 @@ class ChatService():
             {history_str}
 
             User Message: {userMessage_str}
-
-            Instructions:
-            1. Analyze the user's message using the provided context.
-            2. Provide a detailed and informative response that addresses the user's query or continues the conversation naturally, using KaTeX for both text and mathematical expressions.
-            3. Include relevant information from the context if applicable.
-            4. Reference the relationships between the identified objects in the context.
-            5. Maintain a friendly and engaging tone throughout the conversation, formatted properly in KaTeX.
-            6. If you use information from the context, include the relevant Chunk UUID(s) in the 'sources' field of your response.
-            7. Do not provide chunk citations in the reply field, only in the 'sources' field.
-            8. If the provided context is not relevant to the user's message, inform the user of that fact, but still provide a response.
-
-            Formatting Guidelines:
-            {FORMATTING}
             """
-        elif botReply == ChatType.ANSWER:
-            prompt_template = f"""You are a KaTeX based AI assistant tasked with providing concise and direct answers to user questions, who always replies in special KaTeX formatting. 
-            Your goal is to give accurate and to-the-point responses based on the available information. 
-            You always wrap math output in $ characters.
-            You never ever use the \\text command in your response.
-            Use the following details to inform your answer:
 
-            Context:
-            {context_str}
-
-            Conversation History:
-            {history_str}
-
-            User Question: {userMessage_str}
-
-            Instructions:
-            1. Analyze the user's question using the provided context.
-            2. Provide a concise and direct answer that addresses the user's question, formatted using KaTeX.
-            3. Include only the most relevant information from the context.
-            4. Avoid unnecessary elaboration or tangential information.
-            5. If you use information from the context, include the relevant Chunk UUID(s) in the 'sources' field of your response.
-            6. Do not provide chunk citations in the reply field, only in the 'sources' field.
-            7. If the provided context is not relevant to the user's message, inform the user of that fact, but still provide a response.
-
-            Formatting Guidelines:
-            {FORMATTING}
+        question_type_prompt = prompt_template_dict.get(question_type)
+        formatting_prompt = """
+            You MUST wrap all math or special expressions in $ symbols.
+            For example, the message [ \\frac{{\\pi^2}}{{2}} \\approx 4.9348 ] should be formatted as $[ \\frac{{\\pi^2}}{{2}} \\approx 4.9348 ]$.
+            You must also start each math expression on a new line, seperated by a \\n character.
+            It is EXTREMELY important that you format ALL KaTeX expressions in the message, including inline math, equations, and special symbols in this way.
             """
-        else:
-            logging.error(f'Invalid botReply: {botReply}')
-            return
 
-        logging.info(f"Prompt template: {prompt_template}")
+        PROMPT = question_type_prompt + context_prompt + formatting_prompt
 
-        extraction_llm = get_llm(GPT_4O_MINI).with_structured_output(BotReply)
+        logging.info(f"prompt: {PROMPT}")
+
+        extraction_llm = get_llm(model_dict[question_type]).with_structured_output(BotReply)
         extraction_prompt = ChatPromptTemplate.from_messages([
-            ("system", prompt_template),
+            ("system", ChatService.escape_template_variables(PROMPT)),
         ])
 
         return extraction_prompt | extraction_llm
@@ -260,20 +316,15 @@ class ChatService():
             llm = get_llm(GPT_4O_MODEL).with_structured_output(QuestionModel)
             prompt = ChatPromptTemplate.from_messages([
                 ("system", f"""
-                You are an in context question classifier. Your goal is to determine the type of question the user is asking, and if the output will need any formatting.
+                You are an in context question classifier. Your goal is to determine the type of question the user is asking.
                 You are answering questions in the context of a specifc {context}. Please keep this in mind when classifying questions.
                 Note on the format of information: It is stored in a Neo4j database, there are concepts, which are related to other concepts. Keep this in mind for the meta classifications.
                 
                 Please classify the question as one of the following types:
                     META_GENERAL: The user is asking a questions about the {context} in general. This could (but is not limited to) a question about the themes in the {context}, or a question about what the {context} is about.
-                    META_STATS: The user is asking a question about the statistics of the {context}. This could be (but is not limited to) a question about the number of nodes or concepts in the {context}, or a question about the number of connections a node has. These can also include questions that would need info from a Neo4j Cypher to answer the question.
                     FACT_BASED: The user is asking a question that will need a specific piece of information from the origional text in the {context} to answer.
                     PROBLEM_SOLVING: The user is asking a question that will require logical reasoning and problem solving to answer. This could be (but is not limited to) a math question, or a question that is asking to solve a problem / question in general.
                     EXPLORE: The user is asking a broad, open-ended question to learn about a topic.
-
-                Please classify the needed formatting for the answer as one of the following types:
-                    DEFAULT: The answer will not require special formatting.
-                    LATEX: The answer will require LaTeX formatting.
 
                 Classify the following question into one of the four question types and one of the four bot prompt categories. Choose the most specific and appropriate ones based on the given criteria.
                 """),
@@ -287,8 +338,7 @@ class ChatService():
             result: QuestionModel = invokable.invoke({})
             
             logging.info(f"Question type: {result.question_type}")
-            logging.info(f"Bot prompt: {result.answer_format}")
-            return result.question_type, result.answer_format
+            return result.question_type
         except Exception as e:
             logging.error(f"Error in get_question_classification: {e}")
             return None, None

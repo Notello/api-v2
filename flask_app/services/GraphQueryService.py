@@ -7,7 +7,7 @@ from langchain_core.pydantic_v1 import BaseModel, Field
 from langchain_core.prompts import ChatPromptTemplate
 
 from flask_app.src.shared.common_fn import get_llm, load_embedding_model
-from flask_app.constants import GPT_4O_MINI
+from flask_app.constants import GPT_4O_MINI, GPT_4O_MODEL
 from flask_app.src.graphDB_dataAccess import graphDBdataAccess
 
 class TopConcept(BaseModel):
@@ -636,8 +636,9 @@ class GraphQueryService():
 
         return result
     
+
     @staticmethod
-    def get_most_similar_topic(topic_name: str, similarity_threshold):
+    def get_most_similar_topic(topic_name: str, query_string, param, id):
         graph_access = graphDBdataAccess()
 
         embeddings, dimension = load_embedding_model()
@@ -645,14 +646,15 @@ class GraphQueryService():
         topic_embedding = embeddings.embed_query(text=topic_name)
 
         QUERY = f"""
-        CALL db.index.vector.queryNodes('concept_embedding', 20, {topic_embedding}) YIELD node AS n, score
+        CALL db.index.vector.queryNodes('concept_embedding', 20, {topic_embedding})
+        YIELD node AS n, score
+        WHERE '{id}' IN n.{param}     
         RETURN {{
             uuid: n.uuid[0],
             id: n.id,
             similarity: score
         }} AS result
         ORDER BY score DESC
-        LIMIT 1
         """
 
         result = graph_access.execute_query(
@@ -660,11 +662,53 @@ class GraphQueryService():
             params={"embedding": topic_embedding}
         )
 
-        # Check if a result was found
-        if result and len(result) > 0:
-            return result[0]["result"]
-        else:
-            return None
+        logging.info(f"Result: {result}")
+
+        topics_string = ", ".join([f"ConceptId: {topic['result']['id']}, ConceptUUID: {topic['result']['uuid']}" for topic in result])
+
+        logging.info(f"Topics: {topics_string}")
+
+        llm = get_llm(GPT_4O_MINI).with_structured_output(TopConcept)
+
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", 
+                    """
+                    You are an expert in identifying the most similar topics to a given input, with a focus on what a typical user would consider similar. Your primary task is to find the closest match to the originally identified topic from the user's query, accounting for:
+
+                    1. Misspellings
+                    2. Slight variations in wording
+                    3. Closely related concepts
+                    4. Common abbreviations or alternative names
+
+                    Guidelines:
+                    1. Prioritize finding a match that's as close as possible to the originally identified topic.
+                    2. Consider how a typical user might phrase or misspell the topic.
+                    3. Look for semantic similarity, not just exact matches.
+                    4. If there's no exact match, choose the closest reasonable alternative.
+                    5. Consider common variations or related terms that a user might use interchangeably.
+
+                    Your goal is to identify the node that the user most likely intended to reference, even if their input wasn't perfectly accurate.
+                    You will return the id, and the uuid of the most similar topic.
+                    """
+            ),
+            ("human", 
+                    f"""
+                    User's Original Query: {query_string}
+                    Originally Identified Topic: {topic_name}
+                    
+                    Potential Topics from Vector Search:
+                    {topics_string}
+                    """
+            )
+        ])
+
+        invokable = prompt | llm
+
+        result: TopConcept = invokable.invoke({})
+
+        logging.info(f"Result: {result}")
+
+        return result
         
     @staticmethod
     def get_flashcards(flashcardId: str) -> List[Dict] | None:
