@@ -1,0 +1,4 @@
+git+https://@github.com/Notello/api-serverless
+
+Werkzeug
+runpod
