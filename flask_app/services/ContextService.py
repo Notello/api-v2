@@ -15,6 +15,8 @@ class QuestionType(str, Enum):
     FACT_BASED = "fact_based"
     PROBLEM_SOLVING = "problem_solving"
     EXPLORE = "explore"
+    STUDY_CREATION = "study_creation"
+    STUDY_QUESTION = "study_question"
 
 class QuestionModel(BaseModel):
     question_type: QuestionType = Field(

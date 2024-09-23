@@ -48,6 +48,10 @@ class ChatService():
             return QuestionType.PROBLEM_SOLVING
         elif question_type == 'explore':
             return QuestionType.EXPLORE
+        elif question_type == 'study_creation':
+            return QuestionType.STUDY_CREATION
+        elif question_type == 'study_question':
+            return QuestionType.STUDY_QUESTION
         else:
             return None
 
@@ -107,6 +111,16 @@ class ChatService():
             question_type = ChatService.get_question_classification(message=message, history=history, context=context_type)
 
             question_enum = ChatService.question_type_to_enum(question_type=question_type)
+
+            logging.info(f"question_enum: {question_enum}")
+
+            if question_enum == QuestionType.STUDY_CREATION or question_enum == QuestionType.STUDY_QUESTION:
+                logging.info("in study")
+                SupabaseService.edit_chat_message(message_id=messageId, message=json.dumps({"message": 
+                f"Study material generation and questions are coming soon. In the meantime, check out the quiz and flashcard tabs!", 
+                "sources": []}))
+                RatelimitService.remove_rate_limit(rateLimitId=ratelimitId)
+                return
 
             context = ContextService.get_context_nodes(
                 question_type=question_enum, 
@@ -333,6 +347,8 @@ class ChatService():
                     FACT_BASED: The user is asking a question that will need a specific piece of information from the origional text in the {context} to answer.
                     PROBLEM_SOLVING: The user is asking a question that will require logical reasoning and problem solving to answer. This could be (but is not limited to) a math question, or a question that is asking to solve a problem / question in general.
                     EXPLORE: The user is asking a broad, open-ended question to learn about a topic.
+                    STUDY_CREATION: The user is asking you to make a quiz or flashcard set.
+                    STUDY_QUESTION: The user is asking you how they are doing on a quiz, or how good their quiz results are
 
                 Classify the following question into one of the four question types and one of the four bot prompt categories. Choose the most specific and appropriate ones based on the given criteria.
                 """),
