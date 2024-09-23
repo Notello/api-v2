@@ -116,6 +116,12 @@ class ChatService():
                 id=id
                 )
             
+            if not context:
+                SupabaseService.edit_chat_message(message_id=messageId, message=json.dumps({"message": f"It looks like this workspace is empty. Please make a note to get started!", "sources": []}))
+                RatelimitService.remove_rate_limit(rateLimitId=ratelimitId)
+                return
+
+            
             logging.info(f"context: {context}")
                         
             logging.info(f"Chat history: {history}")
@@ -235,16 +241,17 @@ class ChatService():
         
         if question_type == QuestionType.META_GENERAL:
             logging.info("in meta")
-            summaries_str = ''.join(f"Document Summary {i}:\n {summary}\n\n" for i, summary in enumerate(context['summaries']))
+            summaries_str = "" if not context else ''.join(f"Document Summary {i}:\n {summary}\n\n" for i, summary in enumerate(context['summaries']))
             logging.info("past summaries")
-            chunks_str = ''.join(f"Supporting Text {i}:\n Text: {text['text']}\n Chunk UUID: {text['noteId']}\n\n" for i, text in enumerate(context['chunks']))
+            chunks_str = "" if not context else ''.join(f"Supporting Text {i}:\n Text: {text['text']}\n Chunk UUID: {text['noteId']}\n\n" for i, text in enumerate(context['chunks']))
             logging.info("past chunks")
-            concepts_str = ''.join(f"Topic: {topic['name']}, Important Score: {topic['rel_count']}\n" for topic in context['concepts'])
+            concepts_str = "" if not context else ''.join(f"Topic: {topic['name']}, Important Score: {topic['rel_count']}\n" for topic in context['concepts'])
             logging.info("past concepts")
 
             context_prompt = f"""
             The context provided is on the {context_type} as a whole. It includes summaries of documents in the {context_type}, supporting text from the {context_type}, and the top concepts in the {context_type}.
             You will also be given the current history of the conversation, as well as the current user question.
+            If no context is provided please inform the user.
 
             Document Summaries:
             {summaries_str}
@@ -276,6 +283,7 @@ class ChatService():
             context_prompt = f"""
             The context provided is on the {context_type} as a whole. It includes summaries of documents in the {context_type}, supporting text from the {context_type}, and the top concepts in the {context_type}.
             You will also be given the current history of the conversation, as well as the current user question.
+            If no context is provided please inform the user.
 
             Context:
             {context_str}

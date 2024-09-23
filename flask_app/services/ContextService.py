@@ -25,6 +25,7 @@ class QuestionModel(BaseModel):
 class ContextService():
     @staticmethod
     def get_context_nodes(question_type, query_str, history, param, id):
+        logging.info(f"question_type   si: {question_type}")
         if question_type == QuestionType.META_GENERAL:
             return ContextService.get_meta_context(
                 query_str=query_str, 
@@ -154,6 +155,7 @@ class ContextService():
         id: str,
         question_type: QuestionType
     ) -> Dict: 
+        logging.info(f"get_meta_context")
         QUERY = f"""
         MATCH (d:Document)
         WHERE '{id}' IN d.{param}
@@ -186,4 +188,6 @@ class ContextService():
 
         results = Neo4jConnection.run_query(QUERY)
 
-        return results[0]["result"] if results else {{}}
+        logging.info(f"results: {results}")
+
+        return results[0]["result"] if results else None

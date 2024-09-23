@@ -53,6 +53,8 @@ class Chat(Resource):
             logging.error(f"User {userId} has exceeded their chat room rate limit")
             return {'message': 'You have exceeded your chat room rate limit'}, 250
         
+        logging.info(f"message: {message}")
+        
         roomId = ChatService.handle_chat(
             userId=userId, 
             message=message, 
