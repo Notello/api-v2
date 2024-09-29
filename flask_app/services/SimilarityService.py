@@ -22,81 +22,13 @@ class SimilarityService:
         self.word_edit_distance = word_edit_distance
 
     def embed_documents(self, documents, noteId):
-        combined_content = " ".join(doc.page_content for doc in documents)
-
-        embeddings, dimension = load_embedding_model()
-        embeddings_arr = embeddings.embed_query(text=combined_content)
-
-        logging.info(f"Embedding: Using OpenAI Embeddings , Dimension:{dimension}")
-
-        graphDBdataAccess().execute_query("""
-            CREATE VECTOR INDEX `doc_embedding` IF NOT EXISTS FOR (d:Document) ON (d.embedding)
-            OPTIONS {indexConfig: {
-                `vector.dimensions`: $dimensions,
-                `vector.similarity_function`: 'cosine'
-            }}
-        """, {
-            "dimensions": dimension
-        })
-
-        query_to_create_or_update_document = """
-        MERGE (d:Document {noteId: $noteId})
-        SET d.embedding = $embedding
-        RETURN ID(d) as id
-        """
-
-        node = graphDBdataAccess().execute_query(
-            query_to_create_or_update_document,
-            params={NOTEID: noteId, "embedding": embeddings_arr}
-        )
-
-        return node, embeddings_arr   
+        pass
 
     def find_similar_documents(self, courseId, noteId, documents):
-        node, embeddings_arr = self.embed_documents(
-            documents=documents, 
-            noteId=noteId
-            )
-
-        query = """
-        CALL db.index.vector.queryNodes('doc_embedding', 1, $queryEmbedding)
-        YIELD node AS similarDoc, score AS similarity
-        WHERE similarity >= $threshold AND similarDoc.noteId <> $noteId and similarDoc.courseId = $courseId
-        RETURN similarDoc.noteId AS noteId, similarity
-        ORDER BY similarity DESC
-        """
-
-        result = graphDBdataAccess().execute_query(
-            query,
-            params={
-                COURSEID: courseId,
-                NOTEID: noteId,
-                "queryEmbedding": embeddings_arr,
-                "threshold": self.similarity_threshold
-            }
-        )
-
-        similar_documents = [
-            {NOTEID: record[NOTEID], "similarity": record["similarity"]}
-            for record in result
-        ]
-
-        print("similar_documents", similar_documents)
-
-        return node, similar_documents
+        pass
     
     def has_similar_documents(self, courseId, noteId, documents) -> str | None:
-        node, docs = self.find_similar_documents(
-            courseId=courseId,
-            noteId=noteId,
-            documents=documents
-            )
-
-        if not SupabaseService.isCollegePrivate(courseId=courseId) and len(docs) > 0:
-            self.delete_node(node[0])
-            return docs[0][NOTEID]
-        else:
-            return None
+        pass
 
     @staticmethod
     def same_youtube_node_exists(courseId, url) -> str | None:
@@ -117,7 +49,7 @@ class SimilarityService:
 
         print("result", result)
 
-        if not SupabaseService.isCollegePrivate(courseId=courseId) and len(result) > 0:
+        if len(result) > 0:
             return result[0][NOTEID]
         else:
             return None
@@ -206,12 +138,3 @@ class SimilarityService:
             return {
                 "isRelated": True
             }
-    
-    @staticmethod
-    def is_related(courseId, documentSummary, isPrivate):
-        if isPrivate:
-            return {
-                "isRelated": True
-            }
-        
-        return SimilarityService.same_subject(courseId=courseId, documentSummary=documentSummary)

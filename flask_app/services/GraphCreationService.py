@@ -81,50 +81,8 @@ class GraphCreationService:
         rateLimitId = RatelimitService.add_rate_limit(userId, NOTE, 1)
         graphAccess: graphDBdataAccess = graphDBdataAccess()
 
-        isPrivate = SupabaseService.isCollegePrivate(courseId=courseId)
-
         try:
-            similarityService = SimilarityService(
-                similarity_threshold=0.98, 
-                word_edit_distance=5
-            )
-
-            similar = similarityService.has_similar_documents(
-                courseId=courseId,
-                noteId=noteId,
-                documents=chunks
-            )
-            
-
-            if similar and not isPrivate:
-                logging.info(f"File: {fileName} is similar to {similar}")
-                SupabaseService.update_note(
-                    noteId=noteId,
-                    key='matchingNoteId',
-                    value=similar
-                )
-                SupabaseService.update_note(
-                    noteId=noteId, 
-                    key='graphStatus', 
-                    value='complete'
-                    )
-                graphAccess.update_source_node(sourceNode(noteId=noteId, blockedReason = 'Your note content was detected to be the same as another note in the same course.'))
-                SupabaseService.update_note(noteId=noteId, key='blockedReason', value='Your note content was detected to be the same as another note in the same course.')
-                RatelimitService.remove_rate_limit(rateLimitId)
-                return
-
             summary = HelperService.get_document_summary(chunks)
-
-            isRelated = SimilarityService.is_related(courseId=courseId, documentSummary=summary, isPrivate=isPrivate)
-
-            if not isRelated['isRelated']:
-                graphAccess.update_source_node(sourceNode(noteId=noteId, blockedReason = f'{isRelated["reasoning"]}'))
-                SupabaseService.update_note(noteId=noteId, 
-                                            key='blockedReason', 
-                                            value=f'''
-                                            {isRelated["reasoning"]}
-                                            ''')
-                return None
 
             obj_source_node = sourceNode(
                 file_source=import_type,

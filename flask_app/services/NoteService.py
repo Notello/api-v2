@@ -44,7 +44,7 @@ class NoteService:
         NoteForm.AUDIO: 'pending',
         NoteForm.YOUTUBE: 'pending',
         NoteForm.TEXT: 'complete',
-        NoteForm.TEXT_FILE: 'complete',
+        NoteForm.TEXT_FILE: 'pending',
     }
 
     @staticmethod
@@ -309,7 +309,7 @@ class NoteService:
             # Start the processing in a new thread
             pthread.submit(
                 NoteService.audio_file_to_graph,
-                noteId, courseId, userId, temp_file_path, audio_file.filename
+                noteId, courseId, userId, temp_file_path, title
             )
 
         except Exception as e:
@@ -541,6 +541,8 @@ class NoteService:
                 bucketName='pdf-files',
                 contentType=file_type
                 )
+            
+            SupabaseService.update_note(noteId=noteId, key='contentStatus', value='complete')
 
             if fileId is None:
                 logging.exception(f"Failed to upload file for note {noteId}")

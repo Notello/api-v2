@@ -1,7 +1,6 @@
 import logging
 from langchain_core.prompts import ChatPromptTemplate
 
-
 from flask_app.src.shared.common_fn import get_llm
 from flask_app.constants import GPT_4O_MINI
 
@@ -10,14 +9,12 @@ from flask_app.src.entities.KnowledgeGraph import KnowledgeGraph
 def escape_template_variables(s):
     return s.replace("{", "{{").replace("}", "}}")
 
-
 def setup_llm(text: str, summary: str):
     system_prompt = """
-        - You are a top-tier algorithm designed for extracting information in structured formats to build a detailed knowledge graph. 
-        - Your task is to identify as many concepts and entities in the text and relations between them as possible. 
-        - You will provide at least three relationships for every entity you identify.
-        - You will also provide descriptions for each node as they would appear on a flashcard.
-        - You will use the summary of the text provided to you to guide what types of concepts and entities to extract. 
+        - You are a top-tier algorithm designed for extracting information in structured formats to build a concise and meaningful knowledge graph.
+        - Your task is to identify the most important concepts and entities in the text and the relations between them.
+        - You will provide descriptions for each node as they would appear on a flashcard.
+        - You will use the summary of the text provided to guide which concepts and entities are most important to extract.
         - You should use the summary to correct any typos in the source text based on the context provided.
         - You will always output node ids in all lowercase with spaces between words.
 
@@ -32,16 +29,17 @@ def setup_llm(text: str, summary: str):
             type: The type of the relationship.
 
         ## IMPORTANT GUIDELINES ##
-        - You should add *AS MANY* relations as possible, you should infer at least three relationships oer each entity.
-        - Maintain Entity Consistency: When extracting entities or concepts, it's vital to ensure consistency. 
+        - Focus on extracting the most significant entities and thoroughly identify meaningful relationships between them to create a well-connected graph.
+        - Ensure that all important nodes are interconnected through relevant relationships where appropriate.
+        - Maintain Entity Consistency: When extracting entities or concepts, it's vital to ensure consistency.
         - If an entity, such as "John Doe", is mentioned multiple times in the text but is referred to by different names or pronouns (e.g., "Joe", "he"), always use the most complete identifier for that entity.
 
         ## FINAL POINT ##
-        It is extremely important that you extract as many nodes and relationships as possible. You should aim for 20-30 nodes minimum.
+        It is important that you focus on the most important nodes and establish as many meaningful relationships as possible to build a concise and interconnected knowledge graph.
     """
 
     user_template = f"""
-        Based on the following text and summary, extract *AS MANY* entities/concepts and relationships between them as possible.
+        Based on the following text and summary, extract the most important entities/concepts and identify as many meaningful relationships between them as possible.
         Please remember to provide a description for each node as it would appear on a flashcard.
 
         Summary of document:

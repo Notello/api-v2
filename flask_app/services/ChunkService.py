@@ -14,8 +14,8 @@ class ChunkService:
     @staticmethod
     def get_timestamp_chunks(
         transcript: List[Dict[str, str]],
-        max_tokens=500,
-        overlap=100,
+        max_tokens=5000,
+        overlap=500,
     ):
         chunks = []
         current_chunk = {"text": "", "start": None, "tokens": 0}
@@ -62,17 +62,20 @@ class ChunkService:
     @staticmethod
     def get_text_chunks(
         text: str,
-        max_tokens=500,
-        overlap=100,
+        max_tokens=5000,
+        overlap=500,
     ) -> List[Document]:
         chunks = []
         current_chunk = {"text": "", "start": 0, "tokens": 0}
         words = text.split()
+
+        max_tokens_calc = max(min(len(words) // 4, 5000), 500)
+        overlap_calc = max(min(len(words) // 10, 500), 100)
         
         for i, word in enumerate(words):
             tokens = ChunkService.count_tokens(word)
             
-            if current_chunk["tokens"] + tokens > max_tokens:
+            if current_chunk["tokens"] + tokens > max_tokens_calc:
                 # Finish current chunk
                 chunks.append(Document(
                     page_content=current_chunk["text"].strip(),
@@ -82,7 +85,7 @@ class ChunkService:
                 ))
                 
                 # Start new chunk with overlap
-                overlap_words = words[max(0, i - overlap):i]
+                overlap_words = words[max(0, i - overlap_calc):i]
                 overlap_text = " ".join(overlap_words)
                 current_chunk = {
                     "text": overlap_text + " " + word,

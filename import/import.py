@@ -29,7 +29,6 @@ def import_courses(file_path='courses.csv', limit=5):
                 "courseNumber": row[0],
                 "name": row[1],
                 "description": row[2],
-                "collegeId": COLLEGE_ID
             }
             
             print(f"Importing course: {course_data}")

@@ -363,30 +363,6 @@ class SupabaseService:
         return out[0]['form']
     
     @staticmethod
-    def isCollegePrivate(courseId: str):
-        if not HelperService.validate_all_uuid4(courseId):
-            logging.error(f'Invalid courseId: {courseId}')
-            return None
-
-        out = supabase.table(COURSE_TABLE_NAME).select('*').eq(ID, courseId).execute().data
-
-        if not out:
-            return None
-
-        collegeId = out[0]['collegeId']
-
-        if not HelperService.validate_all_uuid4(collegeId):
-            logging.error(f'Invalid collegeId: {collegeId}')
-            return None
-
-        out = supabase.table(COLLEGE_TABLE_NAME).select('*').eq(ID, collegeId).execute().data
-
-        if not out:
-            return None
-
-        return out[0]['isPrivate']
-    
-    @staticmethod
     def create_chat_room(user_id):
         if not HelperService.validate_all_uuid4(user_id):
             logging.error(f'Invalid userId: {user_id}')

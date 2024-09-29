@@ -106,7 +106,11 @@ class ChatService():
         try:
             history = SupabaseService.get_chat_text(chat_room_id=roomId)
 
+            logging.info(f"history: {history}")
+
             context_type = "note" if param == NOTEID else "course"
+
+            logging.info(f"context_type: {context_type}")
             
             question_type = ChatService.get_question_classification(message=message, history=history, context=context_type)
 
@@ -257,7 +261,7 @@ class ChatService():
             logging.info("in meta")
             summaries_str = "" if not context else ''.join(f"Document Summary {i}:\n {summary}\n\n" for i, summary in enumerate(context['summaries']))
             logging.info("past summaries")
-            chunks_str = "" if not context else ''.join(f"Supporting Text {i}:\n Text: {text['text']}\n Chunk UUID: {text['noteId']}\n\n" for i, text in enumerate(context['chunks']))
+            chunks_str = "" if not context else ''.join(f"Supporting Text {i}:\n Chunk Text: {text['text']}\n Chunk UUID: {text['noteId']}\n\n" for i, text in enumerate(context['chunks']))
             logging.info("past chunks")
             concepts_str = "" if not context else ''.join(f"Topic: {topic['name']}, Important Score: {topic['rel_count']}\n" for topic in context['concepts'])
             logging.info("past concepts")
@@ -315,8 +319,12 @@ class ChatService():
             You must also start each math expression on a new line, seperated by a \\n character.
             It is EXTREMELY important that you format ALL KaTeX expressions in the message, including inline math, equations, and special symbols in this way.
             """
+        
+        sources_prompt = """
 
-        PROMPT = question_type_prompt + context_prompt + formatting_prompt
+        """
+
+        PROMPT = question_type_prompt + context_prompt + formatting_prompt + sources_prompt
 
         logging.info(f"prompt: {PROMPT}")
 
@@ -329,10 +337,15 @@ class ChatService():
 
     @staticmethod
     def get_question_classification(message, history, context):
+        logging.info(f"in get_question_classification")
         history_str = ""
         if history:
             history_str = ChatService.escape_template_variables('\n'.join(history))
         message = ChatService.escape_template_variables(message)
+
+        logging.info(f"history_str: {history_str}")
+        logging.info(f"message: {message}")
+        logging.info(f"context: {context}")
 
         try:
             llm = get_llm(GPT_4O_MODEL).with_structured_output(QuestionModel)
