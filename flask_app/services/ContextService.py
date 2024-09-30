@@ -121,6 +121,9 @@ class ContextService():
                     id=id
                     )
                 
+                if not similar_topic:
+                    return None
+                
                 logging.info(f"similar topic: {similar_topic}")
 
                 output = GraphQueryService.get_topic_graph_for_topic_uuid(

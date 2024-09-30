@@ -1,7 +1,7 @@
 import json
 import logging
 import random
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from langchain_core.pydantic_v1 import BaseModel, Field
 from langchain_core.prompts import ChatPromptTemplate
@@ -11,10 +11,10 @@ from flask_app.constants import GPT_4O_MINI, GPT_4O_MODEL
 from flask_app.src.graphDB_dataAccess import graphDBdataAccess
 
 class TopConcept(BaseModel):
-    conceptId: str = Field(
+    conceptId: Optional[str] = Field(
         description="The concept ID of the top topic."
     )
-    conceptUuid: str = Field(
+    conceptUuid: Optional[str] = Field(
         description="The concept UUID of the top topic."
     )
 
@@ -664,6 +664,10 @@ class GraphQueryService():
 
         logging.info(f"Result: {result}")
 
+        if len(result) == 0:
+            logging.error(f"Failed to get most similar topics for {topic_name}")
+            return None
+
         topics_string = ", ".join([f"ConceptId: {topic['result']['id']}, ConceptUUID: {topic['result']['uuid']}" for topic in result])
 
         logging.info(f"Topics: {topics_string}")
@@ -673,7 +677,10 @@ class GraphQueryService():
         prompt = ChatPromptTemplate.from_messages([
             ("system", 
                     """
-                    You are an expert in identifying the most similar topics to a given input, with a focus on what a typical user would consider similar. Your primary task is to find the closest match to the originally identified topic from the user's query, accounting for:
+                    You are an expert in identifying the most similar topics to a given input from a given list, with a focus on what a typical user would consider similar. 
+                    Your primary task is to find the closest match to the originally identified topic from the user's query.
+                    YOU WILL NEVER MAKE UP TOPICS, ALWAYS PICK FROM THE LIST PROVIDED.
+                    You will account for:
 
                     1. Misspellings
                     2. Slight variations in wording
@@ -681,14 +688,16 @@ class GraphQueryService():
                     4. Common abbreviations or alternative names
 
                     Guidelines:
-                    1. Prioritize finding a match that's as close as possible to the originally identified topic.
-                    2. Consider how a typical user might phrase or misspell the topic.
-                    3. Look for semantic similarity, not just exact matches.
-                    4. If there's no exact match, choose the closest reasonable alternative.
-                    5. Consider common variations or related terms that a user might use interchangeably.
+                    1. Never make up topics, ALWAYS PICK FROM THE LIST PROVIDED.
+                    2. Prioritize finding a match that's as close as possible to the originally identified topic.
+                    3. Consider how a typical user might phrase or misspell the topic.
+                    4. Look for semantic similarity, not just exact matches.
+                    5. If there's no exact match, choose the closest reasonable alternative.
+                    6. Consider common variations or related terms that a user might use interchangeably.
 
                     Your goal is to identify the node that the user most likely intended to reference, even if their input wasn't perfectly accurate.
                     You will return the id, and the uuid of the most similar topic.
+                    Only return the id and uuid of a topic provided, never make up topics.
                     """
             ),
             ("human", 
@@ -749,3 +758,17 @@ class GraphQueryService():
             })
 
         return questions
+    
+    @staticmethod
+    def has_nodes(param: str, id: str) -> bool:
+        graphAccess = graphDBdataAccess()
+
+        QUERY = f"""
+        MATCH (n)
+        WHERE '{id}' IN n.{param}
+        RETURN COUNT(n) AS num_nodes
+        """
+
+        result = graphAccess.execute_query(QUERY)
+
+        return result[0].get('num_nodes') > 0

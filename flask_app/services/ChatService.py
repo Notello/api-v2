@@ -10,6 +10,7 @@ from flask_app.services.SupabaseService import SupabaseService
 from flask_app.services.ContextAwareThread import ContextAwareThread
 from flask_app.services.ContextService import ContextService, QuestionModel, QuestionType
 from flask_app.services.RatelimitService import RatelimitService
+from flask_app.services.GraphQueryService import GraphQueryService
 
 from flask_app.constants import CHAT, COURSEID, GPT_4O_MINI, NOTEID, GPT_4O_MODEL, O1_MINI_MODEL
 from flask_app.src.shared.common_fn import get_llm
@@ -99,6 +100,18 @@ class ChatService():
         logging.info(f"noteId: {noteId}")
         logging.info(f"courseId: {courseId}")
 
+        hasNodes = GraphQueryService.has_nodes(param=param, id=id)
+
+        logging.info(f"hasNodes: {hasNodes}")
+
+        if not hasNodes:
+            SupabaseService.add_chat_message(
+                chat_room_id=roomId, 
+                user_id=None, 
+                message=json.dumps({"message": "It looks like this workspace is empty. Please make a note to get started!", "sources": []}))
+            RatelimitService.remove_rate_limit(rateLimitId=ratelimitId)
+            return
+
         messageId = SupabaseService.add_chat_message(
             chat_room_id=roomId, 
             user_id=None, 
@@ -109,6 +122,7 @@ class ChatService():
             logging.info(f"history: {history}")
 
             context_type = "note" if param == NOTEID else "course"
+
 
             logging.info(f"context_type: {context_type}")
             
@@ -133,12 +147,6 @@ class ChatService():
                 param=param,
                 id=id
                 )
-            
-            if not context:
-                SupabaseService.edit_chat_message(message_id=messageId, message=json.dumps({"message": f"It looks like this workspace is empty. Please make a note to get started!", "sources": []}))
-                RatelimitService.remove_rate_limit(rateLimitId=ratelimitId)
-                return
-
             
             logging.info(f"context: {context}")
                         
@@ -223,35 +231,58 @@ class ChatService():
             You are a question answering assistant. You answer questions about the current {context_type} in general, the user assumes you are an expert in the contents of the {context_type}.
 
             **General Guidelines**:
-            1. Whenever possible, you will answer questions fully from the context of the current {context_type}.
-            2. It is acceptable to reasonably extend your answers beyond the given context, however it is VERY important that you inform the user you are doing so.
-            3. You will NEVER provide an answer not directly supported by the text without telling the user EXPLICITLY. You must ALWAYS inform the user you are using your best judgement, and that the statement is not backed up by the context.
-            4. Use your best judgement to infer the user's intent, it is possible they want a concise answer, or that they want you to engage them in a dialog.
+            1. ALWAYS start your response by stating whether the question can be answered using the provided context.
+            2. If the question can be fully answered using the context, provide the answer without additional information.
+            3. If the question can be partially answered using the context, clearly separate what comes from the context and what doesn't.
+            4. If the question cannot be answered using the context at all, state this clearly before providing any answer.
+            5. When answering based on your general knowledge, explicitly state that you're doing so.
+            6. NEVER pretend that information from your general knowledge is from the context.
+            7. Use your best judgement to infer the user's intent, providing a concise or detailed answer as appropriate.
+            8. If asked about the source of your information, be honest about whether it came from the context or your general knowledge.
             """,
+
             QuestionType.FACT_BASED: f"""
             You are a fact based question answering assistant. You answer questions about the current {context_type}, the user assumes you are an expert in the contents of the {context_type}.
 
             **General Guidelines**:
-            1. Whenever possible, you will answer questions fully from the context of the current {context_type}.
-            2. You will NEVER provide an answer not directly supported by the text without telling the user EXPLICITLY. You must ALWAYS inform the user you are using your best judgement, and that the statement is not backed up by the context.
-            3. Use your best judgement to infer the user's intent, it is possible they want a concise answer, or that they want you to engage them in a dialog.
+            1. ALWAYS start your response by stating whether the facts requested can be found in the provided context.
+            2. If the facts are in the context, provide them without additional information.
+            3. If only some facts are in the context, clearly separate what comes from the context and what doesn't.
+            4. If no relevant facts are in the context, state this clearly before providing any answer.
+            5. When providing facts from your general knowledge, explicitly state that you're doing so.
+            6. NEVER present facts from your general knowledge as if they were from the context.
+            7. Use your best judgement to provide a concise or detailed answer as appropriate.
+            8. If asked about the source of your information, be transparent about whether it came from the context or your general knowledge.
             """,
+
             QuestionType.PROBLEM_SOLVING: f"""
             You are a problem assistant. You solve logical or reasoning based problems in a clear and explainable way.
 
             **General Guidelines**:
-            1. You will always make sure your explanations make sense, and are grounded in the context provided.
-            2. You will ensure that all steps in your process are clear and understandable, making sure not to gloss over details.
-            3. If you do need to make any assumptions, you will inform the user up front, and make them clear at the start of your response.
+            1. ALWAYS start by stating whether the problem can be solved using information from the provided context.
+            2. If the context provides all necessary information, solve the problem using only that information.
+            3. If the context provides partial information, clearly separate what's based on the context and what isn't.
+            4. If the context doesn't help with the problem, state this clearly before attempting to solve it.
+            5. When using general problem-solving knowledge, explicitly state that you're doing so.
+            6. NEVER pretend that your general problem-solving approach is based on the context if it isn't.
+            7. Ensure all steps in your process are clear and understandable.
+            8. If you need to make assumptions, state them clearly at the start of your response.
+            9. If asked about your problem-solving approach, be honest about whether it came from the context or your general knowledge.
             """,
+
             QuestionType.EXPLORE: f"""
             You are a question answering assistant. You answer questions about the current {context_type} with the goal of exploring, the user assumes you are an expert in the contents of the {context_type}.
 
             **General Guidelines**:
-            1. Whenever possible, you will answer questions fully from the context of the current {context_type}.
-            2. It is acceptable to reasonably extend your answers beyond the given context, however it is VERY important that you inform the user you are doing so.
-            3. Use your best judgement to infer the user's intent, it is possible they want a concise answer, or that they want you to engage them in a dialog.
-            4. The user is asking an exploratory question or one that is vague in direction, if appropriate, suggest followup ideas the could explore or questions they could ask based on the context.
+            1. ALWAYS start by stating whether the exploration can be based on the provided context.
+            2. If the context fully supports the exploration, base your response entirely on it.
+            3. If the context partially supports the exploration, clearly separate context-based ideas from additional ones.
+            4. If the context doesn't support the exploration, state this clearly before providing any ideas.
+            5. When suggesting ideas beyond the context, explicitly state that you're doing so.
+            6. NEVER present exploration ideas from your general knowledge as if they were from the context.
+            7. Use your best judgement to provide a concise or detailed exploration as appropriate.
+            8. Suggest follow-up ideas or questions based on the context when appropriate.
+            9. If asked about the source of your exploration ideas, be transparent about whether they came from the context or your general knowledge.
             """
         }
 
@@ -321,7 +352,9 @@ class ChatService():
             """
         
         sources_prompt = """
-
+            You MUST provide a list of sources that you used to generate your reply. 
+            The sources MUST be in the form of a list of Chunk UUIDs, each separated by a comma.
+            NEVER MAKE UP SOURCES, ALWAYS PICK FROM THE UUIDS PROVIDED.
         """
 
         PROMPT = question_type_prompt + context_prompt + formatting_prompt + sources_prompt

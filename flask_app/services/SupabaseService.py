@@ -126,9 +126,11 @@ class SupabaseService:
         if not HelperService.validate_all_uuid4(courseId, userId):
             logging.error(f'Invalid noteId: {noteId}, courseId: {courseId}, userId: {userId}')
             return None
+        
+        logging.info(f"Creating quiz for noteId: {noteId}, courseId: {courseId}, userId: {userId}, difficulty: {difficulty}, numQuestions: {numQuestions}")
 
         quiz = supabase.table(QUIZ_TABLE_NAME).insert({
-            NOTEID: noteId,
+            NOTEID: None if not noteId else str(noteId),
             COURSEID: courseId,
             USERID: userId,
             'num_questions': numQuestions,
