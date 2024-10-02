@@ -1,5 +1,6 @@
 /venv
 /env.py
+/tests
 .env
 __pycache__
 .mypy_cache

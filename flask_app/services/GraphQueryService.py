@@ -563,6 +563,9 @@ class GraphQueryService():
             'concept': result[0].get('conceptId') if len(result) > 0 else None
         }
 
+    """
+    FILTER BY COURSE RETARD
+    """
     @staticmethod
     def get_topic_summary(uuid: str) -> str | None:
         graphAccess = graphDBdataAccess()

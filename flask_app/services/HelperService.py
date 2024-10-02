@@ -7,6 +7,7 @@ from neo4j.time import DateTime
 from pytube import YouTube
 from langchain.prompts import ChatPromptTemplate
 from langchain.docstore.document import Document
+import tiktoken
 
 from flask_app.constants import GPT_4O_MINI, ProxyRotator
 from flask_app.src.shared.common_fn import get_llm
@@ -143,34 +144,56 @@ class HelperService:
     @staticmethod
     def get_document_summary(chunks: List[Document]):
         llm = get_llm(GPT_4O_MINI)
-        chunk_size = 5000
-        summary = ""
-
-        for i in range(0, len(chunks), chunk_size):
-            chunk_text = "\n".join([chunk.page_content for chunk in chunks[i:i+chunk_size]])
+        max_tokens = 100000
+        
+        def count_tokens(text: str) -> int:
+            encoding = tiktoken.encoding_for_model("gpt-4")
+            return len(encoding.encode(text))
+        
+        def split_chunks(chunks: List[Document]) -> List[List[Document]]:
+            total_tokens = sum(count_tokens(chunk.page_content) for chunk in chunks)
+            if total_tokens <= max_tokens:
+                return [chunks]
+            
+            mid = len(chunks) // 2
+            left_chunks = split_chunks(chunks[:mid])
+            right_chunks = split_chunks(chunks[mid:])
+            return left_chunks + right_chunks
+        
+        def summarize_chunk(chunk_group: List[Document]) -> str:
+            chunk_text = "\n".join([chunk.page_content for chunk in chunk_group])
             cleaned_text = HelperService.escape_template_variables(chunk_text)
-
+            
             prompt = ChatPromptTemplate.from_messages([
                 ("system", 
                  """
                  You are a comprehensive summarizer. Your task is to provide a concise yet informative summary of the given text. 
-                 If a previous summary is provided, incorporate new information from the current chunk into it.
                  Focus on capturing the main ideas, key points, and overall context of the entire document.
                  Do not add any preamble to the summary or mention that you are providing a summary.
-                 Simply provide the updated summary of the entire document based on all information seen so far.
-                 Keep the summary under 1 paragraph.
+                 Simply provide the summary of the entire document.
+                 Keep the summary under 2 paragraphs.
                  """
                  ),
-                ("user", f"Previous summary: {summary}\n\nNew text to incorporate: {cleaned_text}\n\nPlease provide an updated summary of the entire document:"),
+                ("user", f"Text to summarize: {cleaned_text}\n\nPlease provide a summary of the text:"),
             ])
-
+            
             chain = prompt | llm
             output = chain.invoke({})
-            summary = output.content.strip()
-
-            logging.info(f"Updated summary after chunk {i//chunk_size + 1}: {summary}")
-
-        return summary
+            return output.content.strip()
+        
+        chunk_groups = split_chunks(chunks)
+        summaries = []
+        
+        for i, chunk_group in enumerate(chunk_groups):
+            summary = summarize_chunk(chunk_group)
+            summaries.append(summary)
+            logging.info(f"Completed summary for chunk group {i+1}/{len(chunk_groups)}")
+        
+        if len(summaries) == 1:
+            return summaries[0]
+        
+        combined_summary = summarize_chunk([Document(page_content=s) for s in summaries])
+        return combined_summary
 
     
     @staticmethod
