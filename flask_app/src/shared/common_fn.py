@@ -140,7 +140,8 @@ def clean_nodes(doc: KnowledgeGraph, courseId: str, noteId: str, userId: str):
     new_rel['type'] = rel.type
     new_rel['source_uuid'] = [node_uuid_map.get(clean_node_id(rel.source))]
     new_rel['target_uuid'] = [node_uuid_map.get(clean_node_id(rel.target))]
-    output_kg['relationships'].append(new_rel)
+    if new_rel['source_uuid'] and new_rel['source_uuid'] != [None] and new_rel['target_uuid'] and new_rel['target_uuid'] != [None]:
+      output_kg['relationships'].append(new_rel)
 
   return output_kg
 

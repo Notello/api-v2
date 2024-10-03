@@ -79,27 +79,15 @@ class GraphCreationService:
         chunks: List[Document],
     ):
         rateLimitId = RatelimitService.add_rate_limit(userId, NOTE, 1)
-        graphAccess: graphDBdataAccess = graphDBdataAccess()
 
         try:
             summary = HelperService.get_document_summary(chunks)
 
-            obj_source_node = sourceNode(
-                file_source=import_type,
-                model=GPT_4O_MINI,
-                courseId=courseId,
-                userId=userId,
-                created_at=datetime.now(),
-                noteId=noteId,
-                summary=summary
-            )
-            
-            graphAccess.create_source_node(obj_source_node)
+            SupabaseService.update_note(noteId=noteId, key='summary', value=summary)
 
             chunks = HelperService.clean_chunks(chunks)
 
             processing_source(
-                graphAccess=graphAccess,
                 fileName=fileName,
                 chunks=chunks,
                 userId=userId,
@@ -119,11 +107,7 @@ class GraphCreationService:
             SupabaseService.update_note(noteId=noteId, key='updatedAt', value=datetime.now())
 
         except Exception as e:
-            graphAccess: graphDBdataAccess = graphDBdataAccess()
             logging.exception(f'Exception in create_source_node_graph: {e}')
-            graphAccess.update_source_node(sourceNode(noteId = noteId, mergeStatus = "error"))
-            graphAccess.update_source_node(sourceNode(noteId = noteId, comStatus = "error"))
-            graphAccess.update_source_node(sourceNode(noteId = noteId, errorMessage = str(e)))
             SupabaseService.update_note(noteId=noteId, key='graphStatus', value='error')
             RatelimitService.remove_rate_limit(rateLimitId)
 
