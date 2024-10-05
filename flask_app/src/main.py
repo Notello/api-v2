@@ -1,8 +1,6 @@
-from concurrent.futures import ThreadPoolExecutor
-import concurrent.futures
+import asyncio
 import logging
 from datetime import datetime
-import logging
 from uuid import uuid4
 
 from flask_app.src.make_relationships import create_relation_between_chunks, merge_relationship_between_chunk_and_entities, update_chunk_embedding
@@ -13,7 +11,7 @@ from flask_app.services.NodeUpdateService import NodeUpdateService
 from flask_app.services.SupaGraphService import SupaGraphService
 from flask_app.constants import NOTEID
 
-def processing_source(
+async def processing_source(
       fileName: str, 
       chunks, 
       userId,
@@ -24,51 +22,52 @@ def processing_source(
         
     logging.info("Break down file into chunks")
 
-    SupabaseService.update_note(noteId, 'graphStatus', '1')
+    await asyncio.to_thread(SupabaseService.update_note, noteId, 'graphStatus', '1')
     
     logging.info('Update the status as Processing')
 
-    futures = []
+    tasks = []
     nodes_data = []
 
     logging.info(f"Total chunks: {len(chunks)}")
 
     try:
-        with ThreadPoolExecutor(max_workers=50) as executor:
-            for i, chunk in enumerate(chunks):
-                futures.append(
-                    executor.submit(
-                        process_chunks,
-                        chunk=chunk,
-                        noteId=noteId,
-                        courseId=courseId,
-                        userId=userId,
-                        startI=i,
-                        document_name=fileName,
-                        summary=summary
-                    ))
-            for i, future in enumerate(concurrent.futures.as_completed(futures)):
-                logging.info(f"Future {i} is done")
-                result = future.result()
-                nodes_data.extend(result if result is not None else [])
-                SupabaseService.update_note(noteId, 'graphStatus', str(uuid4()))
+        for i, chunk in enumerate(chunks):
+            task = asyncio.create_task(
+                process_chunks(
+                    chunk=chunk,
+                    noteId=noteId,
+                    courseId=courseId,
+                    userId=userId,
+                    startI=i,
+                    document_name=fileName,
+                    summary=summary
+                )
+            )
+            tasks.append(task)
+
+        for i, completed_task in enumerate(asyncio.as_completed(tasks)):
+            logging.info(f"Task {i} is done")
+            result = await completed_task
+            nodes_data.extend(result if result is not None else [])
+            await asyncio.to_thread(SupabaseService.update_note, noteId, 'graphStatus', str(uuid4()))
     except Exception as e:
         logging.exception(f"Error in processing chunks: {e}")
         raise e
     
-    SupaGraphService.merge_similar_nodes(courseId)
+    await asyncio.to_thread(SupaGraphService.merge_similar_nodes, courseId)
     logging.info(f"Setting mergeStatus to complete for course {courseId}")
 
-    SupaGraphService.update_embeddings(courseId)
-    SupabaseService.update_note(noteId=noteId, key='updatedAt', value=datetime.now())
+    await asyncio.to_thread(SupaGraphService.update_embeddings, courseId)
+    await asyncio.to_thread(SupabaseService.update_note, noteId=noteId, key='updatedAt', value=datetime.now())
     logging.info(f"Setting comStatus to complete for course {courseId}")
 
-    SupabaseService.update_note(noteId=noteId, key='graphStatus', value='complete')
+    await asyncio.to_thread(SupabaseService.update_note, noteId=noteId, key='graphStatus', value='complete')
     
     logging.info('Updated the nodeCount and relCount properties in Document node')
     logging.info(f'File: {fileName} extraction has been completed')
 
-def process_chunks(
+async def process_chunks(
     chunk, 
     noteId,
     courseId,
@@ -78,35 +77,43 @@ def process_chunks(
     summary
 ):
     try:
-      logging.info(f"Starting process_chunks for chunk {startI}")
+        logging.info(f"Starting process_chunks for chunk {startI}")
 
-      chunk_id = SupaGraphService.insert_chunk(
-        noteId=noteId,
-        courseId=courseId,
-        chunk=chunk,
-      )
+        chunk_id = await asyncio.to_thread(
+            SupaGraphService.insert_chunk,
+            noteId=noteId,
+            courseId=courseId,
+            chunk=chunk,
+            document_name=document_name
+        )
 
-      logging.info("Get graph document list from models")
+        logging.info("Get graph document list from models")
 
+        graph_document = await asyncio.to_thread(
+            get_graph_from_OpenAI,
+            chunk=chunk,
+            summary=summary,
+        )
 
-      graph_document = get_graph_from_OpenAI(
-        chunk=chunk,
-        summary=summary,
-      )
+        graph_doc = clean_nodes(doc=graph_document, courseId=courseId, noteId=noteId, userId=userId)
 
-      graph_doc = clean_nodes(doc=graph_document, courseId=courseId, noteId=noteId, userId=userId)
+        nodes_data = await asyncio.to_thread(
+            SupaGraphService.insert_topics,
+            graph_document=graph_doc,
+            noteId=noteId,
+            courseId=courseId
+        )
 
-      nodes_data = SupaGraphService.insert_topics(
-        graph_document=graph_doc,
-        noteId=noteId
-      )
+        await asyncio.to_thread(
+            SupaGraphService.connect_topics,
+            nodes=nodes_data,
+            chunk_id=chunk_id,
+            noteId=noteId,
+        )
 
-      SupaGraphService.connect_topics(
-        nodes=nodes_data,
-        chunk_id=chunk_id,
-        noteId=noteId,
-      )
-
-      return nodes_data
+        return nodes_data
     except Exception as e:
-      logging.exception(f"Error in process_chunks: {e}")
+        logging.exception(f"Error in process_chunks: {e}")
+
+def processing_source_sync(*args, **kwargs):
+    return asyncio.run(processing_source(*args, **kwargs))

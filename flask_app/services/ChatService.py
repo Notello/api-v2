@@ -100,11 +100,9 @@ class ChatService():
         logging.info(f"noteId: {noteId}")
         logging.info(f"courseId: {courseId}")
 
-        hasNodes = GraphQueryService.has_nodes(param=param, id=id)
+        hasNotes = SupabaseService.has_notes(param=param, id=id)
 
-        logging.info(f"hasNodes: {hasNodes}")
-
-        if not hasNodes:
+        if not hasNotes:
             SupabaseService.add_chat_message(
                 chat_room_id=roomId, 
                 user_id=None, 

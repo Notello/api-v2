@@ -9,6 +9,7 @@ from langchain_core.pydantic_v1 import BaseModel, Field
 from flask_app.src.shared.common_fn import get_llm
 from langchain_core.prompts import ChatPromptTemplate
 from flask_app.services.Neo4jConnection import Neo4jConnection
+from flask_app.services.SupaGraphService import SupaGraphService
 
 class QuestionType(str, Enum):
     META_GENERAL = "meta_general"
@@ -27,41 +28,38 @@ class QuestionModel(BaseModel):
 class ContextService():
     @staticmethod
     def get_context_nodes(question_type, query_str, history, param, id):
-        logging.info(f"question_type   si: {question_type}")
+        logging.info(f"question_type: {question_type}")
         if question_type == QuestionType.META_GENERAL:
-            return ContextService.get_meta_context(
-                query_str=query_str, 
-                history=history,
+            return SupaGraphService.get_meta_context(
                 param=param,
                 id=id,
-                question_type=question_type
             )
         elif question_type == QuestionType.FACT_BASED:
-            return ContextService.get_context(
+            return SupaGraphService.get_context(
+                param=param,
+                id=id,
                 query_str=query_str, 
                 entities=EntityExtractor.get_similies(query_str=query_str, history=history),
                 num_chunks=15,
                 num_related_concepts=10,
-                param=param,
-                id=id
             )
         elif question_type == QuestionType.PROBLEM_SOLVING:
-            return ContextService.get_context(
+            return SupaGraphService.get_context(
+                param=param,
+                id=id,
                 query_str=query_str, 
                 entities=EntityExtractor.get_similies(query_str=query_str, history=history),
                 num_chunks=10,
                 num_related_concepts=10,
-                param=param,
-                id=id
             )
         elif question_type == QuestionType.EXPLORE:
-            return ContextService.get_context(
+            return SupaGraphService.get_context(
+                param=param,
+                id=id,
                 query_str=query_str, 
                 entities=EntityExtractor.get_similies(query_str=query_str, history=history),
                 num_chunks=15,
                 num_related_concepts=50,
-                param=param,
-                id=id
             )
         else:
             return None
