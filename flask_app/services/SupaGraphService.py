@@ -315,3 +315,22 @@ class SupaGraphService():
             'related_chunks': chunks,
             'related_concepts': relatedTopics
         }
+    
+    @staticmethod
+    def get_graph_for_param(param: str, id: str):
+        if not HelperService.validate_all_uuid4(id):
+            logging.error(f"Invalid {param} id: {id}")
+            return None
+        
+        topics = SupaGraphService.get_topics_for_param(param=param, id=id)
+        
+        relationships = supabase.table(TOPIC_RELATIONSHIP_TABLE_NAME).select("*").eq(param, str(id)).execute().data
+        
+        return {
+            'topics': topics,
+            'relationships': relationships
+        }
+    
+    @staticmethod
+    def update_topics(topics):
+        supabase.table(TOPIC_TABLE_NAME).upsert(topics).execute()
