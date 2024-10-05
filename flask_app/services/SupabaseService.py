@@ -18,6 +18,7 @@ class SupabaseService:
         userId: str, 
         form: str, 
         status: str,
+        parentId: str,
         content: str = '',
         sourceUrl: str = '',
         title: str = '',
@@ -42,6 +43,7 @@ class SupabaseService:
                     'rawContent': content,
                     'sourceUrl': sourceUrl,
                     'title': title,
+                    'parentId': parentId,
                 }).execute().data
             else:
                 out = supabase.table(NOTE_TABLE_NAME).insert({
@@ -52,6 +54,7 @@ class SupabaseService:
                     'rawContent': content,
                     'sourceUrl': sourceUrl,
                     'title': title,
+                    'parentId': parentId,
                 }).execute().data
 
             logging.info(f'Note added successfully for courseId: {courseId}, userId: {userId}, form: {form}, data: {out}')
