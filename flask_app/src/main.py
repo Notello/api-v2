@@ -21,7 +21,6 @@ def processing_source(
       noteId,
       summary
       ):
-    start_time = datetime.now()
         
     logging.info("Break down file into chunks")
 
@@ -56,27 +55,15 @@ def processing_source(
     except Exception as e:
         logging.exception(f"Error in processing chunks: {e}")
         raise e
-
-    end_time = datetime.now()
-    processed_time = end_time - start_time
     
-    # NodeUpdateService.update_communities_for_param(id_type=NOTEID, target_id=noteId, note_id=noteId)
+    SupaGraphService.merge_similar_nodes(courseId)
+    logging.info(f"Setting mergeStatus to complete for course {courseId}")
+
+    SupaGraphService.update_embeddings(courseId)
+    SupabaseService.update_note(noteId=noteId, key='updatedAt', value=datetime.now())
+    logging.info(f"Setting comStatus to complete for course {courseId}")
 
     SupabaseService.update_note(noteId=noteId, key='graphStatus', value='complete')
-
-    # # Course-level operations now use the updated queuing system
-    # NodeUpdateService.merge_similar_nodes(id_type=COURSEID, target_id=courseId, note_id=noteId)
-    # graphAccess.update_source_node(sourceNode(noteId = noteId, mergeStatus = "complete"))
-    # SupabaseService.update_note(noteId=noteId, key='updatedAt', value=datetime.now())
-    # logging.info(f"Setting mergeStatus to complete for course {courseId}")
-
-    # NodeUpdateService.update_embeddings(id_type=COURSEID, target_id=courseId, note_id=noteId, nodes_data=nodes_data)
-    # graphAccess.update_source_node(sourceNode(noteId = noteId, embedStatus = "complete"))
-
-    # NodeUpdateService.update_communities_for_param(id_type=COURSEID, target_id=courseId, note_id=noteId)
-    # SupabaseService.update_note(noteId=noteId, key='updatedAt', value=datetime.now())
-    # graphAccess.update_source_node(sourceNode(noteId = noteId, comStatus = "complete"))
-    # logging.info(f"Setting comStatus to complete for course {courseId}")
     
     logging.info('Updated the nodeCount and relCount properties in Document node')
     logging.info(f'File: {fileName} extraction has been completed')
@@ -111,11 +98,13 @@ def process_chunks(
 
       nodes_data = SupaGraphService.insert_topics(
         graph_document=graph_doc,
+        noteId=noteId
       )
 
-      SupaGraphService.insert_chunk_topics(
+      SupaGraphService.connect_topics(
         nodes=nodes_data,
-        chunk_id=chunk_id
+        chunk_id=chunk_id,
+        noteId=noteId,
       )
 
       return nodes_data
