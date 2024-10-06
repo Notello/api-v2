@@ -7,7 +7,7 @@ from supabase import Client, create_client
 import numpy as np
 import ast
 
-from flask_app.constants import CHUNK_TABLE_NAME, COURSEID, ID, NOTE_TABLE_NAME, NOTE_TOPIC_TABLE_NAME, NOTEID, TOPIC_TABLE_NAME, TOPIC_RELATIONSHIP_TABLE_NAME, CHUNK_TOPIC_TABLE_NAME
+from flask_app.constants import CHUNK_TABLE_NAME, COURSEID, ID, NOTE_TABLE_NAME, NOTE_TOPIC_TABLE_NAME, NOTEID, TOPIC_SUMMARY_TABLE_NAME, TOPIC_TABLE_NAME, TOPIC_RELATIONSHIP_TABLE_NAME, CHUNK_TOPIC_TABLE_NAME
 from flask_app.src.shared.common_fn import load_embedding_model
 from flask_app.services.HelperService import HelperService
 
@@ -279,7 +279,7 @@ class SupaGraphService():
             logging.error(f"Invalid topicId: {topicId}")
             return None
         
-        relatedTopicsIds = supabase.table(TOPIC_RELATIONSHIP_TABLE_NAME).select("*").or_(f"topicId.eq.{topicId},relatedTopicId.eq.{topicId}").execute().data
+        relatedTopicsIds = supabase.table(TOPIC_RELATIONSHIP_TABLE_NAME).select("*").or_(f"topicId.eq.{topicId},relatedTopicId.eq.{topicId},{param}.eq.{id}").execute().data
 
         relatedTopicsSet = {}
         for rel in relatedTopicsIds:
@@ -289,9 +289,12 @@ class SupaGraphService():
         topics = SupaGraphService.get_topics_for_param(param=param, id=id)
 
         allRelatedTopics = []
+        mainTopic = None
 
         for topic in topics:
-            if topic['id'] in relatedTopicsSet:
+            if topic['id'] == topicId:
+                mainTopic = topic
+            elif topic['id'] in relatedTopicsSet:
                 allRelatedTopics.append({'topic': topic, 'type': relatedTopicsSet[topic['id']]})
 
         relatedTopics = [{
@@ -311,7 +314,10 @@ class SupaGraphService():
         } for chunk in allChunks[:num_chunks]]
 
         return {
-            'uuid': topicId,
+            'start_concept': {
+                'uuid': topicId,
+                'id': mainTopic['name'],
+            },
             'related_chunks': chunks,
             'related_concepts': relatedTopics
         }
@@ -334,3 +340,44 @@ class SupaGraphService():
     @staticmethod
     def update_topics(topics):
         supabase.table(TOPIC_TABLE_NAME).upsert(topics).execute()
+
+    @staticmethod
+    def insert_summary(summary: str, topicId: str, noteId, courseId):
+        supabase.table(TOPIC_SUMMARY_TABLE_NAME).insert({
+            'topicId': str(topicId),
+            'text': summary
+        })
+
+    @staticmethod
+    def get_top_topics(param: str, id: str, limit: int = 10):
+        if not HelperService.validate_all_uuid4(id):
+            logging.error(f"Invalid {param} id: {id}")
+            return []
+
+        relationships = supabase.table(TOPIC_RELATIONSHIP_TABLE_NAME).select("*").eq(param, str(id)).execute().data
+
+        topics = SupaGraphService.get_topics_for_param(param=param, id=id)
+
+        topic_map = {topic['id']: topic.get('mergedId', topic['id']) for topic in topics}
+
+        topic_counts = {}
+        for rel in relationships:
+            source_id = topic_map.get(rel['topicId'], rel['topicId'])
+            target_id = topic_map.get(rel['relatedTopicId'], rel['relatedTopicId'])
+            
+            topic_counts[source_id] = topic_counts.get(source_id, 0) + 1
+            topic_counts[target_id] = topic_counts.get(target_id, 0) + 1
+
+        top_topics = sorted(topic_counts.items(), key=lambda x: x[1], reverse=True)[:limit]
+
+        result = []
+        for topic_id, count in top_topics:
+            topic_info = next((topic for topic in topics if topic['id'] == topic_id or topic.get('mergedId') == topic_id), None)
+            if topic_info:
+                result.append({
+                    'id': topic_id,
+                    'name': topic_info['name'],
+                    'count': count
+                })
+
+        return result

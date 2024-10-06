@@ -246,8 +246,8 @@ class NoteService:
         courseId: str,
         userId: str,
         youtubeUrl: str,
-        origionalNoteId: str,
-        parentId: str
+        parentId: str,
+        origionalNoteId: str = None,
     ): 
         logging.info(f"Creating youtube note: {youtubeUrl}")
         noteId = NoteService.create_note(
@@ -302,8 +302,8 @@ class NoteService:
         userId: str,
         audio_file: FileStorage,
         title: str,
-        originalNoteId: str,
-        parentId: str
+        parentId: str,
+        origionalNoteId: str = None,
     ):
         logging.info(f"Creating audio note: {audio_file.filename}")
         noteId = NoteService.create_note(
@@ -311,7 +311,7 @@ class NoteService:
             userId=userId,
             form=NoteForm.AUDIO,
             title=title,
-            noteId=originalNoteId,
+            noteId=origionalNoteId,
             parentId=parentId
         )
 
@@ -371,8 +371,8 @@ class NoteService:
         userId: str,
         rawText: str,
         noteName: str,
-        origionalNoteId: str,
-        parentId: str
+        parentId: str,
+        origionalNoteId: str = None,
     ):
         noteId = NoteService.create_note(
             courseId=courseId,
@@ -428,8 +428,8 @@ class NoteService:
         userId: str,
         file_type: str,
         file: FileStorage,
-        origionalNoteId: str,
-        parentId: str
+        parentId: str,
+        origionalNoteId: str = None,
     ):
 
         noteId = NoteService.create_note(
@@ -466,16 +466,6 @@ class NoteService:
 
         logging.info(f"Creating youtube note: {youtubeUrl}")
         try:
-            similar = SimilarityService.check_youtube_similarity(
-                courseId=courseId,
-                noteId=noteId,
-                sourceUrl=youtubeUrl
-                )
-
-            if similar:
-                logging.info(f"Youtube video similar to existing note: {youtubeUrl}")
-                return None
-                
             timestamps = TimestampService.get_youtube_timestamps(youtube_url=youtubeUrl)
 
             SupabaseService.update_note(noteId=noteId, key='sourceUrl', value=youtubeUrl)

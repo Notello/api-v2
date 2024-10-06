@@ -15,8 +15,8 @@ from flask_app.services.HelperService import HelperService
 from flask_app.src.shared.common_fn import get_llm
 from flask_app.constants import COURSEID, GPT_35_TURBO_MODEL, GPT_4O_MODEL, GPT_4O_MINI, LLAMA_405_MODEL, LLAMA_70B_MODEL, NOTE_SUMMARY, NOTEID, TOPIC_SUMMARY, USERID
 from flask_app.services.SupabaseService import SupabaseService
-from flask_app.services.GraphCreationService import GraphCreationService
 from flask_app.services.RatelimitService import RatelimitService
+from flask_app.services.SupaGraphService import SupaGraphService
 
 class Summary(BaseModel):
     summary: str = Field(
@@ -170,27 +170,16 @@ class SummaryService():
 
         try:
 
-            if (
-                not HelperService.validate_uuid4(noteId)
-                and (not HelperService.validate_uuid4(courseId) and len(topics) == 0)
-            ): 
-                logging.error(f"Must have noteId or courseId and at least one topic")
-                return None
-
             id = noteId if specifierParam == NOTEID else courseId
-
-            importance_graph = GraphQueryService.get_importance_graph_by_param(param=specifierParam, id=id)
             
             logging.info(f"Importance graph: {importance_graph}")
-
-            topics = GraphQueryService.get_topics_for_param(param=COURSEID, id=courseId)
 
             if importance_graph is None or len(importance_graph) == 0:
                 logging.error(f"No importance graph found for {specifierParam}: {id}")
                 logging.info(f"importance_graph: {importance_graph}")
                 return None
             
-            document_name = None if 'topChunks' not in importance_graph[0] or len(importance_graph[0]['topChunks']) == 0 else importance_graph[0]['topChunks'][0]['document_name']
+            topics = SupaGraphService.get_top_topics(param=specifierParam, id=id, limit=10)
             
             futures = []
 
@@ -198,52 +187,16 @@ class SummaryService():
                 importance_graph = importance_graph[:10]
 
             with ThreadPoolExecutor(max_workers=10) as executor:
-                for graph in importance_graph:
-
-                    if graph is not None and 'conceptId' in graph and 'relatedConcepts' in graph and 'topChunks' in graph:
+                for topic in topics:
                         futures.append(
                             executor.submit(
-                                SummaryService.get_individual_summary,
-                                main_concept=graph['conceptId'],
-                                main_concept_uuid=graph['conceptUuid'],
-                                related_concepts=graph['relatedConcepts'],
-                                chunks=graph['topChunks']
+                                SummaryService.generate_topic_summary,
+                                userId=userId,
+                                courseId=courseId,
+                                topicId=topic['id'],
+                                param=specifierParam,
+                                id=id
                             ))
-                    else:
-                        logging.error(f"Issue with graph: {graph}")
-            
-                for future in concurrent.futures.as_completed(futures):
-                    try:
-                        summary = future.result()
-
-                        chunks_map = summary['chunks_map']
-                        noteIds = set([chunk['noteId'] for chunk in chunks_map.values()])
-
-                        modified_content = SummaryService.inject_topic_links(
-                            summary['content'], 
-                            topics=topics, 
-                            chunks_map=chunks_map,
-                            courseId=courseId
-                            )
-
-                        summary = {
-                            'content': modified_content,
-                            'concept': summary['concept'],
-                            USERID: userId,
-                            COURSEID: courseId,
-                            NOTEID: list(noteIds),
-                            'topicId': summary['concept_uuid'],
-                            'document_name': document_name,
-                            'importance': summary['importance']
-                        }
-
-                        GraphCreationService.insert_summaries([summary])
-
-                        SupabaseService.update_note(noteId, 'summaryStatus', str(uuid4()))
-                        logging.info(f"Generated summary")
-                    except Exception as e:
-                        logging.error(f"Error generating summary: {str(e)}")
-                        raise
             
             SupabaseService.update_note(noteId, 'summaryStatus', 'complete')
         except Exception as e:
@@ -253,20 +206,20 @@ class SummaryService():
     def generate_topic_summary(
         userId: str,
         courseId: str,
-        topicId: str
+        topicId: str,
+        param: str,
+        id: str
     ):
         try:
-            rateLimitId = RatelimitService.add_rate_limit(userId, TOPIC_SUMMARY, 1)
-
             logging.info(f"Generating topic summary for topic: {topicId}")
 
-            topic_graph = GraphQueryService.get_topic_graph_for_topic_uuid(topic_uuid=topicId, param=COURSEID, id=courseId)
+            topic_graph = SupaGraphService.get_topic_context(topic_uuid=topicId, param=param, id=id, num_chunks=5, num_related_concepts=20)
 
             if topic_graph is None or len(topic_graph) == 0:
                 logging.error(f"No topic graph found for {topicId}, topic_graph: {topic_graph}")
                 return None
 
-            topics = GraphQueryService.get_topics_for_param(param=COURSEID, id=courseId)
+            topics = SupaGraphService.get_topics_for_param(param=COURSEID, id=courseId)
 
             if topic_graph is None:
                 return None
@@ -307,12 +260,11 @@ class SummaryService():
                 NOTEID: list(noteIds)
             }
 
-            GraphCreationService.insert_summaries([summary_final])
+            SupaGraphService.insert_summary(summary_final['content'], topicId)
 
             SupabaseService.update_summary(summaryId, 'status', 'complete')
         except Exception as e:
             logging.error(f"Error generating topic summary: {str(e)}")
-            RatelimitService.remove_rate_limit(rateLimitId)
             return None
 
     @staticmethod
