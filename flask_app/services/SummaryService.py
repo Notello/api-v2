@@ -171,20 +171,10 @@ class SummaryService():
         try:
 
             id = noteId if specifierParam == NOTEID else courseId
-            
-            logging.info(f"Importance graph: {importance_graph}")
-
-            if importance_graph is None or len(importance_graph) == 0:
-                logging.error(f"No importance graph found for {specifierParam}: {id}")
-                logging.info(f"importance_graph: {importance_graph}")
-                return None
-            
+                        
             topics = SupaGraphService.get_top_topics(param=specifierParam, id=id, limit=10)
             
             futures = []
-
-            if len(importance_graph) > 10:
-                importance_graph = importance_graph[:10]
 
             with ThreadPoolExecutor(max_workers=10) as executor:
                 for topic in topics:
@@ -213,7 +203,7 @@ class SummaryService():
         try:
             logging.info(f"Generating topic summary for topic: {topicId}")
 
-            topic_graph = SupaGraphService.get_topic_context(topic_uuid=topicId, param=param, id=id, num_chunks=5, num_related_concepts=20)
+            topic_graph = SupaGraphService.get_topic_context(topicId=topicId, param=param, id=id, num_chunks=5, num_related_concepts=20)
 
             if topic_graph is None or len(topic_graph) == 0:
                 logging.error(f"No topic graph found for {topicId}, topic_graph: {topic_graph}")
