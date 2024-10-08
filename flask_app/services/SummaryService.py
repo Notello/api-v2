@@ -172,20 +172,24 @@ class SummaryService():
 
             id = noteId if specifierParam == NOTEID else courseId
                         
-            topics = SupaGraphService.get_top_topics(param=specifierParam, id=id, limit=10)
+            top_topics = SupaGraphService.get_top_topics(param=specifierParam, id=id, limit=10, courseId=courseId)
+
+            topics = SupaGraphService.get_topics_for_param(param=COURSEID, id=courseId, courseId=courseId)
             
             futures = []
 
             with ThreadPoolExecutor(max_workers=10) as executor:
-                for topic in topics:
+                for topic in top_topics:
                         futures.append(
                             executor.submit(
                                 SummaryService.generate_topic_summary,
                                 userId=userId,
                                 courseId=courseId,
+                                noteId=noteId,
                                 topicId=topic['id'],
                                 param=specifierParam,
-                                id=id
+                                id=id,
+                                topics=topics
                             ))
             
             SupabaseService.update_note(noteId, 'summaryStatus', 'complete')
@@ -197,41 +201,51 @@ class SummaryService():
         userId: str,
         courseId: str,
         topicId: str,
+        noteId: str,
         param: str,
-        id: str
+        id: str,
+        topics
     ):
         try:
             logging.info(f"Generating topic summary for topic: {topicId}")
 
-            topic_graph = SupaGraphService.get_topic_context(topicId=topicId, param=param, id=id, num_chunks=5, num_related_concepts=20)
+            topic_graph = SupaGraphService.get_topic_context(
+                topicId=topicId, 
+                param=param, 
+                id=id, 
+                num_chunks=5, 
+                num_related_concepts=20, 
+                courseId=courseId,
+                topics=topics
+                )
 
             if topic_graph is None or len(topic_graph) == 0:
                 logging.error(f"No topic graph found for {topicId}, topic_graph: {topic_graph}")
                 return None
+            
+            logging.info("topicGraph")
 
-            topics = SupaGraphService.get_topics_for_param(param=COURSEID, id=courseId)
+            logging.info(f"topics: {len(topics)}")
 
             if topic_graph is None:
                 return None
-                    
-            summaryId = SupabaseService.add_summary(topicId=topicId)[0]['id']
-
-            graph = topic_graph[0]['result']
+            
+            logging.info("topic graph not none")
+            logging.info(f"topic_graph {topic_graph}")
             
             summary = SummaryService.get_individual_summary(
-                main_concept=graph['start_concept']['id'],
-                main_concept_uuid=graph['start_concept']['uuid'],
-                related_concepts=graph['related_concepts'],
-                chunks=graph['related_chunks']
+                main_concept=topic_graph['start_concept']['id'],
+                main_concept_uuid=topic_graph['start_concept']['uuid'],
+                related_concepts=topic_graph['related_concepts'],
+                chunks=topic_graph['related_chunks']
             )
 
             logging.info(f"Generated summary for topic {topicId}")
-
-            if summary is None:
-                return None
             
             chunks_map = summary['chunks_map']
             noteIds = set([chunk['noteId'] for chunk in chunks_map.values()])
+            
+            logging.info(f"chunks map, noteids")
         
             summary_final = SummaryService.inject_topic_links(
                 summary['content'], 
@@ -240,19 +254,27 @@ class SummaryService():
                 courseId=courseId,
                 )
             
+            logging.info("insert_summary_final")
+            
             summary_final = {
-                'summaryId': summaryId,
                 'content': summary_final,
-                'concept': graph['start_concept']['id'],
+                'concept': topic_graph['start_concept']['id'],
                 USERID: userId,
                 COURSEID: courseId,
                 'topicId': topicId,
                 NOTEID: list(noteIds)
             }
 
-            SupaGraphService.insert_summary(summary_final['content'], topicId)
+            logging.info(f"final summary final")
 
-            SupabaseService.update_summary(summaryId, 'status', 'complete')
+            SupaGraphService.insert_summary(
+                summary=summary_final['content'], 
+                topicId=topicId,
+                courseId=courseId,
+                noteId=noteId
+                )
+
+            logging.info("done :3")
         except Exception as e:
             logging.error(f"Error generating topic summary: {str(e)}")
             return None
@@ -267,7 +289,7 @@ class SummaryService():
         logging.info("starting injection for topic")        
         # Sort topics by length of conceptId in descending order
         # This ensures longer matches are replaced first
-        sorted_topics = sorted(topics, key=lambda x: len(x['conceptId']), reverse=True)
+        sorted_topics = sorted(topics, key=lambda x: len(x['id']), reverse=True)
         
         def normalize_text(text: str):
             return re.sub(r'[-_/\s]', '', text.lower())
@@ -289,7 +311,7 @@ class SummaryService():
             word = match.group(0)
             normalized_word = normalize_text(word)
             for topic in sorted_topics:
-                if normalize_text(topic['conceptId']) == normalized_word:
+                if normalize_text(topic['id']) == normalized_word:
                     return f"[{word}](/course/{courseId}/topic/{topic['conceptUuid']})"
             return word
 

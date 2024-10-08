@@ -143,7 +143,8 @@ class ChatService():
                 query_str=message, 
                 history=history,
                 param=param,
-                id=id
+                id=id,
+                courseId=courseId
                 )
             
             logging.info(f"context: {context}")

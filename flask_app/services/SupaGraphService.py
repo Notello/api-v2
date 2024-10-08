@@ -137,7 +137,7 @@ class SupaGraphService():
         asyncio.run(SupaGraphService.update_embeddings_async(courseId, embedding))
 
     @staticmethod
-    def get_meta_context(param: str, id: str):
+    def get_meta_context(param: str, id: str, courseId):
         param_map = {
             NOTEID: "id",
             COURSEID: "courseId",
@@ -145,7 +145,7 @@ class SupaGraphService():
         notes = supabase.table(NOTE_TABLE_NAME).select("*").eq(param_map[param], str(id)).execute().data
         chunks = supabase.table(CHUNK_TABLE_NAME).select("*").eq(param, str(id)).execute().data
         
-        topics = SupaGraphService.get_topics_for_param(param=param, id=id)
+        topics = SupaGraphService.get_topics_for_param(param=param, id=id, courseId=courseId)
         
         summaries = [note['summary'] for note in notes[:10]]
         
@@ -183,6 +183,7 @@ class SupaGraphService():
         entities, 
         num_chunks: int, 
         num_related_concepts: int,
+        courseId: str
         ):
 
         context_nodes = {}
@@ -192,7 +193,8 @@ class SupaGraphService():
             similar_topic = SupaGraphService.get_most_similar_topic(
                 topic_name=entity, 
                 param=param,
-                id=id
+                id=id,
+                courseId=courseId
                 )
             
             if similar_topic:
@@ -201,7 +203,8 @@ class SupaGraphService():
                     num_chunks=num_chunks, 
                     num_related_concepts=num_related_concepts,
                     param=param,
-                    id=id
+                    id=id,
+                    courseId=courseId
                     )
                 
                 if not output:
@@ -213,7 +216,8 @@ class SupaGraphService():
             similar_topic = SupaGraphService.get_most_similar_topic(
                 topic_name=query_str, 
                 param=param,
-                id=id
+                id=id,
+                courseId=courseId
                 )
             
             if not similar_topic:
@@ -224,7 +228,8 @@ class SupaGraphService():
                 num_chunks=num_chunks * 2,
                 num_related_concepts=num_related_concepts,
                 param=param, 
-                id=id
+                id=id,
+                courseId=courseId
                 )
             
             if not output:
@@ -232,20 +237,18 @@ class SupaGraphService():
             
             context_nodes[similar_topic['id']] = output
         
-        print(context_nodes)
-        
         return context_nodes
                 
 
     @staticmethod
-    def get_most_similar_topic(topic_name, param, id):
+    def get_most_similar_topic(topic_name, param, id, courseId):
         embeddings, dimension = load_embedding_model()
 
         topic_embedding = np.array(embeddings.embed_query(text=topic_name))
 
         topic_embedding = topic_embedding.flatten()
 
-        topics = SupaGraphService.get_topics_for_param(param=param, id=id)
+        topics = SupaGraphService.get_topics_for_param(param=param, id=id, courseId=courseId)
 
         all_embeddings = np.array([ast.literal_eval(topic['embedding']) for topic in topics])
 
@@ -258,7 +261,7 @@ class SupaGraphService():
         return topics[most_similar_index]
     
     @staticmethod
-    def get_topics_for_param(param: str, id: str) -> List[str] | None:
+    def get_topics_for_param(param: str, id: str, courseId) -> List[str] | None:
         if not HelperService.validate_all_uuid4(id):
             logging.error(f"Invalid {param} id: {id}")
             return []
@@ -269,12 +272,22 @@ class SupaGraphService():
             topicIds.add(rel['topicId'])
             topicIds.add(rel['relatedTopicId'])
         
-        topics = supabase.table(TOPIC_TABLE_NAME).select("*").in_('id', list(topicIds)).execute().data
+        topics = supabase.table(TOPIC_TABLE_NAME).select("*").eq('courseId', str(courseId)).execute().data
 
-        return topics
+        filteredTopics = topics if param == COURSEID else [topic for topic in topics if topic['id'] in topicIds]
+
+        return filteredTopics
     
     @staticmethod
-    def get_topic_context(topicId: str, num_chunks: int, num_related_concepts: int, param: str, id: str):
+    def get_topic_context(
+        topicId: str, 
+        num_chunks: int, 
+        num_related_concepts: int, 
+        param: str, 
+        id: str, 
+        courseId: str,
+        topics
+        ):
         if not HelperService.validate_all_uuid4(topicId):
             logging.error(f"Invalid topicId: {topicId}")
             return None
@@ -285,8 +298,8 @@ class SupaGraphService():
         for rel in relatedTopicsIds:
             relatedTopicsSet[rel['topicId']] = rel['type']
             relatedTopicsSet[rel['relatedTopicId']] = rel['type']
-
-        topics = SupaGraphService.get_topics_for_param(param=param, id=id)
+        
+        topics = topics if topics is not None else SupaGraphService.get_topics_for_param(param=param, id=id, courseId=courseId)
 
         allRelatedTopics = []
         mainTopic = None
@@ -323,12 +336,12 @@ class SupaGraphService():
         }
     
     @staticmethod
-    def get_graph_for_param(param: str, id: str):
+    def get_graph_for_param(param: str, id: str, courseId: str):
         if not HelperService.validate_all_uuid4(id):
             logging.error(f"Invalid {param} id: {id}")
             return None
         
-        topics = SupaGraphService.get_topics_for_param(param=param, id=id)
+        topics = SupaGraphService.get_topics_for_param(param=param, id=id, courseId=courseId)
         
         relationships = supabase.table(TOPIC_RELATIONSHIP_TABLE_NAME).select("*").eq(param, str(id)).execute().data
         
@@ -342,21 +355,33 @@ class SupaGraphService():
         supabase.table(TOPIC_TABLE_NAME).upsert(topics).execute()
 
     @staticmethod
-    def insert_summary(summary: str, topicId: str, noteId, courseId):
+    def insert_summary(
+        summary: str, 
+        topicId: str,
+        noteId: str,
+        courseId: str
+        ):
         supabase.table(TOPIC_SUMMARY_TABLE_NAME).insert({
             'topicId': str(topicId),
-            'text': summary
-        })
+            'text': summary,
+            'noteId': noteId,
+            'courseId': courseId
+        }).execute()
 
     @staticmethod
-    def get_top_topics(param: str, id: str, limit: int = 10):
+    def get_top_topics(
+        param: str, 
+        id: str, 
+        courseId: str, 
+        limit: int = 10
+        ):
         if not HelperService.validate_all_uuid4(id):
             logging.error(f"Invalid {param} id: {id}")
             return []
 
         relationships = supabase.table(TOPIC_RELATIONSHIP_TABLE_NAME).select("*").eq(param, str(id)).execute().data
 
-        topics = SupaGraphService.get_topics_for_param(param=param, id=id)
+        topics = SupaGraphService.get_topics_for_param(param=param, id=id, courseId=courseId)
 
         topic_map = {topic['id']: topic.get('mergedId', topic['id']) for topic in topics}
 

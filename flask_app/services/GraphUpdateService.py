@@ -5,7 +5,7 @@ from flask_app.services.SupaGraphService import SupaGraphService
 class GraphUpdateService:
     @staticmethod
     def update_graph_positions(courseId):
-        graph = SupaGraphService.get_graph_for_param('courseId', courseId)
+        graph = SupaGraphService.get_graph_for_param(param='courseId', id=courseId, courseId=courseId)
         relationships = graph['relationships']
         topics = graph['topics']
 
