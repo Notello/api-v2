@@ -183,10 +183,12 @@ class SupaGraphService():
         entities, 
         num_chunks: int, 
         num_related_concepts: int,
-        courseId: str
+        courseId: str,
         ):
 
         context_nodes = {}
+
+        topics = SupaGraphService.get_topics_for_param(param=param, id=id, courseId=courseId)
 
         for entity in entities:
             logging.info(f"Entity: {entity}")
@@ -204,7 +206,8 @@ class SupaGraphService():
                     num_related_concepts=num_related_concepts,
                     param=param,
                     id=id,
-                    courseId=courseId
+                    courseId=courseId,
+                    topics=topics
                     )
                 
                 if not output:
@@ -229,7 +232,8 @@ class SupaGraphService():
                 num_related_concepts=num_related_concepts,
                 param=param, 
                 id=id,
-                courseId=courseId
+                courseId=courseId,
+                topics=topics
                 )
             
             if not output:
