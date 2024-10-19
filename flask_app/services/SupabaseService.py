@@ -18,6 +18,7 @@ class SupabaseService:
         userId: str, 
         form: str, 
         status: str,
+        parentId: str,
         content: str = '',
         sourceUrl: str = '',
         title: str = '',
@@ -42,6 +43,7 @@ class SupabaseService:
                     'rawContent': content,
                     'sourceUrl': sourceUrl,
                     'title': title,
+                    'parentId': parentId,
                 }).execute().data
             else:
                 out = supabase.table(NOTE_TABLE_NAME).insert({
@@ -52,6 +54,7 @@ class SupabaseService:
                     'rawContent': content,
                     'sourceUrl': sourceUrl,
                     'title': title,
+                    'parentId': parentId,
                 }).execute().data
 
             logging.info(f'Note added successfully for courseId: {courseId}, userId: {userId}, form: {form}, data: {out}')
@@ -478,3 +481,19 @@ class SupabaseService:
             return False
 
         return True
+    
+    @staticmethod
+    def has_notes(param: str, id: str) -> bool:
+        logging.info(f"has_notes for {param} with id {id}")
+        if not HelperService.validate_all_uuid4(id):
+            logging.error(f'Invalid {param} id: {id}')
+            return False
+        
+        mapped_param = {
+            NOTEID: "id",
+            COURSEID: "courseId",
+        }
+
+        out = supabase.table(NOTE_TABLE_NAME).select('*').eq(mapped_param[param], str(id)).execute().data
+
+        return True if out else False

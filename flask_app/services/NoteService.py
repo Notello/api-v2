@@ -102,6 +102,7 @@ class NoteService:
         userId: str,
         noteId: str,
         form: NoteForm,
+        parentId: str,
         sourceUrl: str = '',
         rawText: str = '',
         title: str = ''
@@ -116,7 +117,8 @@ class NoteService:
                 sourceUrl=sourceUrl,
                 status=NoteService.form_to_status[form],
                 title=title,
-                noteId=noteId
+                noteId=noteId,
+                parentId=parentId
             )
 
             if len(note) == 0:
@@ -137,6 +139,7 @@ class NoteService:
         userId: str,
         form: NoteForm,
         ingestType: IngestType,
+        parentId: str,
         sourceUrl: str = '',
         rawText: str = '',
         title: str = '',
@@ -150,7 +153,8 @@ class NoteService:
                     courseId=courseId,
                     userId=userId,
                     youtubeUrl=sourceUrl,
-                    noteId=noteId
+                    noteId=noteId,
+                    parentId=parentId
                     )
             elif form == NoteForm.AUDIO:
                 return NoteService.edit_audio_note(
@@ -158,7 +162,8 @@ class NoteService:
                     userId=userId,
                     audio_file=file,
                     noteId=noteId,
-                    title=title
+                    title=title,
+                    parentId=parentId
                     )
             elif form == NoteForm.TEXT:
                 return NoteService.edit_text_note(
@@ -166,7 +171,8 @@ class NoteService:
                     userId=userId,
                     rawText=rawText,
                     noteName=title,
-                    noteId=noteId
+                    noteId=noteId,
+                    parentId=parentId
                     )
             elif form == NoteForm.TEXT_FILE:
                 return NoteService.edit_text_file_note(
@@ -174,7 +180,8 @@ class NoteService:
                     userId=userId,
                     file=file,
                     file_type=file_type,
-                    noteId=noteId
+                    noteId=noteId,
+                    parentId=parentId
                     )
         elif ingestType == IngestType.CREATE:
             if form == NoteForm.YOUTUBE:
@@ -182,13 +189,15 @@ class NoteService:
                     courseId=courseId,
                     userId=userId,
                     youtubeUrl=sourceUrl,
+                    parentId=parentId
                     )
             elif form == NoteForm.AUDIO:
                 return NoteService.create_audio_note(
                     courseId=courseId,
                     userId=userId,
                     audio_file=file,
-                    title=title
+                    title=title,
+                    parentId=parentId
                     )
             elif form == NoteForm.TEXT:
                 return NoteService.create_text_note(
@@ -196,6 +205,7 @@ class NoteService:
                     userId=userId,
                     rawText=rawText,
                     noteName=title,
+                    parentId=parentId
                     )
             elif form == NoteForm.TEXT_FILE:
                 return NoteService.create_text_file_note(
@@ -203,6 +213,7 @@ class NoteService:
                     userId=userId,
                     file=file,
                     file_type=file_type,
+                    parentId=parentId
                     )
      
         
@@ -211,7 +222,8 @@ class NoteService:
         courseId: str,
         userId: str,
         youtubeUrl: str,
-        noteId: str
+        noteId: str,
+        parentId: str
     ):
         logging.info(f"Editing youtube note: {youtubeUrl}")
         if not AuthService.can_edit_note(userId, noteId):
@@ -225,7 +237,8 @@ class NoteService:
             courseId=courseId,
             userId=userId,
             youtubeUrl=youtubeUrl,
-            origionalNoteId=noteId
+            origionalNoteId=noteId,
+            parentId=parentId
             )
 
     @staticmethod
@@ -233,7 +246,8 @@ class NoteService:
         courseId: str,
         userId: str,
         youtubeUrl: str,
-        origionalNoteId: str = None
+        parentId: str,
+        origionalNoteId: str = None,
     ): 
         logging.info(f"Creating youtube note: {youtubeUrl}")
         noteId = NoteService.create_note(
@@ -242,7 +256,8 @@ class NoteService:
             form=NoteForm.YOUTUBE,
             sourceUrl=youtubeUrl, 
             title="Youtube Video",
-            noteId=origionalNoteId
+            noteId=origionalNoteId,
+            parentId=parentId
             )
     
         if not HelperService.validate_all_uuid4(noteId):
@@ -261,7 +276,8 @@ class NoteService:
         userId: str,
         audio_file: FileStorage,
         noteId: str,
-        title: str
+        title: str,
+        parentId: str
     ):
         logging.info(f"Editing audio note: {audio_file}")
         if not AuthService.can_edit_note(userId, noteId):
@@ -276,7 +292,8 @@ class NoteService:
             userId=userId,
             audio_file=audio_file,
             origionalNoteId=noteId,
-            title=title
+            title=title,
+            parentId=parentId
             )
     
     @staticmethod
@@ -285,7 +302,8 @@ class NoteService:
         userId: str,
         audio_file: FileStorage,
         title: str,
-        originalNoteId: str = None
+        parentId: str,
+        origionalNoteId: str = None,
     ):
         logging.info(f"Creating audio note: {audio_file.filename}")
         noteId = NoteService.create_note(
@@ -293,7 +311,8 @@ class NoteService:
             userId=userId,
             form=NoteForm.AUDIO,
             title=title,
-            noteId=originalNoteId
+            noteId=origionalNoteId,
+            parentId=parentId
         )
 
         if not HelperService.validate_all_uuid4(noteId):
@@ -326,7 +345,8 @@ class NoteService:
         userId: str,
         rawText: str,
         noteName: str,
-        noteId: str
+        noteId: str,
+        parentId: str
     ):
         logging.info(f"Editing text note: {noteName}")
         if not AuthService.can_edit_note(userId, noteId):
@@ -341,7 +361,8 @@ class NoteService:
             userId=userId,
             rawText=rawText,
             noteName=noteName,
-            origionalNoteId=noteId
+            origionalNoteId=noteId,
+            parentId=parentId
             )
     
     @staticmethod
@@ -350,7 +371,8 @@ class NoteService:
         userId: str,
         rawText: str,
         noteName: str,
-        origionalNoteId: str = None
+        parentId: str,
+        origionalNoteId: str = None,
     ):
         noteId = NoteService.create_note(
             courseId=courseId,
@@ -358,7 +380,8 @@ class NoteService:
             form=NoteForm.TEXT,
             rawText=rawText,
             title=noteName,
-            noteId=origionalNoteId
+            noteId=origionalNoteId,
+            parentId=parentId
         )
 
         if not HelperService.validate_all_uuid4(noteId):
@@ -377,7 +400,8 @@ class NoteService:
         userId: str,
         file: FileStorage,
         file_type: str,
-        noteId: str
+        noteId: str,
+        parentId: str
     ):
         logging.info(f"Editing text file note: {type(file)}")
         if not AuthService.can_edit_note(userId, noteId):
@@ -394,7 +418,8 @@ class NoteService:
             userId=userId,
             file=file,
             file_type=file_type,
-            origionalNoteId=noteId
+            origionalNoteId=noteId,
+            parentId=parentId
             )
     
     @staticmethod
@@ -402,8 +427,9 @@ class NoteService:
         courseId: str,
         userId: str,
         file_type: str,
-        file: FileStorage = None,
-        origionalNoteId: str = None
+        file: FileStorage,
+        parentId: str,
+        origionalNoteId: str = None,
     ):
 
         noteId = NoteService.create_note(
@@ -411,7 +437,8 @@ class NoteService:
             userId=userId,
             form=NoteForm.TEXT_FILE,
             title=file.filename,
-            noteId=origionalNoteId
+            noteId=origionalNoteId,
+            parentId=parentId
         )
 
         if not HelperService.validate_all_uuid4(noteId):
@@ -439,16 +466,6 @@ class NoteService:
 
         logging.info(f"Creating youtube note: {youtubeUrl}")
         try:
-            similar = SimilarityService.check_youtube_similarity(
-                courseId=courseId,
-                noteId=noteId,
-                sourceUrl=youtubeUrl
-                )
-
-            if similar:
-                logging.info(f"Youtube video similar to existing note: {youtubeUrl}")
-                return None
-                
             timestamps = TimestampService.get_youtube_timestamps(youtube_url=youtubeUrl)
 
             SupabaseService.update_note(noteId=noteId, key='sourceUrl', value=youtubeUrl)

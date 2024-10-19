@@ -1,3 +1,4 @@
+import logging
 import re
 from typing import Dict, List
 
@@ -105,13 +106,7 @@ class ChunkService:
                     }
                 ))
                 
-                overlap_words = words[max(0, i - overlap_calc):i]
-                overlap_text = " ".join(overlap_words)
-                current_chunk = {
-                    "text": overlap_text + " " + word,
-                    "start": max(0, current_chunk["start"] + len(current_chunk["text"]) - len(overlap_text)),
-                    "tokens": ChunkService.count_tokens(overlap_text) + tokens
-                }
+                current_chunk = {"text": "", "start": i, "tokens": 0}
             else:
                 current_chunk["text"] += " " + word
                 current_chunk["tokens"] += tokens
@@ -123,5 +118,5 @@ class ChunkService:
                     "start": current_chunk["start"],
                 }
             ))
-        
+
         return chunks

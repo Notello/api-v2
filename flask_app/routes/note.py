@@ -88,6 +88,9 @@ intake_youtube_parser.add_argument(COURSEID, location='form',
 intake_youtube_parser.add_argument(NOTEID, location='form',
                         type=str, required=False,
                         help='Optional note ID to edit')
+intake_youtube_parser.add_argument("parentId", location="form", 
+                        type=str, required=False, 
+                        help="Optional parent note ID")
 
 @api.expect(intake_youtube_parser)
 @api.route('/intake-youtube')
@@ -100,6 +103,7 @@ class YoutubeIntake(Resource):
         courseId = args.get(COURSEID, None)
         noteId = args.get(NOTEID, None)
         ingestType = NoteService.ingest_to_enum(args.get('ingestType', None))
+        parentId = args.get("parentId", None)
         userId = request.user_id
 
         try:
@@ -125,7 +129,8 @@ class YoutubeIntake(Resource):
                 noteId=noteId,
                 ingestType=ingestType,
                 form=NoteForm.YOUTUBE,
-                sourceUrl=youtubeUrl
+                sourceUrl=youtubeUrl,
+                parentId=parentId
                 )
             
             logging.info(f"noteId: {noteId}")
@@ -157,6 +162,9 @@ create_audio_note_parser.add_argument(NOTEID, location='form',
 create_audio_note_parser.add_argument('title', location='form', 
                         type=str, required=True,
                         help='Title of the note')
+create_audio_note_parser.add_argument("parentId", location="form", 
+                        type=str, required=False, 
+                        help="Optional parent note ID")
 
 @api.expect(create_audio_note_parser)
 @api.route('/create-audio-note')
@@ -170,6 +178,7 @@ class AudioIntake(Resource):
         audio_file = args.get('file', None)
         ingestType = NoteService.ingest_to_enum(args.get('ingestType', None))
         title = args.get('title', None)
+        parentId = args.get("parentId", None)
         userId = request.user_id
 
         try:
@@ -190,7 +199,8 @@ class AudioIntake(Resource):
                 form=NoteForm.AUDIO,
                 ingestType=ingestType,
                 file=audio_file,
-                title=title
+                title=title,
+                parentId=parentId
                 )
             
             if not noteId:
@@ -219,6 +229,10 @@ create_text_note_parser.add_argument(COURSEID, location='form',
 create_text_note_parser.add_argument(NOTEID, location='form', 
                         type=str, required=False,
                         help='Optional note ID to edit')
+create_text_note_parser.add_argument("parentId", location="form", 
+                        type=str, required=False, 
+                        help="Optional parent note ID")
+
 
 
 @api.expect(create_text_note_parser)
@@ -233,6 +247,7 @@ class TextIntake(Resource):
         rawText = args.get('rawText', None)
         noteName = args.get('noteName', None)
         ingestType = NoteService.ingest_to_enum(args.get('ingestType', None))
+        parentId = args.get("parentId", None)
         userId = request.user_id
 
         try:
@@ -254,7 +269,8 @@ class TextIntake(Resource):
                 ingestType=ingestType,
                 form=NoteForm.TEXT,
                 rawText=rawText,
-                title=noteName
+                title=noteName,
+                parentId=parentId
             )
 
             if not noteId:
@@ -279,6 +295,9 @@ create_text_file_note_parser.add_argument(COURSEID, location='form',
 create_text_file_note_parser.add_argument(NOTEID, location='form', 
                         type=str, required=False,
                         help='Optional note ID to edit')
+create_text_file_note_parser.add_argument("parentId", location="form", 
+                        type=str, required=False, 
+                        help="Optional parent note ID")
 
         
 @api.expect(create_text_file_note_parser)
@@ -292,6 +311,7 @@ class TextFileIntake(Resource):
         noteId = args.get(NOTEID, None)
         file: FileStorage = args.get('file', None)
         ingestType = NoteService.ingest_to_enum(args.get('ingestType', None))
+        parentId = args.get("parentId", None)
         userId = request.user_id
 
         try:
@@ -314,7 +334,8 @@ class TextFileIntake(Resource):
                 ingestType=ingestType,
                 form=NoteForm.TEXT_FILE,
                 file=file,
-                file_type=file_type
+                file_type=file_type,
+                parentId=parentId
                 )
             
             if not noteId:

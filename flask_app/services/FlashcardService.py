@@ -4,6 +4,7 @@ from flask_app.services.GraphQueryService import GraphQueryService
 from flask_app.services.HelperService import HelperService
 from flask_app.services.SupabaseService import SupabaseService
 from flask_app.services.GraphCreationService import GraphCreationService
+from flask_app.services.RatelimitService import RatelimitService
 
 class FlashcardService():    
     @staticmethod
@@ -19,6 +20,8 @@ class FlashcardService():
         if not HelperService.validate_all_uuid4(userId, id):
             logging.error(f'Invalid userId: {userId}, param: {param}, id: {id}')
             return
+        
+        RatelimitService.add_rate_limit(userId=userId, type='flashcard', value=1)
                 
         flashcardId = SupabaseService.create_flashcards(
             noteId=noteId,
