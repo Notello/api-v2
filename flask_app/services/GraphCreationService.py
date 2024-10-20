@@ -24,7 +24,6 @@ class GraphCreationService:
     @staticmethod
     def create_graph_from_timestamps(
         timestamps: List[Dict[str, str]],
-        import_type: str,
         document_name: str,
         noteId: str,
         courseId: str,
@@ -38,7 +37,6 @@ class GraphCreationService:
                 courseId=courseId,
                 userId=userId,
                 fileName=document_name,
-                import_type=import_type,
                 chunks=chunks
             )
             
@@ -61,7 +59,6 @@ class GraphCreationService:
                 courseId=courseId,
                 userId=userId,
                 fileName=fileName,
-                import_type='text',
                 chunks=chunks
             )
 
@@ -75,7 +72,6 @@ class GraphCreationService:
         courseId: str,
         userId: str,
         fileName: str,
-        import_type: str,
         chunks: List[Document],
     ):
         rateLimitId = RatelimitService.add_rate_limit(userId, NOTE, 1)

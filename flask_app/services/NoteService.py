@@ -20,6 +20,7 @@ from flask_app.services.GraphDeletionService import GraphDeletionService
 from flask_app.services.GraphQueryService import GraphQueryService
 from flask_app.services.RedisService import RedisService
 from flask_app.services.FalService import FalService
+from flask_app.services.ChunkService import ChunkService
 from flask_app.constants import COURSEID, getGraphKey
 from flask_app.extensions import r
 
@@ -33,6 +34,7 @@ class NoteForm(Enum):
     AUDIO = 'audio'
     YOUTUBE = 'youtube'
     TEXT_FILE = 'text-file'
+    IMAGE_FILE = 'image'
 
 class IngestType(Enum):
     EDIT = 'edit'
@@ -473,7 +475,6 @@ class NoteService:
 
             GraphCreationService.create_graph_from_timestamps(
                 timestamps=timestamps,
-                import_type='youtube',
                 document_name=title,
                 noteId=noteId,
                 courseId=courseId,
@@ -517,7 +518,6 @@ class NoteService:
 
             GraphCreationService.create_graph_from_timestamps(
                 timestamps=fal_output,
-                import_type='audio',
                 document_name=original_filename,
                 noteId=noteId,
                 courseId=courseId,
@@ -579,3 +579,35 @@ class NoteService:
             SupabaseService.update_note(noteId=noteId, key='contentStatus', value='error')
             SupabaseService.update_note(noteId=noteId, key='graphStatus', value='error')
             logging.exception(f'Exception Stack trace: {e}')
+
+    @staticmethod
+    def create_note_new(
+        noteId: str,
+        courseId: str,
+        userId: str,
+        content_list,
+        title: str,
+        ):
+
+        chunks = []
+
+        for content in content_list:
+            if content['type'] == 'text':
+                chunks.extend(ChunkService.get_text_chunks(text=content['content']))
+            elif content['type'] == 'image':
+                chunks.extend(ChunkService.get_image_chunks(image_url=content['content']))
+            elif content['type'] == 'audio':
+                chunks.extend(ChunkService.get_audio_chunks(audio_url=content['content']))
+            elif content['type'] == 'youtube':
+                chunks.extend(ChunkService.get_youtube_timestamps(youtube_url=content['content']))
+            else:
+                logging.error(f"Invalid content type: {content['type']}")
+                return
+        
+        GraphCreationService.create_graph(
+            noteId=noteId,
+            courseId=courseId,
+            userId=userId,
+            fileName=title,
+            chunks=chunks
+        )

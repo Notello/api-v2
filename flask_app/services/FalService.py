@@ -16,6 +16,15 @@ class FalService:
         except Exception as e:
             logging.exception(f"Error transcribing audio: {str(e)}")
             return None
+        
+    @staticmethod
+    def transcribe_audio_from_url(audio_url: str):
+        try:
+            output = fal_client.run('fal-ai/wizper', arguments={"audio_url": audio_url})
+            return FalService.get_fal_timestamps(output)
+        except Exception as e:
+            logging.exception(f"Error transcribing audio: {str(e)}")
+            return None
     
     @staticmethod
     def get_fal_timestamps(output):

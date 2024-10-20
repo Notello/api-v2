@@ -1,3 +1,4 @@
+import json
 import logging
 from flask import request
 from flask_restx import Namespace, Resource
@@ -342,6 +343,58 @@ class TextFileIntake(Resource):
                 return {'message': 'Note creation failed'}, 400
 
             logging.info(f"Source Node created successfully for source type: pdf and source: {file.filename}")
+            return {NOTEID: noteId}, 201
+        except Exception as e:
+            SupabaseService.update_note(noteId=noteId, key='graphStatus', value='error')
+            logging.exception(f'Exception Stack trace: {e}')
+
+create_note_parser = api.parser()
+create_note_parser.add_argument(COURSEID, location='form', 
+                        type=str, required=True,
+                        help='Course ID associated with the note')
+create_note_parser.add_argument(NOTEID, location='form', 
+                        type=str, required=False,
+                        help='Optional note ID to edit')
+create_note_parser.add_argument("content", location='form',
+                        type=str, required=True,
+                        help='The content of the note')
+create_note_parser.add_argument("title", location='form',
+                        type=str, required=True,
+                        help='The title of the note')
+
+        
+@api.expect(create_note_parser)
+@api.route('/create')
+class CreateNote(Resource):
+    @api.doc(security="jsonWebToken")
+    @token_required
+    def post(self):
+        args = create_note_parser.parse_args()
+        courseId = args.get(COURSEID, None)
+        noteId = args.get(NOTEID, None)
+        content = args.get('content', None)
+        title = args.get('title', None)
+        userId = request.user_id
+        
+        logging.info(f"content: {content}")
+
+        content_list = []
+
+        try:
+            content_list = json.loads(content)
+        except Exception as e:
+            logging.exception(f'Exception Stack trace: {e}')
+            return {'message': 'Invalid content'}, 400
+        
+        try:
+            NoteService.create_note_new(
+                noteId=noteId,
+                courseId=courseId,
+                userId=userId,
+                content_list=content_list,
+                title=title
+            )
+
             return {NOTEID: noteId}, 201
         except Exception as e:
             SupabaseService.update_note(noteId=noteId, key='graphStatus', value='error')

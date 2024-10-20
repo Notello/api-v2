@@ -161,6 +161,7 @@ class HelperService:
             return left_chunks + right_chunks
         
         def summarize_chunk(chunk_group: List[Document]) -> str:
+            print("SUMARIZING CHUNK")
             chunk_text = "\n".join([chunk.page_content for chunk in chunk_group])
             cleaned_text = HelperService.escape_template_variables(chunk_text)
             
@@ -170,7 +171,8 @@ class HelperService:
                  You are a comprehensive summarizer. Your task is to provide a concise yet informative summary of the given text. 
                  Focus on capturing the main ideas, key points, and overall context of the entire document.
                  Do not add any preamble to the summary or mention that you are providing a summary.
-                 Simply provide the summary of the entire document.
+                 Do no use phrases like "the document" or "this text".
+                 Simply provide the summary of the entire document like you are speaking to a friend.
                  Keep the summary under 2 paragraphs.
                  """
                  ),

@@ -6,6 +6,18 @@ import tiktoken
 from langchain.docstore.document import Document
 from pytube import YouTube
 from flask_app.services.HelperService import HelperService
+from werkzeug.datastructures import FileStorage
+from flask_app.services.TimestampService import TimestampService
+from flask_app.services.FalService import FalService
+from langchain_community.document_loaders import YoutubeLoader
+from flask_app.src.shared.common_fn import get_llm
+from flask_app.constants import GPT_4O_MINI
+from langchain_core.messages import HumanMessage
+from langchain_core.pydantic_v1 import BaseModel, Field, validator
+
+class ImageText(BaseModel):
+    imageText: str = Field(description="Text extracted from the image.")
+
 
 class ChunkService:
     @staticmethod
@@ -120,3 +132,49 @@ class ChunkService:
             ))
 
         return chunks
+
+    @staticmethod
+    def get_image_chunks(
+        image_url: str,
+    ):
+        model = get_llm(GPT_4O_MINI).with_structured_output(ImageText)
+
+        message = HumanMessage(
+            content=[
+                {"type": "text", "text": "You are an OCR text extraction model, you will give me the text from this image and nothing else."},
+                {"type": "image_url", "image_url": {"url": image_url}},
+            ],
+        )
+
+        response: ImageText = model.invoke([message])
+
+        print(f"response: {response.imageText}")
+
+        return ChunkService.get_text_chunks(text=response.imageText)
+
+    @staticmethod
+    def get_audio_chunks(
+        audio_url: str,
+    ):
+        timestamps = FalService.transcribe_audio_from_url(audio_url=audio_url)
+        return ChunkService.get_timestamp_chunks(transcript=timestamps)
+
+    @staticmethod
+    def get_text_file_chunks(
+        file: FileStorage,
+    ):
+        return []
+
+    @staticmethod
+    def get_youtube_timestamps(
+        youtube_url: str,
+    ):
+        loader = YoutubeLoader.from_youtube_url(
+            youtube_url, add_video_info=False
+        )
+
+        chunks = loader.load()
+
+        final_text = "".join([chunk.page_content for chunk in chunks])
+
+        return ChunkService.get_text_chunks(text=final_text)
