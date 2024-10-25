@@ -66,9 +66,9 @@ async def processing_source(
     await asyncio.to_thread(SupaGraphService.update_embeddings, courseId)
     logging.info(f"Setting comStatus to complete for course {courseId}")
 
-    # await asyncio.to_thread(GraphUpdateService.update_graph_positions, courseId)
+    await asyncio.to_thread(GraphUpdateService.update_graph_positions, courseId)
 
-    # await asyncio.to_thread(SummaryService.generate_note_summary, userId, courseId, NOTEID, noteId)
+    await asyncio.to_thread(SummaryService.generate_note_summary, userId, courseId, NOTEID, noteId)
 
     await asyncio.to_thread(QuizServiceNew.generate_quiz_template, noteId, courseId)
 

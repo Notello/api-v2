@@ -39,24 +39,16 @@ class QuizServiceNew:
 
         tasks = []
 
-        # for topic in top_topics:
-        #     task = asyncio.create_task(
-        #         QuizServiceNew.generate_path_for_topic(
-        #             topic=topic, 
-        #             topics=topics, 
-        #             courseId=courseId, 
-        #             noteId=noteId
-        #             )
-        #     )
-        #     tasks.append(task)
-
-
-        QuizServiceNew.generate_path_for_topic(
-            topic=top_topics[0], 
-            topics=topics, 
-            courseId=courseId, 
-            noteId=noteId
+        for topic in top_topics:
+            task = asyncio.create_task(
+                QuizServiceNew.generate_path_for_topic(
+                    topic=topic, 
+                    topics=topics, 
+                    courseId=courseId, 
+                    noteId=noteId
+                    )
             )
+            tasks.append(task)
         print("done !!")
 
 
