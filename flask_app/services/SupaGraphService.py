@@ -202,6 +202,7 @@ class SupaGraphService():
             if similar_topic:
                 output = SupaGraphService.get_topic_context(
                     topicId=similar_topic['id'], 
+                    topicName=similar_topic['name'],
                     num_chunks=num_chunks, 
                     num_related_concepts=num_related_concepts,
                     param=param,
@@ -228,6 +229,7 @@ class SupaGraphService():
             
             output = SupaGraphService.get_topic_context(
                 topicId=similar_topic['id'],
+                topicName=similar_topic['name'],
                 num_chunks=num_chunks * 2,
                 num_related_concepts=num_related_concepts,
                 param=param, 
@@ -285,6 +287,7 @@ class SupaGraphService():
     @staticmethod
     def get_topic_context(
         topicId: str, 
+        topicName: str,
         num_chunks: int, 
         num_related_concepts: int, 
         param: str, 
@@ -306,12 +309,9 @@ class SupaGraphService():
         topics = topics if topics is not None else SupaGraphService.get_topics_for_param(param=param, id=id, courseId=courseId)
 
         allRelatedTopics = []
-        mainTopic = None
 
         for topic in topics:
-            if topic['id'] == topicId:
-                mainTopic = topic
-            elif topic['id'] in relatedTopicsSet:
+            if topic['id'] in relatedTopicsSet:
                 allRelatedTopics.append({'topic': topic, 'type': relatedTopicsSet[topic['id']]})
 
         relatedTopics = [{
@@ -326,6 +326,7 @@ class SupaGraphService():
             'document_name': chunk['document_name'],
             'text': chunk['content'],
             'id': chunk['noteId'],
+            'chunkId': chunk['id'],
             'offset': chunk['offset'],
             'noteId': chunk['noteId']
         } for chunk in allChunks[:num_chunks]]
@@ -333,7 +334,7 @@ class SupaGraphService():
         return {
             'start_concept': {
                 'uuid': topicId,
-                'id': mainTopic['name'],
+                'id': topicName,
             },
             'related_chunks': chunks,
             'related_concepts': relatedTopics
@@ -387,6 +388,14 @@ class SupaGraphService():
 
         topics = SupaGraphService.get_topics_for_param(param=param, id=id, courseId=courseId)
 
+        topic_lookup = {}
+        for topic in topics:
+            topic_lookup[topic['id']] = topic
+            if 'mergedId' in topic and topic['mergedId'] is not None:
+                topic_lookup[topic['mergedId']] = topic
+
+        print(f"topic lookup {topic_lookup.keys()}")
+
         topic_map = {topic['id']: topic.get('mergedId', topic['id']) for topic in topics}
 
         topic_counts = {}
@@ -399,9 +408,11 @@ class SupaGraphService():
 
         top_topics = sorted(topic_counts.items(), key=lambda x: x[1], reverse=True)[:limit]
 
+        print(f"top topics: {top_topics}")
+
         result = []
         for topic_id, count in top_topics:
-            topic_info = next((topic for topic in topics if topic['id'] == topic_id or topic.get('mergedId') == topic_id), None)
+            topic_info = topic_lookup.get(topic_id)
             if topic_info:
                 result.append({
                     'id': topic_id,

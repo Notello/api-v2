@@ -187,6 +187,7 @@ class SummaryService():
                                 courseId=courseId,
                                 noteId=noteId,
                                 topicId=topic['id'],
+                                topicName=topic['name'],
                                 param=specifierParam,
                                 id=id,
                                 topics=topics
@@ -201,6 +202,7 @@ class SummaryService():
         userId: str,
         courseId: str,
         topicId: str,
+        topicName: str,
         noteId: str,
         param: str,
         id: str,
@@ -211,6 +213,7 @@ class SummaryService():
 
             topic_graph = SupaGraphService.get_topic_context(
                 topicId=topicId, 
+                topicName=topicName,
                 param=param, 
                 id=id, 
                 num_chunks=5, 

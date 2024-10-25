@@ -11,6 +11,7 @@ from flask_app.services.NodeUpdateService import NodeUpdateService
 from flask_app.services.SupaGraphService import SupaGraphService
 from flask_app.services.GraphUpdateService import GraphUpdateService
 from flask_app.services.SummaryService import SummaryService
+from flask_app.services.QuizServiceNew import QuizServiceNew
 from flask_app.constants import NOTEID
 
 async def processing_source(
@@ -65,9 +66,11 @@ async def processing_source(
     await asyncio.to_thread(SupaGraphService.update_embeddings, courseId)
     logging.info(f"Setting comStatus to complete for course {courseId}")
 
-    await asyncio.to_thread(GraphUpdateService.update_graph_positions, courseId)
+    # await asyncio.to_thread(GraphUpdateService.update_graph_positions, courseId)
 
-    await asyncio.to_thread(SummaryService.generate_note_summary, userId, courseId, NOTEID, noteId)
+    # await asyncio.to_thread(SummaryService.generate_note_summary, userId, courseId, NOTEID, noteId)
+
+    await asyncio.to_thread(QuizServiceNew.generate_quiz_template, noteId, courseId)
 
     await asyncio.to_thread(SupabaseService.update_note, noteId=noteId, key='graphStatus', value='complete')
     

@@ -4,7 +4,6 @@ def init_api(api):
     from .chat import api as chat_ns
     from .health import api as health_ns
     from .flashcard import api as flashcard_ns
-    from .summary import api as summary_ns
     from .note import api as note_ns
     from .course import api as course_ns
     from .user import api as user_ns
@@ -17,7 +16,6 @@ def init_api(api):
     api.add_namespace(chat_ns)
     api.add_namespace(health_ns)
     api.add_namespace(flashcard_ns)
-    api.add_namespace(summary_ns)
     api.add_namespace(course_ns)
     api.add_namespace(user_ns)
     api.add_namespace(auth_ns)
