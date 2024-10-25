@@ -20,7 +20,7 @@ async def processing_source(
       courseId,
       noteId,
       summary
-      ):
+    ):
         
     logging.info("Break down file into chunks")
 
@@ -56,6 +56,8 @@ async def processing_source(
     except Exception as e:
         logging.exception(f"Error in processing chunks: {e}")
         raise e
+    
+    logging.info(f"nodes_data: {nodes_data}")
     
     await asyncio.to_thread(SupaGraphService.merge_similar_nodes, courseId)
     logging.info(f"Setting mergeStatus to complete for course {courseId}")

@@ -21,13 +21,12 @@ from flask_app.services.GraphQueryService import GraphQueryService
 from flask_app.services.RedisService import RedisService
 from flask_app.services.FalService import FalService
 from flask_app.services.ChunkService import ChunkService
+from flask_app.services.YoutubeApiLoader import YouTubeTranscriptFetcher
 from flask_app.constants import COURSEID, getGraphKey
 from flask_app.extensions import r
 
 from flask_app.src.document_sources.pdf_loader import extract_text
 from flask_app.constants import NOTE, NOTEID
-
-pthread = ThreadPoolExecutor(max_workers=10)
 
 class NoteForm(Enum):
     TEXT = 'text'
@@ -252,22 +251,28 @@ class NoteService:
         origionalNoteId: str = None,
     ): 
         logging.info(f"Creating youtube note: {youtubeUrl}")
+        loader = YouTubeTranscriptFetcher()
+
+        title = loader.get_video_title(youtubeUrl)
+
         noteId = NoteService.create_note(
             courseId=courseId, 
             userId=userId, 
             form=NoteForm.YOUTUBE,
             sourceUrl=youtubeUrl, 
-            title="Youtube Video",
+            title=title,
             noteId=origionalNoteId,
             parentId=parentId
             )
     
         if not HelperService.validate_all_uuid4(noteId):
             return None
-
-        pthread.submit(
-            NoteService.youtube_video_to_graph,
-            noteId, courseId, userId, youtubeUrl
+        
+        NoteService.youtube_video_to_graph(
+            noteId=noteId,
+            courseId=courseId,
+            userId=userId,
+            youtubeUrl=youtubeUrl
         )
 
         return noteId
@@ -327,10 +332,12 @@ class NoteService:
                 audio_file.save(temp_file)
                 temp_file_path = temp_file.name
 
-            # Start the processing in a new thread
-            pthread.submit(
-                NoteService.audio_file_to_graph,
-                noteId, courseId, userId, temp_file_path, title
+            NoteService.audio_file_to_graph(
+                noteId=noteId,
+                courseId=courseId,
+                userId=userId,
+                temp_file_path=temp_file_path,
+                original_filename=title
             )
 
         except Exception as e:
@@ -389,9 +396,12 @@ class NoteService:
         if not HelperService.validate_all_uuid4(noteId):
             return None
         
-        pthread.submit(
-            GraphCreationService.create_graph_from_raw_text,
-            noteId, courseId, userId, rawText, noteName
+        GraphCreationService.create_graph_from_raw_text(
+            noteId=noteId,
+            courseId=courseId,
+            userId=userId,
+            rawText=rawText,
+            fileName=noteName
         )
 
         return noteId
@@ -448,9 +458,13 @@ class NoteService:
         
         file_content = file.read()
 
-        pthread.submit(
-            NoteService.pdf_file_to_graph,
-            noteId, courseId, userId, file.filename, file_content, file_type
+        NoteService.pdf_file_to_graph(
+            noteId=noteId,
+            courseId=courseId,
+            userId=userId,
+            file_name=file.filename,
+            file_content=file_content,
+            file_type=file_type
         )
 
         return noteId
@@ -462,24 +476,20 @@ class NoteService:
         userId: str,
         youtubeUrl: str,
     ):
-        title = HelperService.get_youtube_title(youtube_url=youtubeUrl)
-
-        SupabaseService.update_note(noteId=noteId, key='title', value=title)
-
         logging.info(f"Creating youtube note: {youtubeUrl}")
         try:
-            timestamps = TimestampService.get_youtube_timestamps(youtube_url=youtubeUrl)
+            chunks = ChunkService.get_youtube_timestamps(youtube_url=youtubeUrl)
 
             SupabaseService.update_note(noteId=noteId, key='sourceUrl', value=youtubeUrl)
             SupabaseService.update_note(noteId=noteId, key='contentStatus', value='complete')
 
-            GraphCreationService.create_graph_from_timestamps(
-                timestamps=timestamps,
-                document_name=title,
+            GraphCreationService.create_graph(
                 noteId=noteId,
                 courseId=courseId,
-                userId=userId
-                )
+                userId=userId,
+                fileName="Youtube Video",
+                chunks=chunks
+            )
         except Exception as e:
             logging.exception(f'Exception Stack trace: {e}')
 
@@ -574,6 +584,8 @@ class NoteService:
                 )
             
             logging.info(f"File uploaded successfully for note {noteId}")
+
+            return noteId
 
         except Exception as e:
             SupabaseService.update_note(noteId=noteId, key='contentStatus', value='error')

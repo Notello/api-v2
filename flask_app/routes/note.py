@@ -12,8 +12,9 @@ from flask_app.services.GraphDeletionService import GraphDeletionService
 
 from flask_app.routes.middleware import token_required
 from flask_app.routes.auth import authorizations
+from flask_app.services.RatelimitService import RatelimitService
 
-from flask_app.constants import COURSEID, NOTEID
+from flask_app.constants import COURSEID, NOTE, NOTEID
 
 api = Namespace('note', authorizations=authorizations)
 
@@ -353,8 +354,8 @@ create_note_parser.add_argument(COURSEID, location='form',
                         type=str, required=True,
                         help='Course ID associated with the note')
 create_note_parser.add_argument(NOTEID, location='form', 
-                        type=str, required=False,
-                        help='Optional note ID to edit')
+                        type=str, required=True,
+                        help='NoteId of the note to process')
 create_note_parser.add_argument("content", location='form',
                         type=str, required=True,
                         help='The content of the note')
@@ -362,7 +363,7 @@ create_note_parser.add_argument("title", location='form',
                         type=str, required=True,
                         help='The title of the note')
 
-        
+
 @api.expect(create_note_parser)
 @api.route('/create')
 class CreateNote(Resource):
@@ -385,6 +386,10 @@ class CreateNote(Resource):
         except Exception as e:
             logging.exception(f'Exception Stack trace: {e}')
             return {'message': 'Invalid content'}, 400
+        
+        if RatelimitService.is_rate_limited(userId=userId, type=NOTE):
+            logging.error(f"User {userId} has exceeded their note upload rate limit")
+            return {"message": "You have exceeded your note upload rate limit"}, 250
         
         try:
             NoteService.create_note_new(

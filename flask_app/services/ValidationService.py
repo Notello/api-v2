@@ -67,11 +67,6 @@ class ValidationService:
             logging.error(f"Invalid userId: {userId}, courseId: {courseId}")
             return valid, code
         
-        duration = HelperService.get_video_duration(youtube_url=youtubeUrl)
-        if duration > ValidationService.YOUTUBE_MAX_DURATION and not AuthService.is_super_admin(userId):
-            logging.error(f"YouTube video exceeds the maximum duration of 2 hours: {youtubeUrl}")
-            return False, 400
-        
         return True, 200
     
     @staticmethod

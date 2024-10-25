@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "notello",
+  "private_key_id": "d35a3e1d01e24fbc57376a98d234f8c6d19893c2",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDOmSNxVGsyZaCp\nJi3UXIl9YyI1i6GmpE0O4rd0PLPjEXshCC78qso7ZYnyrArLzYuqc4440tEjMOJH\nnr0lg4SS2ceP92CMI7lLlaM6zCnkaoewAGsPCPbeGjKvzPYR8IEeT4MAkNgZL+Lh\nOd4DI8T4OSx8RHy/e3dN9/y/4v6/i9digiUyPtDZv5cPKZbbId09SswcMf+l6G/a\nddtMDduBAk+C5T4AUXqUAGiHn7k1Dp8je1rYxrw2DGTE/31M1LSqTiIFy5Wt0TZs\n9h+QLXvqmdcnal24cOzXe9H+I4asPoT026S7u0WYc+eVCjwotlX8VSHoXYSJ4zbg\nccpiv5iNAgMBAAECggEAKVWKOcpiCBs9IZp54NsCxwtmdMAS/3wvzqKdgawDcZK1\nx84TWInzHB8ckmjJYC0nnFqyQbwsC5ZkL2AbB75gb+EShENCFcev8udlWQYv+3s0\n2om64a8xdQ5YxcOEF+K+cooF878G/UMPaXBics5dQixuMg6hxs20+Ox8rQeFYF0G\nF9L3El2CrdPK3UpSN7IBsJqSORtiLNvbFKTYpZ0Z1/vleaIuf/rG+EQisCJh3Izk\nfEmEcf7KR4NrtqUNvqq3Nz73Zabqd+DBNf5/UCzSvc9n7UyIbx+KPLhhX/NFSbmI\nbvy7X+FMFkplhqQD8Cuv5mEP9iL4pxWzPjWQ+KeOAQKBgQDqnANcXFsxzQiczwcw\nh2kYpKF+jBhP5p49M9UIdIUmpVbUWvI3SQn+mshmxovyWG7LfiUki3YzpwSP+P1q\nSk3FT36plsJNed5xAisJRhsWpV5sttP5a6G0GXwlwLxJrtd/6cn7orLLWmSTVe9x\nSRlADf1mDMlzJBcZypQtxe3N3QKBgQDhb1GqlhKxak3Ypd7vHNDLavhIBjqUQKfq\nKuzJRCHJOFYX3Zu2PASnfewKGvIADJmPDd5l30qrvDcYO1vMpoVCGT60ykkpnNjS\nZ9TS1wh/nZhlCZHAEezfKRiLbtNgqRTR9UHgxMEFGxowJU2BOZaGMXygsiFKNjDQ\nAYt4aRwCcQKBgQDKeTqtS0epAzqbmlCqITMigXKetGmHC5ElYMZKNcV0RN1bB+Ji\ntDZb9Vle2ZuN26RDGusTTwkEKvBVEJ4kTVwxHRpDYkjudG71ONnLdyWJtc54JJFs\ngOddd2Edc+kL7kktq6cV9KQ5vBlwzomHS37vOSOoHwD8zfjh2WNo3ZkOQQKBgEI6\nBr7bibBPL4Fm8UBDsd8glMHr+oeVGv9DDv7tohNQFpK6SsVVinR+HLq3QcLb8LzC\n8UPyPiiHiZP31Dch8GIDspVAHBA6gMQHNtGd1GRRMvTzw7quSW0h0JEdxMFPyssH\nhwv2IVJTrPTZ8JP3DA5uOVOoIPmBRAPHgGamUlExAoGBAOcvWhV3qfvNKSsSzHAq\ny0pQA6AzQrOFyF6wmERNHiXGy1UZnh0hfSnSTbVmxbO4zzYNymXN9wiiO/mS+HXT\nU1LjLZsgljYQK421ZYj1Cnpq9zPPa7D3f2T5b9dRDmsY5HRPJvh/mQsDS0PI3SDs\n7PYMDENVJbeSpwyvk/UnVJv/\n-----END PRIVATE KEY-----\n",
+  "client_email": "youtube-transcript-account@notello.iam.gserviceaccount.com",
+  "client_id": "102821633720461237323",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/youtube-transcript-account%40notello.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

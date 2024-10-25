@@ -1,4 +1,5 @@
 import logging
+import os
 import re
 from typing import Dict, List
 
@@ -13,7 +14,11 @@ from langchain_community.document_loaders import YoutubeLoader
 from flask_app.src.shared.common_fn import get_llm
 from flask_app.constants import GPT_4O_MINI
 from langchain_core.messages import HumanMessage
+from flask_app.services.YoutubeApiLoader import YouTubeTranscriptFetcher
 from langchain_core.pydantic_v1 import BaseModel, Field, validator
+
+from dotenv import load_dotenv
+load_dotenv()
 
 class ImageText(BaseModel):
     imageText: str = Field(description="Text extracted from the image.")
@@ -169,12 +174,12 @@ class ChunkService:
     def get_youtube_timestamps(
         youtube_url: str,
     ):
-        loader = YoutubeLoader.from_youtube_url(
-            youtube_url, add_video_info=False
-        )
+        logging.info(f"api key: {os.getenv('YOUTUBE_API_KEY')}")
+        
+        fetcher = YouTubeTranscriptFetcher()
 
-        chunks = loader.load()
+        transcript_text = fetcher.get_transcript(youtube_url)
 
-        final_text = "".join([chunk.page_content for chunk in chunks])
+        logging.info(transcript_text)
 
-        return ChunkService.get_text_chunks(text=final_text)
+        return ChunkService.get_text_chunks(text=transcript_text)

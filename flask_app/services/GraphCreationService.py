@@ -91,14 +91,6 @@ class GraphCreationService:
                 noteId=noteId,
                 summary=summary
                 )
-            
-            RedisService.setGraph(key=NOTEID, id=noteId)
-
-            logging.info(f"Setting graph for noteId: {noteId}")
-            
-            RedisService.setGraph(key=COURSEID, id=courseId)
-
-            logging.info(f"Setting graph for courseId: {courseId}")
 
             SupabaseService.update_note(noteId=noteId, key='updatedAt', value=datetime.now())
 
