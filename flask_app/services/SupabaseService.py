@@ -6,6 +6,7 @@ import os
 from typing import Dict, List
 from supabase import Client, create_client
 from flask_app.services.HelperService import HelperService
+from flask_app.services.SupaGraphService import SupaGraphService
 
 from flask_app.constants import *
 
@@ -534,7 +535,9 @@ class SupabaseService:
         
     @staticmethod
     def get_node_context(
-        nodeId
+        nodeId,
+        courseId,
+        noteId
     ):
         node = SupabaseService.get_obj_by_id(
             id=nodeId,
@@ -550,5 +553,42 @@ class SupabaseService:
             single=False
         )
 
+        nodeMainTopic = SupabaseService.get_obj_by_id(
+            id=node["mainConceptId"],
+            param="id",
+            table_name=TOPIC_TABLE_NAME,
+            single=True
+        )
 
-        
+        topic_context = SupaGraphService.get_topic_context(
+            topicId=nodeMainTopic['id'], 
+            topicName=nodeMainTopic['name'],
+            num_chunks=5, 
+            num_related_concepts=20, 
+            courseId=courseId,
+            topics=None,
+            param=NOTEID,
+            id=noteId
+        )
+
+        return {
+            "questions": node_questions,
+            "context": topic_context
+        }
+    
+    @staticmethod
+    def update_node_question(
+        nodeQuestionId,
+        question
+    ):
+        supabase.table(NODE_QUESTION_TABLE_NAME).update({"question": question}).eq("id", nodeQuestionId).execute()
+
+    @staticmethod
+    def insert_node_question_answer(
+        answers
+    ):
+        print(f"in insert answers: {answers}")
+        try:
+            supabase.table(NODE_QUESTION_ANSWER_TABLE_NAME).insert(answers).execute()
+        except Exception as e:
+            print(f"ERROR: {e}")

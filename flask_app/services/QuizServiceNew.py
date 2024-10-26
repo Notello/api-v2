@@ -3,7 +3,6 @@ from enum import Enum
 from typing import List
 from flask_app.services.SupaGraphService import SupaGraphService
 from flask_app.services.SupabaseService import SupabaseService
-from flask_app.constants import NOTEID
 from concurrent.futures import ThreadPoolExecutor
 
 from langchain_core.pydantic_v1 import BaseModel, Field
@@ -19,16 +18,35 @@ from flask_app.constants import (
     QUIZ_NODE_TABLE_NAME, 
     NODE_QUESTION_TABLE_NAME, 
     NOTE_QUIZ_CARD_TABLE_NAME,
-    ID
+    ID,
+    NOTEID,
+    NOTE_TABLE_NAME
 )
 
 from uuid import uuid4
 
 class QuestionType(str, Enum):
     DEF_MCQ = "definition based mcq question"
+    DEF_MULTI_SELECT_MCQ = "definition based mcq multi select question"
     DEF_MATCH = "definition based matching question"
     APP_MCQ = "application based mcq question"
     APP_SHORT_ANSWER = "application based short answer question"
+
+def question_type_to_enum(question_type):
+    if question_type == "definition based mcq question":
+        return QuestionType.DEF_MCQ
+    elif question_type == "definition based mcq multi select question":
+        return QuestionType.DEF_MULTI_SELECT_MCQ
+    elif question_type == "definition based matching question":
+        return QuestionType.DEF_MATCH
+    elif question_type == "application based mcq question":
+        return QuestionType.APP_MCQ
+    elif question_type == "application based short answer question":
+        return QuestionType.APP_SHORT_ANSWER
+    else:
+        return None
+    
+## Question Path Generation
 
 class Question(BaseModel):
     question_type: QuestionType = Field(description="Type of question.")
@@ -44,11 +62,57 @@ class QuestionResult(BaseModel):
     subnodes: List[SubTopicNode] = Field(description="A list of subtopic nodes in the study path.")
     mainConceptDesc: str = Field(description="A description of what is covered surrounding the main concept.")
 
+## Individual Question Generation
+
+class McqAnswer(BaseModel):
+    answer: str = Field(description="The answer text")
+    correct: bool = Field(description="A boolean value indicating whether the answer is correct")
+    explanation: str = Field(description="A concise, informative explanation of why the answer is correct or incorrect")
+
+class McqQuestion(BaseModel):
+    question: str = Field(description="The question text")
+    answers: List[McqAnswer] = Field(description="A list of four possible answers")
+
+class MatchingAnswer(BaseModel):
+    term: str = Field(description="The term to be matched to a definition")
+    definition: str = Field(description="The descripiton to be matched to a term")
+
+class MatchingQuestion(BaseModel):
+    question: str = Field(description="The question text")
+    answers: List[MatchingAnswer] = Field(description="A list of 6 possible answers")
+
+class ShortAnswerQuestion(BaseModel):
+    question: str = Field(description="The question text")
+    rubric: str = Field(description="An outline of what the correct answer could look like, and what the wrong one might look like")
+
 class QuizServiceNew:
+    @staticmethod
+    def get_context_str(
+        context
+    ):
+        main_concept = context['start_concept']['id']
+        main_concept_uuid = context['start_concept']['uuid']
+        related_concepts = context['related_concepts']
+        chunks = context['related_chunks']
+
+        chunks_str = ", ".join([f"Chunk Name: {chunk['document_name']}, Chunk UUID: {chunk['chunkId']}, Chunk Text: {chunk['text']}" for chunk in chunks])
+        related_concepts_str = ", ".join([f"Concept Name: {concept['id']}, Concept UUID: {concept['uuid']}" for concept in related_concepts])
+
+        context_str = f"Main Concept: {main_concept}\n Main Concept UUID: {main_concept_uuid}\n Related Concepts: {related_concepts_str}\n Chunks: {chunks_str}"
+
+        return context_str, main_concept
+
+
     @staticmethod
     async def generate_quiz_template(noteId: str, courseId: str, userId: str):
         top_topics = SupaGraphService.get_top_topics(param=NOTEID, id=noteId, limit=5, courseId=courseId)
         topics = SupaGraphService.get_topics_for_param(param=NOTEID, id=noteId, courseId=courseId)
+        noteSummary = SupabaseService.get_obj_by_id(
+            id=noteId,
+            param=ID,
+            table_name=NOTE_TABLE_NAME,
+            single=True
+        )['summary']
 
         futures = []
         
@@ -61,13 +125,21 @@ class QuizServiceNew:
                                 topics=topics, 
                                 courseId=courseId, 
                                 noteId=noteId,
-                                userId=userId
+                                userId=userId,
+                                noteSummary=noteSummary
                         ))
 
         print("done !!")
 
     @staticmethod
-    def generate_path_for_topic(topic, topics, courseId, noteId, userId):
+    def generate_path_for_topic(
+        topic, 
+        topics, 
+        courseId, 
+        noteId, 
+        userId,
+        noteSummary
+    ):
         print(f"in generate path, topic: {topic}")
         print(f"topicId: {topic['id']}")
 
@@ -82,25 +154,15 @@ class QuizServiceNew:
             id=noteId
         )
                 
-        main_concept = topic_context['start_concept']['id']
-        main_concept_uuid = topic_context['start_concept']['uuid']
-        related_concepts = topic_context['related_concepts']
-        chunks = topic_context['related_chunks']
-
-        print(f"related_concepts: {related_concepts}")
-        print(f"chunks: {chunks}")
-        print(f"main_concept: {main_concept}")
-        print(f"main_concept_id: {main_concept_uuid}")
-
-        chunks_str = ", ".join([f"Chunk Name: {chunk['document_name']}, Chunk UUID: {chunk['chunkId']}, Chunk Text: {chunk['text']}" for chunk in chunks])
-        related_concepts_str = ", ".join([f"Concept Name: {concept['id']}, Concept UUID: {concept['uuid']}" for concept in related_concepts])
-
-        context_str = f"Main Concept: {main_concept}\n Main Concept UUID: {main_concept_uuid}\n Related Concepts: {related_concepts_str}\n Chunks: {chunks_str}"
+        context_str, main_concept = QuizServiceNew.get_context_str(context=topic_context)
 
         prompt = ChatPromptTemplate.from_messages([
         ('system', f"""
-        You are an expert educational content creator tasked with creating a structured learning path for understanding {main_concept}. 
-        Using the provided context, create a study path with 4-5 subtopic nodes that will help a student comprehensively understand this concept.
+        You are an expert educational content creator tasked with creating a structured learning path for understanding {main_concept} in the context of a note. 
+        Using the provided context, and note summary, create a study path with 4-5 subtopic nodes that will help a student comprehensively understand this concept in the context of the note.
+
+        Note Summary:
+        {noteSummary}
 
         Context Information:
         {context_str}
@@ -108,9 +170,10 @@ class QuizServiceNew:
         Requirements for the study path:
 
         1. Each node should represent a crucial subtopic or aspect of {main_concept}
-        2. Nodes should be arranged in a logical learning sequence, from foundational to more advanced concepts
-        3. Each node should contain 6-8 questions of varying types
-        4. Questions should progress from basic understanding to application within each node
+        2. The questions should be in the general context of the note summary, NOT on the concepts in general
+        3. Nodes should be arranged in a logical learning sequence, from foundational to more advanced concepts
+        4. Each node should contain 6-8 questions of varying types
+        5. Questions should progress from basic understanding to application within each node
 
         For each node, provide:
         - Position (1-5)
@@ -119,13 +182,14 @@ class QuizServiceNew:
         - Questions list (6-8 questions with specified types)
 
         For each question, specify:
-        - Question type (choose from: definition based mcq, definition based matching, application based mcq, or application based short answer)
+        - Question type (choose from: definition based mcq, definition based multi select mcq, definition based matching, application based mcq, or application based short answer)
         - Question description, a description of what the question is meant to test in the user.
 
         Important Notes:
         - Do not generate the actual questions, only specify their types and descriptions of what they are about
         - Make sure the progression of nodes builds upon previous knowledge
         - Questions should vary in type to test different levels of understanding
+        - DO NOT use the word 'node' in the node or question descriptions, this a purely internal term and not one the end user should see
         """)])
 
         llm = get_llm(GPT_4O_MODEL).with_structured_output(QuestionResult)
@@ -195,15 +259,222 @@ class QuizServiceNew:
         noteId,
         courseId
     ):
-        questions = SupabaseService.get_node_context(nodeId=nodeId)
+        questions_context = SupabaseService.get_node_context(
+            nodeId=nodeId,
+            noteId=noteId,
+            courseId=courseId
+        )
 
-        return None
+        noteSummary = SupabaseService.get_obj_by_id(
+            id=noteId,
+            param=ID,
+            table_name=NOTE_TABLE_NAME,
+            single=True
+        )['summary']
 
         futures = []
+
+        questions = questions_context['questions']
+        context = questions_context['context']
 
         with ThreadPoolExecutor(max_workers=10) as executor:
             for question in questions:
                     futures.append(
                         executor.submit(
-
+                            QuizServiceNew.generate_question,
+                            question,
+                            context,
+                            noteSummary,
+                            nodeId
                         ))
+                    
+    @staticmethod
+    def generate_question(
+        question,
+        context,
+        noteSummary,
+        nodeId
+    ):
+        print("node")
+
+        context_str, main_concept = QuizServiceNew.get_context_str(context=context)
+
+        qType = question_type_to_enum(question['questionType'])
+
+        if qType is None:
+            return None
+
+        prompt, llm = QuizServiceNew.get_question_inputs(
+            question=question,
+            qType=qType,
+            context_str=context_str,
+            noteSummary=noteSummary
+        )
+
+        invokable = prompt | llm
+        result = invokable.invoke({})
+
+        print(f"result: {result}")
+
+        QuizServiceNew.insert_question(
+            nodeQuestionId=question['id'],
+            result=result,
+            qType=qType
+        )
+    
+    @staticmethod
+    def insert_question(
+        nodeQuestionId,
+        result,
+        qType
+    ):
+        answers = []
+
+        print("in insert question")
+
+        if qType == QuestionType.APP_SHORT_ANSWER:
+            answers = [{
+                "nodeQuestionId": nodeQuestionId, 
+                "explanation": result.rubric,
+                "type": qType.value
+            }]
+        elif qType == QuestionType.DEF_MATCH:
+            answers = [{
+                "nodeQuestionId": nodeQuestionId, 
+                "answer": answer.term, 
+                "explanation": answer.definition,
+                "type": qType.value
+            } for answer in result.answers]
+        else:
+            answers = [{
+                "nodeQuestionId": nodeQuestionId, 
+                "answer": answer.answer, 
+                "explanation": answer.explanation, 
+                "correct": answer.correct,
+                "type": qType.value
+            } for answer in result.answers]
+
+        print(f"answers: {answers}")
+
+        SupabaseService.update_node_question(
+            nodeQuestionId=nodeQuestionId,
+            question=result.question
+        )
+
+        SupabaseService.insert_node_question_answer(
+            answers=answers
+        )
+
+    @staticmethod
+    def get_question_inputs(
+        question,
+        qType,
+        context_str,
+        noteSummary
+    ):
+        structuredOutputType, context_prompt = None, ""
+
+        if qType == QuestionType.DEF_MCQ:
+            structuredOutputType = McqQuestion
+            context_prompt = f"""
+            You are a single answer multiple choice creation bot. You make multiple choice questions with clear answers and explanations.
+            You will produce 4 answers, with explanations as to why each option is right or wrong.
+            You will produce meaningfully different answers, speciffically you should avoid the following type of response:
+            Option 1: Correct because it matches reason A
+            Option 2: Incorrect because it doesn't match reason A
+            Option 3: Incorrect because it doesn't match reason A
+            Option 4: Incorrect because it doesn't match reason A
+
+            Your options and explanations should be comprehensive, not surface level.
+
+            Your question should be based on the description given below:
+            {question['questionDesc']}
+
+            Use the following context to create the question:
+            {context_str}
+
+            Use the following note summary to provide the general context the question should be in:
+            {noteSummary}
+            """
+        elif qType == QuestionType.DEF_MATCH:
+            structuredOutputType = MatchingQuestion
+            context_prompt = f"""
+            You are a term definition matching question creation bot.
+            You will produce answers that clearly make sense in the context of the note summary.
+
+            Your question should be based on the description given below:
+            {question['questionDesc']}
+
+            Use the following context to create the question:
+            {context_str}
+
+            Use the following note summary to provide the general context the question should be in:
+            {noteSummary}
+            """
+        elif qType == QuestionType.DEF_MULTI_SELECT_MCQ:
+            structuredOutputType = McqQuestion
+            context_prompt = f"""
+            You are a multi answer multiple choice creation bot. You make multiple choice questions with clear answers and explanations.
+            You will produce 5 answers, with explanations as to why each option is right or wrong.
+            You will produce meaningfully different answers, speciffically you should avoid the following type of response:
+            Option 1: Correct because it matches reason A
+            Option 2: Incorrect because it doesn't match reason A
+            Option 3: Incorrect because it doesn't match reason A
+            Option 4: Correct because it matches reason A
+            Option 5: Incorrect because it doesn't match reason A
+
+            Your options and explanations should be comprehensive, not surface level.
+
+            Your question should be based on the description given below:
+            {question['questionDesc']}
+
+            Use the following context to create the question:
+            {context_str}
+
+            Use the following note summary to provide the general context the question should be in:
+            {noteSummary}
+            """
+        elif qType == QuestionType.APP_MCQ:
+            structuredOutputType = McqQuestion
+            context_prompt = f"""
+            You are an application based single answer multiple choice creation bot. You make application based multiple choice questions with clear answers and explanations.
+            You will produce 4 answers, with explanations as to why each option is right or wrong.
+            You will produce meaningfully different answers, speciffically you should avoid the following type of response:
+            Option 1: Correct because it matches reason A
+            Option 2: Incorrect because it doesn't match reason A
+            Option 3: Incorrect because it doesn't match reason A
+            Option 4: Incorrect because it doesn't match reason A
+
+            Your options and explanations should be comprehensive, not surface level.
+
+            Your question should be based on the description given below:
+            {question['questionDesc']}
+
+            Use the following context to create the question:
+            {context_str}
+
+            Use the following note summary to provide the general context the question should be in:
+            {noteSummary}
+            """
+        elif qType == QuestionType.APP_SHORT_ANSWER:
+            structuredOutputType = ShortAnswerQuestion
+            context_prompt = f"""
+            You are an application based short answer question creation bot. You provide clear and consise questions that will take 1-2 paragraphs to answer.
+            The question should be application based, and it should use the context of the note summary to ground the question.
+
+            Your question should be based on the description given below:
+            {question['questionDesc']}
+
+            Use the following context to create the question:
+            {context_str}
+
+            Use the following note summary to provide the general context the question should be in:
+            {noteSummary}
+            """
+        
+        print("wow")
+
+        llm = get_llm(GPT_4O_MINI).with_structured_output(structuredOutputType)
+        prompt = ChatPromptTemplate.from_messages([('system', context_prompt)])
+
+        return prompt, llm

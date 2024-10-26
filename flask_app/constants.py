@@ -27,6 +27,8 @@ NODE_QUESTION_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_nodeQuestion"
 QUESTION_CHUNK_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_questionChunk"
 QUESTION_TOPIC_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_questionTopic"
 NOTE_QUIZ_CARD_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_noteQuizCard"
+NODE_QUESTION_ANSWER_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_nodeQuestionAnswer"
+NODE_QUESTION_USER_ANSWER_TABLE_NAME = f"{os.getenv('ENV_TYPE')}_webapp-v2_nodeQuestionUserAnswer"
 
 getGraphKey = lambda id: f"graph:{id}"
 getSummaryKey = lambda id: f"summary:{id}"

@@ -56,7 +56,7 @@ def load_embedding_model(
 ):
   embeddings = OpenAIEmbeddings(max_retries=max_retries, retry_max_seconds=retry_max_seconds, retry_min_seconds=retry_min_seconds)
   dimension = 1536
-  logging.info(f"Embedding: Using OpenAI Embeddings , Dimension:{dimension}")
+  logging.info(f"Embedding: Using OpenAI Embeddings, Dimension: {dimension}")
   return embeddings, dimension
    
 def close_db_connection(graph, api_name):
