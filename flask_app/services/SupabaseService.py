@@ -497,3 +497,15 @@ class SupabaseService:
         out = supabase.table(NOTE_TABLE_NAME).select('*').eq(mapped_param[param], str(id)).execute().data
 
         return True if out else False
+    
+    @staticmethod
+    def insert_batch(
+        data,
+        table_name
+    ):
+        try:
+            supabase.table(table_name).insert(data).execute()
+        except Exception as e:
+            logging.error(f"ERROR INSERTING INTO TABLE {table_name}")
+            logging.info(f"ERROR: {e}")
+            logging.info(f"DATA: {data}")

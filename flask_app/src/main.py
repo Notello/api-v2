@@ -70,7 +70,7 @@ async def processing_source(
 
     await asyncio.to_thread(SummaryService.generate_note_summary, userId, courseId, NOTEID, noteId)
 
-    await asyncio.to_thread(QuizServiceNew.generate_quiz_template, noteId, courseId)
+    await QuizServiceNew.generate_quiz_template(noteId=noteId, courseId=courseId, userId=userId)
 
     await asyncio.to_thread(SupabaseService.update_note, noteId=noteId, key='graphStatus', value='complete')
     

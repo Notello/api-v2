@@ -2,13 +2,17 @@ import asyncio
 from enum import Enum
 from typing import List
 from flask_app.services.SupaGraphService import SupaGraphService
+from flask_app.services.SupabaseService import SupabaseService
 from flask_app.constants import NOTEID
+from concurrent.futures import ThreadPoolExecutor
 
 from langchain_core.pydantic_v1 import BaseModel, Field
 from langchain_core.prompts import ChatPromptTemplate
 
 from flask_app.src.shared.common_fn import get_llm
-from flask_app.constants import GPT_4O_MODEL
+from flask_app.constants import GPT_4O_MINI, GPT_4O_MODEL, QUESTION_CHUNK_TABLE_NAME, QUESTION_TOPIC_TABLE_NAME, QUIZ_NODE_TABLE_NAME, NODE_QUESTION_TABLE_NAME, NOTE_QUIZ_CARD_TABLE_NAME
+
+from uuid import uuid4
 
 class QuestionType(str, Enum):
     DEF_MCQ = "definition based mcq question"
@@ -18,6 +22,7 @@ class QuestionType(str, Enum):
 
 class Question(BaseModel):
     question_type: QuestionType = Field(description="Type of question.")
+    question_description: str = Field(description="What the question is meant to test.")
     relevant_chunk_ids: List[str] = Field(description="Chunk Ids relevant to the question.")
     relevant_topic_ids: List[str] = Field(description="Topic Ids relevant to the question.")
 
@@ -29,31 +34,32 @@ class SubTopicNode(BaseModel):
 
 class QuestionResult(BaseModel):
     subnodes: List[SubTopicNode] = Field(description="A list of subtopic nodes in the study path.")
+    mainConceptDesc: str = Field(description="A description of what is covered surrounding the main concept.")
 
 class QuizServiceNew:
     @staticmethod
-    def generate_quiz_template(noteId: str, courseId: str):
+    async def generate_quiz_template(noteId: str, courseId: str, userId: str):
         top_topics = SupaGraphService.get_top_topics(param=NOTEID, id=noteId, limit=5, courseId=courseId)
-
         topics = SupaGraphService.get_topics_for_param(param=NOTEID, id=noteId, courseId=courseId)
 
-        tasks = []
+        futures = []
+        
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            for topic in top_topics:
+                    futures.append(
+                        executor.submit(
+                            QuizServiceNew.generate_path_for_topic,
+                                topic=topic, 
+                                topics=topics, 
+                                courseId=courseId, 
+                                noteId=noteId,
+                                userId=userId
+                        ))
 
-        for topic in top_topics:
-            task = asyncio.create_task(
-                QuizServiceNew.generate_path_for_topic(
-                    topic=topic, 
-                    topics=topics, 
-                    courseId=courseId, 
-                    noteId=noteId
-                    )
-            )
-            tasks.append(task)
         print("done !!")
 
-
     @staticmethod
-    def generate_path_for_topic(topic, topics, courseId, noteId):
+    def generate_path_for_topic(topic, topics, courseId, noteId, userId):
         print(f"in generate path, topic: {topic}")
         print(f"topicId: {topic['id']}")
 
@@ -66,7 +72,7 @@ class QuizServiceNew:
             topics=topics,
             param=NOTEID,
             id=noteId
-            )
+        )
                 
         main_concept = topic_context['start_concept']['id']
         main_concept_uuid = topic_context['start_concept']['uuid']
@@ -106,6 +112,7 @@ class QuizServiceNew:
 
         For each question, specify:
         - Question type (choose from: definition based mcq, definition based matching, application based mcq, or application based short answer)
+        - Question description, a description of what the question is meant to test in the user.
         - Relevant chunk IDs from the provided context
         - Relevant topic IDs from the provided context
 
@@ -119,7 +126,92 @@ class QuizServiceNew:
         llm = get_llm(GPT_4O_MODEL).with_structured_output(QuestionResult)
 
         invokable = prompt | llm
-        result: QuestionType = invokable.invoke({})
+        result: QuestionResult = invokable.invoke({})
 
-        print(result)
+        nodes = []
+        nodeQuestions = []
+        questionChunks = []
+        questionTopics = []
 
+        noteQuizCardId = str(uuid4())
+
+        for node in result.subnodes:
+            nodeId = str(uuid4())
+
+            nodes.append({
+                "id": nodeId,
+                "noteQuizCardId": noteQuizCardId,
+                "position": node.position,
+                "name": node.name,
+                "description": node.description
+            })
+
+            for question in node.questions:
+                questionId = str(uuid4())
+
+                nodeQuestions.append({
+                    "id": questionId,
+                    "quizNodeId": nodeId,
+                    "questionType": question.question_type,
+                    "questionDesc": question.question_description
+                })
+
+                for chunkId in question.relevant_chunk_ids:
+                    questionChunks.append({
+                        "questionId": questionId,
+                        "chunkId": chunkId
+                    })
+
+                for topicId in question.relevant_topic_ids:
+                    questionTopics.append({
+                        "questionId": questionId,
+                        "topicId": topicId
+                    })
+
+        SupabaseService.insert_batch(
+            data=[{
+                "id": noteQuizCardId,
+                "userId": userId,
+                "courseId": courseId,
+                "noteId": noteId,
+                "mainConceptName": topic['name'],
+                "description": result.mainConceptDesc
+            }],
+            table_name=NOTE_QUIZ_CARD_TABLE_NAME
+        )
+
+        # print(f"nodes data: {nodes}")
+
+        SupabaseService.insert_batch(
+            data=nodes,
+            table_name=QUIZ_NODE_TABLE_NAME
+        )
+
+        # print(f"node questions: {nodeQuestions}")
+
+        SupabaseService.insert_batch(
+            data=nodeQuestions,
+            table_name=NODE_QUESTION_TABLE_NAME
+        )
+
+        # print(f"question chunks: {questionChunks}")
+
+        SupabaseService.insert_batch(
+            data=questionChunks,
+            table_name=QUESTION_CHUNK_TABLE_NAME
+        )
+
+        # print(f"question topics: {questionTopics}")
+
+        SupabaseService.insert_batch(
+            data=questionTopics,
+            table_name=QUESTION_TOPIC_TABLE_NAME
+        )
+
+    @staticmethod
+    def generate_questions_for_node(
+        nodeId,
+        noteId,
+        courseId
+    ):
+        pass
