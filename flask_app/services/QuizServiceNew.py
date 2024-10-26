@@ -8,9 +8,19 @@ from concurrent.futures import ThreadPoolExecutor
 
 from langchain_core.pydantic_v1 import BaseModel, Field
 from langchain_core.prompts import ChatPromptTemplate
+from pprint import pprint
 
 from flask_app.src.shared.common_fn import get_llm
-from flask_app.constants import GPT_4O_MINI, GPT_4O_MODEL, QUESTION_CHUNK_TABLE_NAME, QUESTION_TOPIC_TABLE_NAME, QUIZ_NODE_TABLE_NAME, NODE_QUESTION_TABLE_NAME, NOTE_QUIZ_CARD_TABLE_NAME
+from flask_app.constants import (
+    GPT_4O_MINI, 
+    GPT_4O_MODEL, 
+    QUESTION_CHUNK_TABLE_NAME, 
+    QUESTION_TOPIC_TABLE_NAME, 
+    QUIZ_NODE_TABLE_NAME, 
+    NODE_QUESTION_TABLE_NAME, 
+    NOTE_QUIZ_CARD_TABLE_NAME,
+    ID
+)
 
 from uuid import uuid4
 
@@ -23,8 +33,6 @@ class QuestionType(str, Enum):
 class Question(BaseModel):
     question_type: QuestionType = Field(description="Type of question.")
     question_description: str = Field(description="What the question is meant to test.")
-    relevant_chunk_ids: List[str] = Field(description="Chunk Ids relevant to the question.")
-    relevant_topic_ids: List[str] = Field(description="Topic Ids relevant to the question.")
 
 class SubTopicNode(BaseModel):
     position: int = Field(description="What place in the path the node is.")
@@ -91,7 +99,8 @@ class QuizServiceNew:
 
         prompt = ChatPromptTemplate.from_messages([
         ('system', f"""
-        You are an expert educational content creator tasked with creating a structured learning path for understanding {main_concept}. Using the provided context, create a study path with 4-5 subtopic nodes that will help a student comprehensively understand this concept.
+        You are an expert educational content creator tasked with creating a structured learning path for understanding {main_concept}. 
+        Using the provided context, create a study path with 4-5 subtopic nodes that will help a student comprehensively understand this concept.
 
         Context Information:
         {context_str}
@@ -101,8 +110,7 @@ class QuizServiceNew:
         1. Each node should represent a crucial subtopic or aspect of {main_concept}
         2. Nodes should be arranged in a logical learning sequence, from foundational to more advanced concepts
         3. Each node should contain 6-8 questions of varying types
-        4. Questions should reference relevant chunk IDs and topic IDs from the provided context
-        5. Questions should progress from basic understanding to application within each node
+        4. Questions should progress from basic understanding to application within each node
 
         For each node, provide:
         - Position (1-5)
@@ -113,12 +121,9 @@ class QuizServiceNew:
         For each question, specify:
         - Question type (choose from: definition based mcq, definition based matching, application based mcq, or application based short answer)
         - Question description, a description of what the question is meant to test in the user.
-        - Relevant chunk IDs from the provided context
-        - Relevant topic IDs from the provided context
 
         Important Notes:
-        - Do not generate the actual questions, only specify their types and relevant IDs
-        - Ensure questions reference appropriate chunks that contain relevant information
+        - Do not generate the actual questions, only specify their types and descriptions of what they are about
         - Make sure the progression of nodes builds upon previous knowledge
         - Questions should vary in type to test different levels of understanding
         """)])
@@ -128,10 +133,11 @@ class QuizServiceNew:
         invokable = prompt | llm
         result: QuestionResult = invokable.invoke({})
 
+        print("RESULT")
+        pprint(result)
+
         nodes = []
         nodeQuestions = []
-        questionChunks = []
-        questionTopics = []
 
         noteQuizCardId = str(uuid4())
 
@@ -140,6 +146,7 @@ class QuizServiceNew:
 
             nodes.append({
                 "id": nodeId,
+                "mainConceptId": topic['id'],
                 "noteQuizCardId": noteQuizCardId,
                 "position": node.position,
                 "name": node.name,
@@ -155,18 +162,6 @@ class QuizServiceNew:
                     "questionType": question.question_type,
                     "questionDesc": question.question_description
                 })
-
-                for chunkId in question.relevant_chunk_ids:
-                    questionChunks.append({
-                        "questionId": questionId,
-                        "chunkId": chunkId
-                    })
-
-                for topicId in question.relevant_topic_ids:
-                    questionTopics.append({
-                        "questionId": questionId,
-                        "topicId": topicId
-                    })
 
         SupabaseService.insert_batch(
             data=[{
@@ -194,24 +189,21 @@ class QuizServiceNew:
             table_name=NODE_QUESTION_TABLE_NAME
         )
 
-        # print(f"question chunks: {questionChunks}")
-
-        SupabaseService.insert_batch(
-            data=questionChunks,
-            table_name=QUESTION_CHUNK_TABLE_NAME
-        )
-
-        # print(f"question topics: {questionTopics}")
-
-        SupabaseService.insert_batch(
-            data=questionTopics,
-            table_name=QUESTION_TOPIC_TABLE_NAME
-        )
-
     @staticmethod
     def generate_questions_for_node(
         nodeId,
         noteId,
         courseId
     ):
-        pass
+        questions = SupabaseService.get_node_context(nodeId=nodeId)
+
+        return None
+
+        futures = []
+
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            for question in questions:
+                    futures.append(
+                        executor.submit(
+
+                        ))

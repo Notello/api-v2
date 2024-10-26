@@ -509,3 +509,46 @@ class SupabaseService:
             logging.error(f"ERROR INSERTING INTO TABLE {table_name}")
             logging.info(f"ERROR: {e}")
             logging.info(f"DATA: {data}")
+
+    @staticmethod
+    def get_obj_by_id(
+        id,
+        param,
+        table_name,
+        single
+    ):
+        obj = supabase.table(table_name).select("*").eq(param, str(id)).execute().data
+
+        if not obj:
+            return None
+        else:
+            return obj[0] if single else obj
+        
+    @staticmethod
+    def get_obj_by_in_list(
+        id_list,
+        param,
+        table_name
+    ):
+        return supabase.table(table_name).select("*").in_(param, id_list).execute().data
+        
+    @staticmethod
+    def get_node_context(
+        nodeId
+    ):
+        node = SupabaseService.get_obj_by_id(
+            id=nodeId,
+            param="id",
+            table_name=QUIZ_NODE_TABLE_NAME,
+            single=True
+        )
+
+        node_questions = SupabaseService.get_obj_by_id(
+            id=nodeId,
+            param="quizNodeId",
+            table_name=NODE_QUESTION_TABLE_NAME,
+            single=False
+        )
+
+
+        
