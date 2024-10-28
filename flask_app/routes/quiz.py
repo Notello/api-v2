@@ -52,3 +52,54 @@ class GenerateQuiz(Resource):
         except Exception as e:
             logging.exception(f"Error generating quiz: {str(e)}")
             return {'message': str(e)}, 500
+
+grade_frq_question = api.parser()
+
+grade_frq_question.add_argument('question', location='form', 
+                        type=str, required=True,
+                        help='Question to access based on')
+grade_frq_question.add_argument('answer', location='form', 
+                        type=str, required=True,
+                        help='User answer')
+grade_frq_question.add_argument('mainConceptId', location='form', 
+                        type=str, required=True,
+                        help='Main concept')
+grade_frq_question.add_argument('mainConceptName', location='form', 
+                        type=str, required=True,
+                        help='Main concept')
+create_quiz_parser.add_argument(NOTEID, location='form', 
+                        type=str, required=True,
+                        help='Note ID associated with the quiz, if not provided a topic list is required')
+create_quiz_parser.add_argument(COURSEID, location='form', 
+                        type=str, required=True,
+                        help='Course ID associated with the quiz')
+
+
+@api.expect(grade_frq_question)
+@api.route('/grade-frq-question')
+class GradeFrqQuestion(Resource):
+    @api.doc(security="jsonWebToken")
+    @token_required
+    def post(self):
+        try:
+            args = grade_frq_question.parse_args()
+            question = args.get("question", None)
+            answer = args.get("answer", None)
+            mainConceptId = args.get("mainConceptId", None)
+            mainConceptName = args.get("mainConceptName", None)
+            noteId = args.get(NOTEID, None)
+            courseId = args.get(COURSEID, None)
+
+            response = QuizServiceNew.grade_frq_question(
+                question=question,
+                answer=answer,
+                mainConceptId=mainConceptId,
+                mainConceptName=mainConceptName,
+                noteId=noteId,
+                courseId=courseId
+            )
+
+            return response, 200
+        except Exception as e:
+            logging.exception(f"Error generating quiz: {str(e)}")
+            return {'message': str(e)}, 500

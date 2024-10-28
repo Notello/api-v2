@@ -30,7 +30,7 @@ class QuestionType(str, Enum):
     DEF_MULTI_SELECT_MCQ = "definition based mcq multi select question"
     DEF_MATCH = "definition based matching question"
     APP_MCQ = "application based mcq question"
-    APP_SHORT_ANSWER = "application based short answer question"
+    # APP_SHORT_ANSWER = "application based short answer question"
 
 def question_type_to_enum(question_type):
     if question_type == "definition based mcq question":
@@ -41,8 +41,8 @@ def question_type_to_enum(question_type):
         return QuestionType.DEF_MATCH
     elif question_type == "application based mcq question":
         return QuestionType.APP_MCQ
-    elif question_type == "application based short answer question":
-        return QuestionType.APP_SHORT_ANSWER
+    # elif question_type == "application based short answer question":
+    #     return QuestionType.APP_SHORT_ANSWER
     else:
         return None
     
@@ -84,6 +84,12 @@ class MatchingQuestion(BaseModel):
 class ShortAnswerQuestion(BaseModel):
     question: str = Field(description="The question text")
     rubric: str = Field(description="An outline of what the correct answer could look like, and what the wrong one might look like")
+
+## FRQ Grading
+
+class FrqResponse(BaseModel):
+    correct: bool = Field(description="If the answer is overall correct or not")
+    explanation: str = Field(description="An explanation as to why the answer is correct or incorrect")
 
 class QuizServiceNew:
     @staticmethod
@@ -182,7 +188,7 @@ class QuizServiceNew:
         - Questions list (6-8 questions with specified types)
 
         For each question, specify:
-        - Question type (choose from: definition based mcq, definition based multi select mcq, definition based matching, application based mcq, or application based short answer)
+        - Question type (choose from: definition based mcq, definition based multi select mcq, definition based matching, application based mcq)
         - Question description, a description of what the question is meant to test in the user.
 
         Important Notes:
@@ -478,3 +484,51 @@ class QuizServiceNew:
         prompt = ChatPromptTemplate.from_messages([('system', context_prompt)])
 
         return prompt, llm
+    
+    @staticmethod
+    def grade_frq_question(
+        question,
+        answer,
+        mainConceptId,
+        mainConceptName,
+        noteId,
+        courseId
+    ):
+        topics = SupaGraphService.get_topics_for_param(param=NOTEID, id=noteId, courseId=courseId)
+
+        topic_context = SupaGraphService.get_topic_context(
+            topicId=mainConceptId, 
+            topicName=mainConceptName,
+            num_chunks=5, 
+            num_related_concepts=20, 
+            courseId=courseId,
+            topics=topics,
+            param=NOTEID,
+            id=noteId
+        )
+                
+        context_str, main_concept = QuizServiceNew.get_context_str(context=topic_context)
+
+        prompt = ChatPromptTemplate.from_messages([
+        ('system', f"""
+        You are an free response question grader. You provide accurate and insightful evaluations of free response questions based on the provided context.
+
+        Question:
+        {question}
+
+        User Answer:
+        {answer}
+
+        Context:
+        {context_str}
+        """)])
+
+        llm = get_llm(GPT_4O_MINI).with_structured_output(FrqResponse)
+
+        invokable = prompt | llm
+        result: FrqResponse = invokable.invoke({})
+
+        return {
+            "correct": result.correct,
+            "explanation": result.explanation
+        }
