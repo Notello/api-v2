@@ -2,7 +2,6 @@ import json
 
 from flask_app.services.GraphQueryService import GraphQueryService
 from flask_app.constants import getGraphKey
-from flask_app.extensions import r
 
 class RedisService:
     @staticmethod

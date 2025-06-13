@@ -6,17 +6,16 @@ import redis
 from supabase import create_client
 import runpod
 from neo4j.time import DateTime
-import fal_client
 
 from dotenv import load_dotenv
 load_dotenv()
 
-r = redis.Redis(
-  host=os.getenv('REDIS_HOST'),
-  port=os.getenv('REDIS_PORT'),
-  password=os.getenv('REDIS_PASSWORD'),
-  ssl=True
-)
+# r = redis.Redis(
+#   host=os.getenv('REDIS_HOST'),
+#   port=os.getenv('REDIS_PORT'),
+#   password=os.getenv('REDIS_PASSWORD'),
+#   ssl=True
+# )
 
 api = Api(doc='/docs', title='Notello API', version='1.0', description='An API for Notello')
 

@@ -6,22 +6,15 @@ import os
 import tempfile
 from werkzeug.datastructures import FileStorage
 import logging
-from datetime import datetime
 
 from flask_app.services.SupabaseService import SupabaseService
-from flask_app.services.RunpodService import RunpodService
 from flask_app.services.GraphCreationService import GraphCreationService
 from flask_app.services.SimilarityService import SimilarityService
 from flask_app.services.TimestampService import TimestampService
 from flask_app.services.HelperService import HelperService
-from flask_app.services.ContextAwareThread import ContextAwareThread
 from flask_app.services.AuthService import AuthService
 from flask_app.services.GraphDeletionService import GraphDeletionService
-from flask_app.services.GraphQueryService import GraphQueryService
-from flask_app.services.RedisService import RedisService
 from flask_app.services.FalService import FalService
-from flask_app.constants import COURSEID, getGraphKey
-from flask_app.extensions import r
 
 from flask_app.src.document_sources.pdf_loader import extract_text
 from flask_app.constants import NOTE, NOTEID
@@ -80,8 +73,6 @@ class NoteService:
 
         SupabaseService.delete_note(noteId=noteId, bucketName=bucketName)
         GraphDeletionService.delete_node_for_param(param=NOTEID, id=noteId)
-
-        RedisService.setGraph(key=COURSEID, id=courseId)
 
     @staticmethod
     def edit_note(
