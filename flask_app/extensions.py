@@ -2,7 +2,6 @@ import json
 import os
 from flask_restx import Api
 from flask_cors import CORS
-import redis
 from supabase import create_client
 import runpod
 from neo4j.time import DateTime

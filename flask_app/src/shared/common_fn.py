@@ -51,7 +51,7 @@ def create_graph_database_connection(uri, userName, password, database):
 
 def load_embedding_model(
     retry_max_seconds=1,
-    retry_min_seconds=0.1,
+    retry_min_seconds=1,
     max_retries=1
 ):
   embeddings = OpenAIEmbeddings(max_retries=max_retries, retry_max_seconds=retry_max_seconds, retry_min_seconds=retry_min_seconds)
